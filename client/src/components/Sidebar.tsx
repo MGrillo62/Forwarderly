@@ -32,7 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
     { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['ADMIN', 'VENDEDOR'] },
     { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['ADMIN', 'VENDEDOR'] },
     { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['ADMIN'] },
-    { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['ADMIN'] },
+    { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
   ];
 
