@@ -63,4 +63,46 @@ router.put('/me', authenticate, async (req: AuthRequest, res) => {
   res.json(updated);
 });
 
+router.put('/:id', authenticate, async (req: AuthRequest, res) => {
+  const { empresaId: userEmpresaId, rol: userRol } = req.user!;
+  const { id } = req.params;
+  const { nombres, apellidos, celular, correo, rol, estado, empresaId, password } = req.body;
+
+  try {
+    const existingUser = await prisma.usuario.findUnique({ where: { id } });
+    if (!existingUser) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    // Validate permissions
+    if (userRol !== 'SUPER_ADMIN') {
+      if (existingUser.empresaId !== userEmpresaId) {
+        return res.status(403).json({ message: 'No tienes permiso para editar este usuario' });
+      }
+      if (rol === 'SUPER_ADMIN') {
+        return res.status(403).json({ message: 'No puedes asignar el rol de Super Admin' });
+      }
+      if (existingUser.rol === 'SUPER_ADMIN') {
+         return res.status(403).json({ message: 'No puedes editar un Super Admin' });
+      }
+    }
+
+    const data: any = { nombres, apellidos, celular, correo, rol, estado };
+    if (userRol === 'SUPER_ADMIN' && empresaId) {
+       data.empresaId = empresaId;
+    }
+    
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
+
+    const updated = await prisma.usuario.update({
+      where: { id },
+      data
+    });
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar usuario' });
+  }
+});
+
 export default router;
