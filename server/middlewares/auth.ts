@@ -21,6 +21,15 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     req.user = decoded;
+
+    // Permitir a SUPER_ADMIN actuar como una empresa en específico
+    if (req.user?.rol === 'SUPER_ADMIN') {
+      const targetEmpresaId = req.header('x-empresa-id');
+      if (targetEmpresaId) {
+        req.user.empresaId = targetEmpresaId;
+      }
+    }
+
     next();
   } catch (err) {
     res.status(401).json({ message: 'Token no es válido' });

@@ -17,6 +17,8 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   loading: boolean;
+  selectedEmpresaId: string | null;
+  setSelectedEmpresaId: (id: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [selectedEmpresaId, setSelectedEmpresaIdState] = useState<string | null>(localStorage.getItem('selectedEmpresaId'));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,12 +47,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('selectedEmpresaId');
     setToken(null);
     setUser(null);
+    setSelectedEmpresaIdState(null);
+  };
+
+  const setSelectedEmpresaId = (id: string | null) => {
+    if (id) localStorage.setItem('selectedEmpresaId', id);
+    else localStorage.removeItem('selectedEmpresaId');
+    setSelectedEmpresaIdState(id);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, selectedEmpresaId, setSelectedEmpresaId }}>
       {children}
     </AuthContext.Provider>
   );

@@ -20,7 +20,7 @@ const prisma = new PrismaClient();
 app.use(cors({
   origin: '*', // Permite todos los orígenes para pruebas
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-empresa-id']
 }));
 
 app.use(express.json());
