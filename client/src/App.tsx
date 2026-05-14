@@ -143,31 +143,31 @@ function App() {
           } />
 
           <Route path="/clientes" element={
-            <ProtectedRoute roles={['ADMIN', 'VENDEDOR']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
               <Layout><Clientes /></Layout>
             </ProtectedRoute>
           } />
 
           <Route path="/proveedores" element={
-            <ProtectedRoute roles={['ADMIN', 'VENDEDOR']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
               <Layout><Proveedores /></Layout>
             </ProtectedRoute>
           } />
 
           <Route path="/cotizaciones" element={
-            <ProtectedRoute roles={['ADMIN', 'VENDEDOR']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
               <Layout><Cotizaciones /></Layout>
             </ProtectedRoute>
           } />
 
           <Route path="/ordenes" element={
-            <ProtectedRoute roles={['ADMIN', 'VENDEDOR']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
               <Layout><Ordenes /></Layout>
             </ProtectedRoute>
           } />
 
           <Route path="/categorias" element={
-            <ProtectedRoute roles={['ADMIN']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN']}>
               <Layout><Categorias /></Layout>
             </ProtectedRoute>
           } />

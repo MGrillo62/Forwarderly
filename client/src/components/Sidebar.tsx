@@ -27,11 +27,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
     { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'] },
-    { name: 'Clientes', icon: Users, path: '/clientes', roles: ['ADMIN', 'VENDEDOR'] },
-    { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['ADMIN', 'VENDEDOR'] },
-    { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['ADMIN', 'VENDEDOR'] },
-    { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['ADMIN', 'VENDEDOR'] },
-    { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['ADMIN'] },
+    { name: 'Clientes', icon: Users, path: '/clientes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
   ];

@@ -24,7 +24,10 @@ const Categorias: React.FC = () => {
   };
 
   const handleAddCategoria = async () => {
-    if (!newCatName) return;
+    if (!newCatName.trim()) {
+      alert('Por favor, escribe un nombre para la categoría.');
+      return;
+    }
     try {
       await api.post('/categorias', { nombre: newCatName });
       setNewCatName('');
