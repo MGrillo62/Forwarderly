@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -41,12 +43,22 @@ const Login: React.FC = () => {
           </div>
           <div className="form-group">
             <label>Contraseña</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              required 
-            />
+            <div className="password-input-wrapper">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                required 
+              />
+              <button 
+                type="button" 
+                className="password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
           <button type="submit" className="primary full-width">Entrar</button>
         </form>
@@ -83,6 +95,30 @@ const Login: React.FC = () => {
         }
         .form-group {
           margin-bottom: 1.5rem;
+        }
+        .password-input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        .password-input-wrapper input {
+          width: 100%;
+          padding-right: 45px;
+        }
+        .password-toggle {
+          position: absolute;
+          right: 12px;
+          background: none;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          padding: 0;
+          transition: color 0.2s;
+        }
+        .password-toggle:hover {
+          color: var(--primary);
         }
         label {
           display: block;
