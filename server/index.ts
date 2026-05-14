@@ -16,8 +16,19 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
-app.use(cors());
+// Configuración de CORS más explícita
+app.use(cors({
+  origin: '*', // Permite todos los orígenes para pruebas
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
+
+// Ruta de prueba para verificar que el servidor está vivo
+app.get('/', (req, res) => {
+  res.send('Forwarderly API is running...');
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
