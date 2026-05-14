@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Search, User, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const Clientes: React.FC = () => {
   const { token } = useAuth();
@@ -17,9 +17,7 @@ const Clientes: React.FC = () => {
 
   const fetchClientes = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/clientes', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/clientes');
       setClientes(response.data);
     } catch (err) {
       console.error(err);
@@ -29,9 +27,7 @@ const Clientes: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/clientes', newCliente, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post('/clientes', newCliente);
       setShowModal(false);
       setNewCliente({ ruc: '', razonSocial: '', direccion: '', contacto: '' });
       fetchClientes();

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, Edit, Trash2, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Plus, Eye, Edit, CheckCircle, XCircle, Send } from 'lucide-react';
 import CotizacionForm from '../components/CotizacionForm';
 
 const Cotizaciones: React.FC = () => {
@@ -17,9 +17,7 @@ const Cotizaciones: React.FC = () => {
 
   const fetchCotizaciones = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/cotizaciones', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/cotizaciones');
       setCotizaciones(response.data);
       setLoading(false);
     } catch (err) {
@@ -30,9 +28,7 @@ const Cotizaciones: React.FC = () => {
   const handleUpdateStatus = async (id: string, estado: string) => {
     if (!window.confirm(`¿Seguro que desea cambiar el estado a ${estado}?`)) return;
     try {
-      await axios.put(`http://localhost:5000/api/cotizaciones/${id}`, { estado }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put(`/cotizaciones/${id}`, { estado });
       fetchCotizaciones();
     } catch (err) {
       alert('Error al actualizar estado');

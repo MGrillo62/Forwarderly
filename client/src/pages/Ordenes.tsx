@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Package, 
   Search, 
   Filter, 
   DollarSign, 
   Clock, 
-  Calendar,
-  Truck,
-  Ship,
-  CheckCircle2,
-  AlertCircle
 } from 'lucide-react';
 
 const Ordenes: React.FC = () => {
@@ -27,9 +21,7 @@ const Ordenes: React.FC = () => {
 
   const fetchOrdenes = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/ordenes', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/ordenes');
       setOrdenes(response.data);
       setLoading(false);
     } catch (err) {
@@ -39,9 +31,7 @@ const Ordenes: React.FC = () => {
 
   const handleUpdateOrden = async (id: string, data: any) => {
     try {
-      await axios.put(`http://localhost:5000/api/ordenes/${id}`, data, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put(`/ordenes/${id}`, data);
       fetchOrdenes();
       setSelectedOrden(null);
     } catch (err: any) {

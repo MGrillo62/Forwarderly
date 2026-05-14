@@ -6,6 +6,8 @@ interface User {
   rol: string;
   nombres: string;
   apellidos: string;
+  correo: string;
+  celular?: string;
   empresa?: any;
 }
 

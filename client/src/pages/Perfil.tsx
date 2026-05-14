@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { User, Phone, Mail, Lock, Save } from 'lucide-react';
 
@@ -17,9 +17,7 @@ const Perfil: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await axios.put('http://localhost:5000/api/usuarios/me', formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.put('/usuarios/me', formData);
       // Update local storage and context
       const updatedUser = { ...user, ...response.data };
       localStorage.setItem('user', JSON.stringify(updatedUser));

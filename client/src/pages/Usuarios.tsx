@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, User, Shield, UserCheck, UserX } from 'lucide-react';
+import { Plus, Shield, UserCheck, UserX } from 'lucide-react';
 
 const Usuarios: React.FC = () => {
   const { token } = useAuth();
@@ -17,9 +17,7 @@ const Usuarios: React.FC = () => {
 
   const fetchUsuarios = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/usuarios', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/usuarios');
       setUsuarios(response.data);
     } catch (err) {
       console.error(err);
@@ -29,9 +27,7 @@ const Usuarios: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/usuarios', newUser, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post('/usuarios', newUser);
       setShowModal(false);
       setNewUser({ username: '', password: '', nombres: '', apellidos: '', correo: '', rol: 'VENDEDOR', celular: '' });
       fetchUsuarios();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Tags, Trash2, CheckSquare, Square } from 'lucide-react';
 
@@ -16,9 +16,7 @@ const Categorias: React.FC = () => {
 
   const fetchCategorias = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/categorias', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/categorias');
       setCategorias(response.data);
     } catch (err) {
       console.error(err);
@@ -28,9 +26,7 @@ const Categorias: React.FC = () => {
   const handleAddCategoria = async () => {
     if (!newCatName) return;
     try {
-      await axios.post('http://localhost:5000/api/categorias', { nombre: newCatName }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post('/categorias', { nombre: newCatName });
       setNewCatName('');
       fetchCategorias();
     } catch (err) {
@@ -41,9 +37,7 @@ const Categorias: React.FC = () => {
   const handleAddConcepto = async (catId: string) => {
     if (!newConcept.nombre) return;
     try {
-      await axios.post(`http://localhost:5000/api/categorias/${catId}/conceptos`, newConcept, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post(`/categorias/${catId}/conceptos`, newConcept);
       setNewConcept({ nombre: '', incluirPorDefecto: false });
       setShowConceptForm(null);
       fetchCategorias();

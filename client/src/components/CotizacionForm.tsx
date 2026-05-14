@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, Save, X } from 'lucide-react';
 
@@ -27,9 +27,9 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
   const fetchData = async () => {
     try {
       const [cRes, pRes, catRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/clientes', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:5000/api/proveedores', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:5000/api/categorias', { headers: { Authorization: `Bearer ${token}` } })
+        api.get('/clientes'),
+        api.get('/proveedores'),
+        api.get('/categorias')
       ]);
       setClientes(cRes.data);
       setProveedores(pRes.data);
@@ -130,13 +130,9 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     try {
       const data = { clienteId, lineas };
       if (initialData) {
-        await axios.put(`http://localhost:5000/api/cotizaciones/${initialData.id}`, data, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await api.put(`/cotizaciones/${initialData.id}`, data);
       } else {
-        await axios.post('http://localhost:5000/api/cotizaciones', data, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await api.post('/cotizaciones', data);
       }
       onSave();
     } catch (err) {

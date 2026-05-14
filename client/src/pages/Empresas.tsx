@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Building2, Calendar, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Building2 } from 'lucide-react';
 
 const Empresas: React.FC = () => {
   const { token } = useAuth();
@@ -17,9 +17,7 @@ const Empresas: React.FC = () => {
 
   const fetchEmpresas = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/empresas', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/empresas');
       setEmpresas(response.data);
     } catch (err) {
       console.error(err);
@@ -29,11 +27,9 @@ const Empresas: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/empresas', {
+      await api.post('/empresas', {
         ...newEmpresa,
         fechaInicio: new Date(newEmpresa.fechaInicio)
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setShowModal(false);
       fetchEmpresas();

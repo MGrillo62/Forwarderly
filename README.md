@@ -34,10 +34,11 @@ Este sistema permite gestionar todo el flujo de importación, desde la cotizaci�
 1. Conectar el repositorio a Railway.
 2. Configurar las variables de entorno en el dashboard de Railway.
 3. El archivo `railway.json` ya está configurado.
+4. **URL de Producción**: https://marivan-production.up.railway.app
 
 ### Frontend
 1. El frontend se puede desplegar en Railway (usando un static builder) o en Vercel/Netlify.
-2. Asegurarse de actualizar la URL del API en el frontend si es necesario.
+2. La URL del API configurada para producción es `https://marivan-production.up.railway.app/api`.
 
 ## Funcionalidades Core
 - **Cotizador Dinámico**: Cálculos automáticos de IGV (18%), Utilidad y Margen.

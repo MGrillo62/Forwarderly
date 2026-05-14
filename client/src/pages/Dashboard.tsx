@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
 import { 
   FileText, 
   Package, 
   Users, 
   TrendingUp, 
   Clock, 
-  CheckCircle,
   AlertCircle
 } from 'lucide-react';
 
@@ -27,9 +26,9 @@ const Dashboard: React.FC = () => {
   const fetchStats = async () => {
     try {
       const [cotRes, ordRes, cliRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/cotizaciones', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:5000/api/ordenes', { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get('http://localhost:5000/api/clientes', { headers: { Authorization: `Bearer ${token}` } })
+        api.get('/cotizaciones'),
+        api.get('/ordenes'),
+        api.get('/clientes')
       ]);
       
       setStats({

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Mail, Truck, X } from 'lucide-react';
 
@@ -17,9 +17,7 @@ const Proveedores: React.FC = () => {
 
   const fetchProveedores = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/proveedores', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/proveedores');
       setProveedores(response.data);
     } catch (err) {
       console.error(err);
@@ -43,11 +41,9 @@ const Proveedores: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/proveedores', {
+      await api.post('/proveedores', {
         ...newProv,
         correos: newProv.correos.filter(e => e !== '')
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setShowModal(false);
       setNewProv({ ruc: '', razonSocial: '', correos: [''] });
