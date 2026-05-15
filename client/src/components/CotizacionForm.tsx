@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, Save, X } from 'lucide-react';
 
 interface CotizacionFormProps {
@@ -11,7 +10,6 @@ interface CotizacionFormProps {
 }
 
 const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initialData, viewOnly }) => {
-  const { token } = useAuth();
   const [clientes, setClientes] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
@@ -20,6 +18,8 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
   const [lineas, setLineas] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
+  const [showNewConceptInput, setShowNewConceptInput] = useState<string | null>(null);
+  const [newConceptName, setNewConceptName] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -126,6 +126,31 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
 
   const removeLine = (index: number) => {
     setLineas(lineas.filter((_, i) => i !== index));
+  };
+
+  const handleCreateConcept = async (categoriaId: string) => {
+    if (!newConceptName.trim()) return;
+    try {
+      const response = await api.post(`/categorias/${categoriaId}/conceptos`, {
+        nombre: newConceptName,
+        incluirPorDefecto: false
+      });
+      
+      const newConcept = response.data;
+      // Refresh categories to include the new concept
+      const catRes = await api.get('/categorias');
+      const updatedCategorias = catRes.data;
+      setCategorias(updatedCategorias);
+      
+      // Automatically add the new concept to the quotation
+      const category = updatedCategorias.find((c: any) => c.id === categoriaId);
+      addLine(newConcept, category);
+      
+      setNewConceptName('');
+      setShowNewConceptInput(null);
+    } catch (err) {
+      alert('Error al crear concepto');
+    }
   };
 
   const totals = lineas.reduce((acc, l) => ({
@@ -246,22 +271,56 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
             <div className="add-concepts-section">
               <h4>Agregar Conceptos</h4>
               <div className="categories-grid">
-                {categorias.map(cat => (
-                  <div key={cat.id} className="cat-group">
-                    <h6>{cat.nombre}</h6>
-                    <div className="concepts-list">
-                      {cat.conceptos.map((con: any) => (
-                        <button 
-                          key={con.id} 
-                          className="tag-btn" 
-                          onClick={() => addLine(con, cat)}
-                        >
-                          <Plus size={12} /> {con.nombre}
-                        </button>
-                      ))}
+                {categorias.map(cat => {
+                  const availableConcepts = cat.conceptos.filter((con: any) => 
+                    !lineas.some(l => l.conceptoId === con.id)
+                  );
+                  
+                  return (
+                    <div key={cat.id} className="cat-group">
+                      <h6>{cat.nombre}</h6>
+                      <div className="concepts-list">
+                        {availableConcepts.map((con: any) => (
+                          <button 
+                            key={con.id} 
+                            className="tag-btn" 
+                            onClick={() => addLine(con, cat)}
+                          >
+                            <Plus size={14} /> {con.nombre}
+                          </button>
+                        ))}
+                        
+                        {showNewConceptInput === cat.id ? (
+                          <div className="new-concept-inline">
+                            <input 
+                              autoFocus
+                              type="text" 
+                              placeholder="Nuevo concepto..." 
+                              value={newConceptName}
+                              onChange={(e) => setNewConceptName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleCreateConcept(cat.id);
+                                if (e.key === 'Escape') setShowNewConceptInput(null);
+                              }}
+                            />
+                            <button className="small-primary" onClick={() => handleCreateConcept(cat.id)}>OK</button>
+                            <button className="small-ghost" onClick={() => setShowNewConceptInput(null)}>X</button>
+                          </div>
+                        ) : (
+                          <button 
+                            className="tag-btn add-new-btn" 
+                            onClick={() => {
+                              setShowNewConceptInput(cat.id);
+                              setNewConceptName('');
+                            }}
+                          >
+                            <Plus size={14} /> <em>Nuevo...</em>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -360,22 +419,61 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         .concepts-list {
           display: flex;
           flex-wrap: wrap;
-          gap: 0.5rem;
-          margin-top: 0.5rem;
+          gap: 0.75rem;
+          margin-top: 0.75rem;
         }
         .tag-btn {
-          padding: 0.25rem 0.5rem;
-          font-size: 0.75rem;
+          padding: 0.5rem 1rem;
+          font-size: 0.9rem;
           background: #f1f5f9;
           border: 1px solid var(--border);
-          border-radius: 4px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
-          gap: 0.25rem;
+          gap: 0.4rem;
+          transition: all 0.2s;
+          font-weight: 500;
         }
         .tag-btn:hover {
           background: var(--secondary);
           color: white;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .tag-btn.add-new-btn {
+          background: transparent;
+          border-style: dashed;
+          color: var(--text-light);
+        }
+        .new-concept-inline {
+          display: flex;
+          gap: 0.25rem;
+          align-items: center;
+        }
+        .new-concept-inline input {
+          padding: 0.4rem;
+          font-size: 0.85rem;
+          width: 150px;
+          border-radius: 4px;
+        }
+        .small-primary {
+          background: var(--primary);
+          color: white;
+          padding: 0.4rem 0.6rem;
+          border-radius: 4px;
+          font-size: 0.8rem;
+        }
+        .small-ghost {
+          background: transparent;
+          color: var(--text-light);
+          padding: 0.4rem;
+          font-size: 0.8rem;
+        }
+        .cat-group h6 {
+          font-size: 1rem;
+          color: var(--primary);
+          margin-bottom: 0.5rem;
+          font-weight: 600;
         }
         .totals-section {
           margin-top: 2rem;
