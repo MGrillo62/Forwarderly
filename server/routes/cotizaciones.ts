@@ -30,7 +30,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         lineas: {
           create: calculatedLineas.map((l: any) => ({
             conceptoId: l.conceptoId,
-            proveedorId: l.proveedorId,
+            proveedorId: l.proveedorId && l.proveedorId !== '' ? l.proveedorId : null,
             costo: l.costo,
             precioVenta: l.precioVenta,
             valorVenta: l.valorVenta,
@@ -88,7 +88,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           lineas: {
             create: calculatedLineas.map((l: any) => ({
               conceptoId: l.conceptoId,
-              proveedorId: l.proveedorId,
+              proveedorId: l.proveedorId && l.proveedorId !== '' ? l.proveedorId : null,
               costo: l.costo,
               precioVenta: l.precioVenta,
               valorVenta: l.valorVenta,

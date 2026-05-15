@@ -150,6 +150,7 @@ model Cotizacion {
   vendedor          Usuario          @relation(fields: [vendedorId], references: [id])
   empresaId         String
   empresa           Empresa          @relation(fields: [empresaId], references: [id])
+  pais              String           @default("PERÚ")
   lineas            CotizacionLinea[]
   totalVenta        Float            @default(0)
   igv               Float            @default(0)
