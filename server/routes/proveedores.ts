@@ -18,7 +18,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 });
 
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const proveedor = await prisma.proveedor.update({
     where: { id },
     data: req.body
