@@ -37,40 +37,41 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
       setCategorias(catRes.data);
 
       if (!initialData) {
-        // Pre-load lines based on categories and default concepts
         const defaultLineas: any[] = [];
         catRes.data.forEach((cat: any) => {
-          cat.conceptos.forEach((con: any) => {
-            if (con.incluirPorDefecto) {
-              defaultLineas.push({
-                categoriaId: cat.id,
-                categoriaNombre: cat.nombre,
-                conceptoId: con.id,
-                conceptoNombre: con.nombre,
-                proveedorId: '',
-                costo: 0,
-                precioVenta: 0,
-                valorVenta: 0,
-                igv: 0,
-                utilidad: 0,
-                margen: 0,
-                afectoIGV: cat.afectoIGV
-              });
-            }
-          });
+          if (cat.conceptos) {
+            cat.conceptos.forEach((con: any) => {
+              if (con.incluirPorDefecto) {
+                defaultLineas.push({
+                  conceptoId: con.id,
+                  categoriaNombre: cat.nombre,
+                  conceptoNombre: con.nombre,
+                  proveedorId: '',
+                  costo: 0,
+                  precioVenta: 0,
+                  valorVenta: 0,
+                  igv: 0,
+                  utilidad: 0,
+                  margen: 0,
+                  afectoIGV: cat.afectoIGV
+                });
+              }
+            });
+          }
         });
         setLineas(defaultLineas);
       } else {
-        setLineas(initialData.lineas.map((l: any) => ({
+        setLineas((initialData.lineas || []).map((l: any) => ({
           ...l,
-          categoriaNombre: l.concepto?.categoria?.nombre,
-          conceptoNombre: l.concepto?.nombre,
+          categoriaNombre: l.concepto?.categoria?.nombre || 'S/C',
+          conceptoNombre: l.concepto?.nombre || 'S/C',
           afectoIGV: l.concepto?.categoria?.afectoIGV ?? true
         })));
       }
       setLoading(false);
     } catch (err) {
       console.error(err);
+      setLoading(false);
     }
   };
 

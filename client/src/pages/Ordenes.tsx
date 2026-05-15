@@ -141,6 +141,7 @@ const Ordenes: React.FC = () => {
           <div className="modal-content">
             <div className="modal-header">
               <h3>Actualizar Tracking ORD-{selectedOrden.correlativo}</h3>
+              <button className="icon-btn" onClick={() => setSelectedOrden(null)}><Clock size={18} /></button>
             </div>
             <div className="modal-body">
               <div className="grid-2">
@@ -148,23 +149,23 @@ const Ordenes: React.FC = () => {
                   <label>Nro BL</label>
                   <input 
                     type="text" 
-                    defaultValue={selectedOrden.nroBL} 
-                    onBlur={(e) => selectedOrden.nroBL = e.target.value}
+                    value={selectedOrden.nroBL || ''} 
+                    onChange={(e) => setSelectedOrden({...selectedOrden, nroBL: e.target.value})}
                   />
                 </div>
                 <div className="form-group">
                   <label>Nro DAM</label>
                   <input 
                     type="text" 
-                    defaultValue={selectedOrden.nroDAM}
-                    onBlur={(e) => selectedOrden.nroDAM = e.target.value}
+                    value={selectedOrden.nroDAM || ''}
+                    onChange={(e) => setSelectedOrden({...selectedOrden, nroDAM: e.target.value})}
                   />
                 </div>
                 <div className="form-group">
                   <label>Canal</label>
                   <select 
-                    defaultValue={selectedOrden.canal}
-                    onChange={(e) => selectedOrden.canal = e.target.value}
+                    value={selectedOrden.canal || ''}
+                    onChange={(e) => setSelectedOrden({...selectedOrden, canal: e.target.value})}
                   >
                     <option value="">Pendiente</option>
                     <option value="VERDE">Verde</option>
@@ -175,8 +176,8 @@ const Ordenes: React.FC = () => {
                 <div className="form-group">
                   <label>Estado</label>
                   <select 
-                    defaultValue={selectedOrden.estado}
-                    onChange={(e) => selectedOrden.estado = e.target.value}
+                    value={selectedOrden.estado}
+                    onChange={(e) => setSelectedOrden({...selectedOrden, estado: e.target.value})}
                   >
                     <option value="COORDINACION_EMBARQUE">Coordinación de embarque</option>
                     <option value="EN_TRANSITO">En tránsito</option>
@@ -188,17 +189,28 @@ const Ordenes: React.FC = () => {
                 </div>
                 <div className="form-group">
                   <label>Fecha ETD</label>
-                  <input type="date" defaultValue={selectedOrden.fechaETD?.split('T')[0]} />
+                  <input 
+                    type="date" 
+                    value={selectedOrden.fechaETD ? selectedOrden.fechaETD.split('T')[0] : ''} 
+                    onChange={(e) => setSelectedOrden({...selectedOrden, fechaETD: e.target.value})}
+                  />
                 </div>
                 <div className="form-group">
                   <label>Fecha ETA</label>
-                  <input type="date" defaultValue={selectedOrden.fechaETA?.split('T')[0]} />
+                  <input 
+                    type="date" 
+                    value={selectedOrden.fechaETA ? selectedOrden.fechaETA.split('T')[0] : ''} 
+                    onChange={(e) => setSelectedOrden({...selectedOrden, fechaETA: e.target.value})}
+                  />
                 </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-outline" onClick={() => setSelectedOrden(null)}>Cerrar</button>
-              <button className="primary" onClick={() => handleUpdateOrden(selectedOrden.id, selectedOrden)}>Guardar</button>
+              <button className="btn-outline" onClick={() => setSelectedOrden(null)}>Cancelar</button>
+              <button className="primary" onClick={() => {
+                const { nroBL, nroDAM, canal, estado, fechaETD, fechaETA } = selectedOrden;
+                handleUpdateOrden(selectedOrden.id, { nroBL, nroDAM, canal, estado, fechaETD, fechaETA });
+              }}>Guardar Cambios</button>
             </div>
           </div>
         </div>
