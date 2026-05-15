@@ -36,10 +36,6 @@ const Cotizaciones: React.FC = () => {
     }
   };
 
-  const toggleRow = (id: string) => {
-    setExpandedRow(expandedRow === id ? null : id);
-  };
-
   const handleView = (cot: any) => {
     setSelectedCot(cot);
     setViewOnly(true);
