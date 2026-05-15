@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Mail, Truck, X } from 'lucide-react';
+import { Plus, Mail, Truck, X, Edit } from 'lucide-react';
 
 const Proveedores: React.FC = () => {
   const { token } = useAuth();
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [newProv, setNewProv] = useState({
-    ruc: '', razonSocial: '', correos: ['']
+  const [editingProv, setEditingProv] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    ruc: '', razonSocial: '', correos: [{ email: '', rol: '' }]
   });
 
   useEffect(() => {
@@ -25,31 +26,58 @@ const Proveedores: React.FC = () => {
   };
 
   const handleAddEmail = () => {
-    setNewProv({ ...newProv, correos: [...newProv.correos, ''] });
+    setFormData({ ...formData, correos: [...formData.correos, { email: '', rol: '' }] });
   };
 
-  const handleEmailChange = (index: number, value: string) => {
-    const newEmails = [...newProv.correos];
-    newEmails[index] = value;
-    setNewProv({ ...newProv, correos: newEmails });
+  const handleEmailChange = (index: number, field: string, value: string) => {
+    const newEmails = [...formData.correos];
+    newEmails[index] = { ...newEmails[index], [field]: value };
+    setFormData({ ...formData, correos: newEmails });
   };
 
   const removeEmail = (index: number) => {
-    setNewProv({ ...newProv, correos: newProv.correos.filter((_, i) => i !== index) });
+    setFormData({ ...formData, correos: formData.correos.filter((_, i) => i !== index) });
+  };
+
+  const handleEdit = (prov: any) => {
+    setEditingProv(prov);
+    setFormData({
+      ruc: prov.ruc,
+      razonSocial: prov.razonSocial,
+      correos: prov.correos.map((c: string) => {
+        const [email, rol] = c.split('|');
+        return { email: email || '', rol: rol || '' };
+      })
+    });
+    setShowModal(true);
+  };
+
+  const handleNew = () => {
+    setEditingProv(null);
+    setFormData({ ruc: '', razonSocial: '', correos: [{ email: '', rol: '' }] });
+    setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/proveedores', {
-        ...newProv,
-        correos: newProv.correos.filter(e => e !== '')
-      });
+      const payload = {
+        ...formData,
+        correos: formData.correos
+          .filter(c => c.email !== '')
+          .map(c => `${c.email}${c.rol ? '|' + c.rol : ''}`)
+      };
+      
+      if (editingProv) {
+        await api.put(`/proveedores/${editingProv.id}`, payload);
+      } else {
+        await api.post('/proveedores', payload);
+      }
+      
       setShowModal(false);
-      setNewProv({ ruc: '', razonSocial: '', correos: [''] });
       fetchProveedores();
     } catch (err) {
-      alert('Error al crear proveedor');
+      alert('Error al guardar proveedor');
     }
   };
 
@@ -57,7 +85,7 @@ const Proveedores: React.FC = () => {
     <div>
       <div className="page-header">
         <h1>Proveedores</h1>
-        <button className="primary icon-left" onClick={() => setShowModal(true)}>
+        <button className="primary icon-left" onClick={handleNew}>
           <Plus size={18} /> Nuevo Proveedor
         </button>
       </div>
@@ -85,13 +113,21 @@ const Proveedores: React.FC = () => {
                   <td>{p.ruc}</td>
                   <td>
                     <div className="email-chips">
-                      {p.correos.map((email: string, i: number) => (
-                        <span key={i} className="email-chip"><Mail size={12} /> {email}</span>
-                      ))}
+                      {p.correos.map((c: string, i: number) => {
+                        const [email, rol] = c.split('|');
+                        return (
+                          <span key={i} className="email-chip">
+                            <Mail size={12} /> 
+                            {email} {rol && <small>({rol})</small>}
+                          </span>
+                        );
+                      })}
                     </div>
                   </td>
                   <td>
-                    <button className="btn-outline sm">Editar</button>
+                    <button className="icon-btn" onClick={() => handleEdit(p)}>
+                      <Edit size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -104,43 +140,60 @@ const Proveedores: React.FC = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuevo Proveedor</h3>
+              <h3>{editingProv ? 'Editar Proveedor' : 'Nuevo Proveedor'}</h3>
+              <button className="icon-btn" onClick={() => setShowModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
-                <div className="form-group">
-                  <label>RUC</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={newProv.ruc}
-                    onChange={(e) => setNewProv({ ...newProv, ruc: e.target.value })}
-                  />
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label>RUC</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={formData.ruc}
+                      onChange={(e) => setFormData({ ...formData, ruc: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Razón Social</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={formData.razonSocial}
+                      onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>Razón Social</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={newProv.razonSocial}
-                    onChange={(e) => setNewProv({ ...newProv, razonSocial: e.target.value })}
-                  />
+                
+                <div className="form-section-title">
+                  <label>Contactos (Correos)</label>
                 </div>
-                <div className="form-group">
-                  <label>Lista de Correos</label>
-                  {newProv.correos.map((email, index) => (
-                    <div key={index} className="email-input-row">
-                      <input 
-                        type="email" 
-                        placeholder="ejemplo@proveedor.com"
-                        value={email}
-                        onChange={(e) => handleEmailChange(index, e.target.value)}
-                      />
-                      {newProv.correos.length > 1 && (
-                        <button type="button" className="icon-btn" onClick={() => removeEmail(index)}>
-                          <X size={14} />
-                        </button>
-                      )}
+                
+                <div className="emails-list">
+                  {formData.correos.map((c, index) => (
+                    <div key={index} className="email-input-row grid-2" style={{ marginBottom: '0.75rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <input 
+                          type="email" 
+                          placeholder="ejemplo@proveedor.com"
+                          value={c.email}
+                          onChange={(e) => handleEmailChange(index, 'email', e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0, display: 'flex', gap: '0.5rem' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Rol (Ej: Facturación)"
+                          value={c.rol}
+                          onChange={(e) => handleEmailChange(index, 'rol', e.target.value)}
+                        />
+                        {formData.correos.length > 1 && (
+                          <button type="button" className="icon-btn danger" onClick={() => removeEmail(index)}>
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                   <button type="button" className="btn-text" onClick={handleAddEmail}>
@@ -170,8 +223,11 @@ const Proveedores: React.FC = () => {
           gap: 0.4rem;
           color: var(--text-light);
         }
-        .email-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
-        .btn-text { background: transparent; color: var(--secondary); font-size: 0.8rem; padding: 0.5rem 0; }
+        .email-chip small { color: var(--text-light); font-weight: 400; font-size: 0.65rem; }
+        .form-section-title { margin: 1.5rem 0 0.75rem 0; border-top: 1px solid var(--border); padding-top: 1rem; }
+        .form-section-title label { font-size: 0.9rem; color: var(--text-light); }
+        .email-input-row { display: flex; gap: 0.5rem; }
+        .btn-text { background: transparent; color: var(--secondary); font-size: 0.8rem; padding: 0.5rem 0; display: flex; align-items: center; gap: 0.4rem; }
         .icon-blue { color: var(--secondary); }
       `}</style>
     </div>

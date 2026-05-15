@@ -23,9 +23,24 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const { empresaId } = req.user!;
-    const { nombre } = req.body;
+    const { nombre, afectoIGV } = req.body;
     const categoria = await prisma.categoria.create({
-      data: { nombre, empresaId }
+      data: { nombre, afectoIGV: afectoIGV !== undefined ? afectoIGV : true, empresaId }
+    });
+    res.json(categoria);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, afectoIGV } = req.body;
+    const categoria = await prisma.categoria.update({
+      where: { id },
+      data: { nombre, afectoIGV }
     });
     res.json(categoria);
   } catch (error: any) {

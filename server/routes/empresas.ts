@@ -17,4 +17,13 @@ router.post('/', authenticate, authorize(['SUPER_ADMIN']), async (req, res) => {
   res.json(empresa);
 });
 
+router.put('/:id', authenticate, authorize(['SUPER_ADMIN']), async (req, res) => {
+  const { id } = req.params;
+  const empresa = await prisma.empresa.update({
+    where: { id },
+    data: req.body
+  });
+  res.json(empresa);
+});
+
 export default router;

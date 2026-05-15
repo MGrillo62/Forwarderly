@@ -17,4 +17,13 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
   res.json(cliente);
 });
 
+router.put('/:id', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const cliente = await prisma.cliente.update({
+    where: { id },
+    data: req.body
+  });
+  res.json(cliente);
+});
+
 export default router;

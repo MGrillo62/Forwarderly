@@ -7,9 +7,10 @@ interface CotizacionFormProps {
   onClose: () => void;
   onSave: () => void;
   initialData?: any;
+  viewOnly?: boolean;
 }
 
-const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initialData }) => {
+const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initialData, viewOnly }) => {
   const { token } = useAuth();
   const [clientes, setClientes] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -52,7 +53,8 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                 valorVenta: 0,
                 igv: 0,
                 utilidad: 0,
-                margen: 0
+                margen: 0,
+                afectoIGV: cat.afectoIGV
               });
             }
           });
@@ -62,7 +64,8 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         setLineas(initialData.lineas.map((l: any) => ({
           ...l,
           categoriaNombre: l.concepto?.categoria?.nombre,
-          conceptoNombre: l.concepto?.nombre
+          conceptoNombre: l.concepto?.nombre,
+          afectoIGV: l.concepto?.categoria?.afectoIGV ?? true
         })));
       }
       setLoading(false);
@@ -79,10 +82,17 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
       const precioVenta = field === 'precioVenta' ? parseFloat(value) || 0 : linea.precioVenta;
       const costo = field === 'costo' ? parseFloat(value) || 0 : linea.costo;
       
-      const valorVenta = precioVenta / 1.18;
-      const igv = valorVenta * 0.18;
-      const utilidad = precioVenta - costo;
-      const margen = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
+      let valorVenta, igv;
+      if (linea.afectoIGV) {
+        valorVenta = precioVenta / 1.18;
+        igv = valorVenta * 0.18;
+      } else {
+        valorVenta = precioVenta;
+        igv = 0;
+      }
+      
+      const utilidad = valorVenta - costo;
+      const margen = valorVenta > 0 ? (utilidad / valorVenta) * 100 : 0;
 
       linea.valorVenta = valorVenta;
       linea.igv = igv;
@@ -108,7 +118,8 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
       valorVenta: 0,
       igv: 0,
       utilidad: 0,
-      margen: 0
+      margen: 0,
+      afectoIGV: categoria.afectoIGV
     }]);
   };
 
@@ -123,7 +134,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     utilidad: acc.utilidad + (l.utilidad || 0)
   }), { precioTotal: 0, totalVenta: 0, igv: 0, utilidad: 0 });
 
-  const porcentajeUtilidad = totals.precioTotal > 0 ? (totals.utilidad / totals.precioTotal) * 100 : 0;
+  const porcentajeUtilidad = totals.totalVenta > 0 ? (totals.utilidad / totals.totalVenta) * 100 : 0;
 
   const handleSubmit = async () => {
     if (!clienteId) return alert('Seleccione un cliente');
@@ -146,14 +157,14 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     <div className="modal-overlay">
       <div className="modal-content large">
         <div className="modal-header">
-          <h2>{initialData ? 'Editar Cotización' : 'Nueva Cotización'}</h2>
-          <button className="close-btn" onClick={onClose}><X /></button>
+          <h2>{viewOnly ? 'Detalle de Cotización' : (initialData ? 'Editar Cotización' : 'Nueva Cotización')}</h2>
+          <button className="icon-btn" onClick={onClose}><X /></button>
         </div>
 
         <div className="modal-body">
           <div className="form-section">
             <label>Cliente</label>
-            <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+            <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} disabled={viewOnly}>
               <option value="">Seleccione un cliente</option>
               {clientes.map(c => (
                 <option key={c.id} value={c.id}>{c.razonSocial} ({c.ruc})</option>
@@ -189,6 +200,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                       <select 
                         value={linea.proveedorId} 
                         onChange={(e) => handleLineChange(index, 'proveedorId', e.target.value)}
+                        disabled={viewOnly}
                       >
                         <option value="">Seleccionar</option>
                         {proveedores.map(p => (
@@ -201,6 +213,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                         type="number" 
                         value={linea.costo} 
                         onChange={(e) => handleLineChange(index, 'costo', e.target.value)} 
+                        disabled={viewOnly}
                       />
                     </td>
                     <td>
@@ -208,6 +221,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                         type="number" 
                         value={linea.precioVenta} 
                         onChange={(e) => handleLineChange(index, 'precioVenta', e.target.value)} 
+                        disabled={viewOnly}
                       />
                     </td>
                     <td>{linea.valorVenta.toFixed(2)}</td>
@@ -215,9 +229,11 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                     <td>{linea.utilidad.toFixed(2)}</td>
                     <td>{linea.margen.toFixed(1)}%</td>
                     <td>
-                      <button className="icon-btn danger" onClick={() => removeLine(index)}>
-                        <Trash2 size={16} />
-                      </button>
+                      {!viewOnly && (
+                        <button className="icon-btn danger" onClick={() => removeLine(index)}>
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -225,27 +241,29 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
             </table>
           </div>
 
-          <div className="add-concepts-section">
-            <h4>Agregar Conceptos</h4>
-            <div className="categories-grid">
-              {categorias.map(cat => (
-                <div key={cat.id} className="cat-group">
-                  <h6>{cat.nombre}</h6>
-                  <div className="concepts-list">
-                    {cat.conceptos.map((con: any) => (
-                      <button 
-                        key={con.id} 
-                        className="tag-btn" 
-                        onClick={() => addLine(con, cat)}
-                      >
-                        <Plus size={12} /> {con.nombre}
-                      </button>
-                    ))}
+          {!viewOnly && (
+            <div className="add-concepts-section">
+              <h4>Agregar Conceptos</h4>
+              <div className="categories-grid">
+                {categorias.map(cat => (
+                  <div key={cat.id} className="cat-group">
+                    <h6>{cat.nombre}</h6>
+                    <div className="concepts-list">
+                      {cat.conceptos.map((con: any) => (
+                        <button 
+                          key={con.id} 
+                          className="tag-btn" 
+                          onClick={() => addLine(con, cat)}
+                        >
+                          <Plus size={12} /> {con.nombre}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="totals-section">
             <div className="totals-grid">
@@ -274,10 +292,12 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         </div>
 
         <div className="modal-footer">
-          <button className="btn-outline" onClick={onClose}>Cancelar</button>
-          <button className="primary" onClick={handleSubmit}>
-            <Save size={18} /> Guardar Cotización
-          </button>
+          <button className="btn-outline" onClick={onClose}>Cerrar</button>
+          {!viewOnly && (
+            <button className="primary" onClick={handleSubmit}>
+              <Save size={18} /> Guardar Cotización
+            </button>
+          )}
         </div>
       </div>
 

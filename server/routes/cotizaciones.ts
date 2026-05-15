@@ -16,7 +16,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
     const calculatedLineas = lineas.map((linea: any) => ({
       ...linea,
-      ...calculateLineValues(linea.costo, linea.precioVenta)
+      ...calculateLineValues(linea.costo, linea.precioVenta, linea.afectoIGV)
     }));
 
     const totals = calculateTotals(calculatedLineas);
@@ -38,9 +38,15 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
             utilidad: l.utilidad,
             margen: l.margen
           }))
+        },
+        historial: {
+          create: {
+            estado: 'BORRADOR',
+            usuarioId: vendedorId
+          }
         }
       },
-      include: { lineas: true, cliente: true }
+      include: { lineas: true, cliente: true, historial: true }
     });
 
     res.json(cotizacion);
@@ -64,7 +70,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
     const calculatedLineas = lineas.map((linea: any) => ({
       ...linea,
-      ...calculateLineValues(linea.costo, linea.precioVenta)
+      ...calculateLineValues(linea.costo, linea.precioVenta, linea.afectoIGV)
     }));
 
     const totals = calculateTotals(calculatedLineas);
@@ -89,9 +95,17 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
             utilidad: l.utilidad,
             margen: l.margen
           }))
-        }
+        },
+        ...(estado !== existing.estado && {
+          historial: {
+            create: {
+              estado: estado,
+              usuarioId: req.user!.id
+            }
+          }
+        })
       },
-      include: { lineas: true }
+      include: { lineas: true, historial: { include: { usuario: true } } }
     });
 
     // If approved, create Order
@@ -133,7 +147,22 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 
     const cotizaciones = await prisma.cotizacion.findMany({
       where,
-      include: { cliente: true, vendedor: true },
+      include: { 
+        cliente: true, 
+        vendedor: true, 
+        historial: { 
+          include: { usuario: true },
+          orderBy: { fechaHora: 'asc' }
+        },
+        lineas: {
+          include: {
+            concepto: {
+              include: { categoria: true }
+            },
+            proveedor: true
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
 

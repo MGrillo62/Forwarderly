@@ -135,6 +135,113 @@ tr:hover {
   background-color: #f8fafc;
 }
 
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: var(--white);
+  padding: 0;
+  border-radius: 1rem;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  border: 1px solid var(--border);
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-dark);
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dark);
+}
+
+.btn-outline:hover {
+  background: #f1f5f9;
+}
+
+.icon-btn {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  background: #f1f5f9;
+  color: var(--text-dark);
+}
+
+.icon-btn.danger {
+  color: var(--danger);
+  background: #fee2e2;
+}
+
+.icon-btn:hover {
+  filter: brightness(0.95);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.flex-align {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.badge-success { background: #dcfce7; color: #16a34a; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+.badge-gray { background: #f1f5f9; color: #64748b; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+
 @media (max-width: 768px) {
   .sidebar {
     display: none;
@@ -142,5 +249,8 @@ tr:hover {
   .main-content {
     margin-left: 0 !important;
     padding: 1rem;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
   }
 }

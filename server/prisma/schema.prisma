@@ -81,21 +81,25 @@ model Usuario {
   empresaId    String?
   empresa      Empresa?      @relation(fields: [empresaId], references: [id])
   cotizaciones Cotizacion[]
+  cotizacionesHistorial CotizacionEstadoHistorial[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
 
 model Cliente {
-  id           String       @id @default(uuid())
-  ruc          String
-  razonSocial  String
-  direccion    String
-  contacto     String
-  empresaId    String
-  empresa      Empresa      @relation(fields: [empresaId], references: [id])
-  cotizaciones Cotizacion[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id               String       @id @default(uuid())
+  ruc              String
+  razonSocial      String
+  direccion        String
+  direccionEntrega String?
+  contacto         String
+  correo           String?
+  celular          String?
+  empresaId        String
+  empresa          Empresa      @relation(fields: [empresaId], references: [id])
+  cotizaciones     Cotizacion[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@unique([ruc, empresaId])
 }
@@ -115,13 +119,14 @@ model Proveedor {
 }
 
 model Categoria {
-  id        String     @id @default(uuid())
-  nombre    String
-  empresaId String
-  empresa   Empresa    @relation(fields: [empresaId], references: [id])
-  conceptos Concepto[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id         String     @id @default(uuid())
+  nombre     String
+  afectoIGV  Boolean    @default(true)
+  empresaId  String
+  empresa    Empresa    @relation(fields: [empresaId], references: [id])
+  conceptos  Concepto[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 }
 
 model Concepto {
@@ -151,9 +156,20 @@ model Cotizacion {
   precioTotal       Float            @default(0)
   utilidad          Float            @default(0)
   porcentajeUtilidad Float           @default(0)
+  historial         CotizacionEstadoHistorial[]
   orden             Orden?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+}
+
+model CotizacionEstadoHistorial {
+  id           String           @id @default(uuid())
+  cotizacionId String
+  cotizacion   Cotizacion       @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  estado       CotizacionEstado
+  usuarioId    String
+  usuario      Usuario          @relation(fields: [usuarioId], references: [id])
+  fechaHora    DateTime         @default(now())
 }
 
 model CotizacionLinea {

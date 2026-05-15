@@ -9,6 +9,8 @@ const Cotizaciones: React.FC = () => {
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedCot, setSelectedCot] = useState<any>(null);
+  const [viewOnly, setViewOnly] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +32,31 @@ const Cotizaciones: React.FC = () => {
     try {
       await api.put(`/cotizaciones/${id}`, { estado });
       fetchCotizaciones();
-    } catch (err) {
-      alert('Error al actualizar estado');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al actualizar estado');
     }
+  };
+
+  const toggleRow = (id: string) => {
+    setExpandedRow(expandedRow === id ? null : id);
+  };
+
+  const handleView = (cot: any) => {
+    setSelectedCot(cot);
+    setViewOnly(true);
+    setShowForm(true);
+  };
+
+  const handleEdit = (cot: any) => {
+    setSelectedCot(cot);
+    setViewOnly(false);
+    setShowForm(true);
+  };
+
+  const handleNew = () => {
+    setSelectedCot(null);
+    setViewOnly(false);
+    setShowForm(true);
   };
 
   const getStatusClass = (status: string) => {
@@ -49,7 +73,7 @@ const Cotizaciones: React.FC = () => {
     <div>
       <div className="page-header">
         <h1>Cotizaciones</h1>
-        <button className="primary icon-left" onClick={() => { setSelectedCot(null); setShowForm(true); }}>
+        <button className="primary icon-left" onClick={handleNew}>
           <Plus size={18} /> Nueva Cotización
         </button>
       </div>
@@ -70,45 +94,75 @@ const Cotizaciones: React.FC = () => {
             </thead>
             <tbody>
               {cotizaciones.map((cot) => (
-                <tr key={cot.id}>
-                  <td><strong>{String(cot.numero).padStart(5, '0')}</strong></td>
-                  <td>{cot.cliente?.razonSocial}</td>
-                  <td>{new Date(cot.createdAt).toLocaleDateString()}</td>
-                  <td>{cot.vendedor?.nombres}</td>
-                  <td>S/ {cot.precioTotal.toFixed(2)}</td>
-                  <td>
-                    <span className={`status-badge ${getStatusClass(cot.estado)}`}>
-                      {cot.estado}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="actions-cell">
-                      {cot.estado === 'BORRADOR' && (
-                        <>
-                          <button title="Editar" onClick={() => { setSelectedCot(cot); setShowForm(true); }}>
-                            <Edit size={16} />
-                          </button>
-                          <button title="Enviar" onClick={() => handleUpdateStatus(cot.id, 'ENVIADA')}>
-                            <Send size={16} />
-                          </button>
-                        </>
-                      )}
-                      {cot.estado === 'ENVIADA' && (
-                        <>
-                          <button title="Aprobar" className="success" onClick={() => handleUpdateStatus(cot.id, 'APROBADA')}>
-                            <CheckCircle size={16} />
-                          </button>
-                          <button title="Rechazar" className="danger" onClick={() => handleUpdateStatus(cot.id, 'RECHAZADA')}>
-                            <XCircle size={16} />
-                          </button>
-                        </>
-                      )}
-                      <button title="Ver">
-                        <Eye size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <React.Fragment key={cot.id}>
+                  <tr>
+                    <td><strong>{String(cot.numero).padStart(5, '0')}</strong></td>
+                    <td>{cot.cliente?.razonSocial}</td>
+                    <td>{new Date(cot.createdAt).toLocaleDateString()}</td>
+                    <td>{cot.vendedor?.nombres}</td>
+                    <td>S/ {cot.precioTotal.toFixed(2)}</td>
+                    <td>
+                      <span 
+                        className={`status-badge ${getStatusClass(cot.estado)}`}
+                        onClick={() => toggleRow(cot.id)}
+                        style={{ cursor: 'pointer' }}
+                        title="Ver historial de estados"
+                      >
+                        {cot.estado}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="actions-cell">
+                        {cot.estado === 'BORRADOR' && (
+                          <>
+                            <button title="Editar" onClick={() => handleEdit(cot)}>
+                              <Edit size={16} />
+                            </button>
+                            <button title="Enviar" onClick={() => handleUpdateStatus(cot.id, 'ENVIADA')}>
+                              <Send size={16} />
+                            </button>
+                          </>
+                        )}
+                        {cot.estado === 'ENVIADA' && (
+                          <>
+                            <button title="Aprobar" className="success" onClick={() => handleUpdateStatus(cot.id, 'APROBADA')}>
+                              <CheckCircle size={16} />
+                            </button>
+                            <button title="Rechazar" className="danger" onClick={() => handleUpdateStatus(cot.id, 'RECHAZADA')}>
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        )}
+                        <button title="Ver" onClick={() => handleView(cot)}>
+                          <Eye size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedRow === cot.id && (
+                    <tr className="history-row">
+                      <td colSpan={7}>
+                        <div className="history-container">
+                          <h4>Historial de Estados</h4>
+                          <div className="history-timeline">
+                            {cot.historial?.map((h: any, idx: number) => (
+                              <div key={idx} className="history-item">
+                                <div className="history-dot"></div>
+                                <div className="history-info">
+                                  <span className={`status-text ${getStatusClass(h.estado)}`}>{h.estado}</span>
+                                  <span className="history-user">por {h.usuario?.nombres}</span>
+                                  <span className="history-date">
+                                    {new Date(h.fechaHora).toLocaleDateString()} {new Date(h.fechaHora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -118,6 +172,7 @@ const Cotizaciones: React.FC = () => {
       {showForm && (
         <CotizacionForm 
           initialData={selectedCot} 
+          viewOnly={viewOnly}
           onClose={() => setShowForm(false)} 
           onSave={() => { setShowForm(false); fetchCotizaciones(); }} 
         />
@@ -157,6 +212,17 @@ const Cotizaciones: React.FC = () => {
         }
         .actions-cell button.success { color: var(--success); }
         .actions-cell button.danger { color: var(--danger); }
+
+        .history-row { background: #f8fafc; }
+        .history-container { padding: 1rem 2rem; }
+        .history-container h4 { font-size: 0.875rem; margin-bottom: 1rem; color: var(--text-light); }
+        .history-timeline { display: flex; flex-direction: column; gap: 0.75rem; }
+        .history-item { display: flex; align-items: center; gap: 1rem; position: relative; }
+        .history-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--secondary); }
+        .history-info { display: flex; gap: 1rem; align-items: center; font-size: 0.8rem; }
+        .status-text { font-weight: 700; text-transform: uppercase; width: 80px; }
+        .history-user { color: var(--text-dark); font-weight: 600; }
+        .history-date { color: var(--text-light); }
       `}</style>
     </div>
   );
