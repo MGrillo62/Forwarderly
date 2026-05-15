@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, Edit, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText } from 'lucide-react';
+import { generateQuotationPDF } from '../utils/pdfGenerator';
 import CotizacionForm from '../components/CotizacionForm';
 
 const Cotizaciones: React.FC = () => {
@@ -10,6 +11,7 @@ const Cotizaciones: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedCot, setSelectedCot] = useState<any>(null);
   const [viewOnly, setViewOnly] = useState(false);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +36,10 @@ const Cotizaciones: React.FC = () => {
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al actualizar estado');
     }
+  };
+
+  const toggleRow = (id: string) => {
+    setExpandedRow(expandedRow === id ? null : id);
   };
 
   const handleView = (cot: any) => {
@@ -153,7 +159,12 @@ const Cotizaciones: React.FC = () => {
                     <td>{cot.vendedor?.nombres}</td>
                     <td>S/ {cot.precioTotal.toFixed(2)}</td>
                     <td>
-                      <span className={`status-badge ${getStatusClass(cot.estado)}`}>
+                      <span 
+                        className={`status-badge ${getStatusClass(cot.estado)}`}
+                        onClick={() => toggleRow(cot.id)}
+                        style={{ cursor: 'pointer' }}
+                        title="Ver historial de estados"
+                      >
                         {cot.estado}
                       </span>
                     </td>
@@ -182,14 +193,21 @@ const Cotizaciones: React.FC = () => {
                         <button title="Ver" onClick={() => handleView(cot)}>
                           <Eye size={16} />
                         </button>
+                        {(cot.estado === 'ENVIADA' || cot.estado === 'APROBADA' || cot.estado === 'RECHAZADA') && (
+                          <button title="Descargar PDF" className="info" onClick={() => generateQuotationPDF(cot)}>
+                            <FileText size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
-                  <tr className="stepper-row">
-                    <td colSpan={7}>
-                      <StatusStepper currentStatus={cot.estado} historial={cot.historial} />
-                    </td>
-                  </tr>
+                  {expandedRow === cot.id && (
+                    <tr className="stepper-row">
+                      <td colSpan={7}>
+                        <StatusStepper currentStatus={cot.estado} historial={cot.historial} />
+                      </td>
+                    </tr>
+                  )}
                 </React.Fragment>
               ))}
             </tbody>
@@ -240,6 +258,7 @@ const Cotizaciones: React.FC = () => {
         }
         .actions-cell button.success { color: var(--success); }
         .actions-cell button.danger { color: var(--danger); }
+        .actions-cell button.info { color: #3b82f6; }
 
         .history-row { background: #f8fafc; }
         .history-container { padding: 1rem 2rem; }
