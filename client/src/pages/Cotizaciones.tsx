@@ -10,7 +10,6 @@ const Cotizaciones: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedCot, setSelectedCot] = useState<any>(null);
   const [viewOnly, setViewOnly] = useState(false);
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,28 +68,55 @@ const Cotizaciones: React.FC = () => {
     }
   };
 
-  const StatusStepper = ({ currentStatus }: { currentStatus: string }) => {
+  const StatusStepper = ({ currentStatus, historial }: { currentStatus: string, historial: any[] }) => {
     const steps = ['BORRADOR', 'ENVIADA', 'APROBADA'];
     const currentIndex = steps.indexOf(currentStatus);
     const isRejected = currentStatus === 'RECHAZADA';
 
+    const getStepInfo = (stepName: string) => {
+      return historial?.find(h => h.estado === stepName);
+    };
+
     return (
       <div className="status-stepper">
-        {steps.map((step, idx) => (
-          <React.Fragment key={step}>
-            <div className={`step-item ${idx <= currentIndex ? 'active' : 'pending'} ${step === currentStatus ? 'current' : ''}`}>
-              <div className="step-circle">{idx + 1}</div>
-              <span className="step-label">{step}</span>
-            </div>
-            {idx < steps.length - 1 && <div className={`step-line ${idx < currentIndex ? 'active' : 'pending'}`}></div>}
-          </React.Fragment>
-        ))}
+        {steps.map((step, idx) => {
+          const info = getStepInfo(step);
+          return (
+            <React.Fragment key={step}>
+              <div className={`step-item ${idx <= currentIndex ? 'active' : 'pending'} ${step === currentStatus ? 'current' : ''}`}>
+                <div className="step-circle">{idx + 1}</div>
+                <div className="step-content">
+                  <span className="step-label">{step}</span>
+                  {info && (
+                    <div className="step-details">
+                      <div className="step-user">{info.usuario?.nombres}</div>
+                      <div className="step-time">
+                        {new Date(info.fechaHora).toLocaleDateString()} {new Date(info.fechaHora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {idx < steps.length - 1 && <div className={`step-line ${idx < currentIndex ? 'active' : 'pending'}`}></div>}
+            </React.Fragment>
+          );
+        })}
         {isRejected && (
           <>
             <div className="step-line active danger"></div>
             <div className="step-item active danger">
               <div className="step-circle">X</div>
-              <span className="step-label">RECHAZADA</span>
+              <div className="step-content">
+                <span className="step-label">RECHAZADA</span>
+                {getStepInfo('RECHAZADA') && (
+                  <div className="step-details">
+                    <div className="step-user">{getStepInfo('RECHAZADA').usuario?.nombres}</div>
+                    <div className="step-time">
+                      {new Date(getStepInfo('RECHAZADA').fechaHora).toLocaleDateString()}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -131,12 +157,7 @@ const Cotizaciones: React.FC = () => {
                     <td>{cot.vendedor?.nombres}</td>
                     <td>S/ {cot.precioTotal.toFixed(2)}</td>
                     <td>
-                      <span 
-                        className={`status-badge ${getStatusClass(cot.estado)}`}
-                        onClick={() => toggleRow(cot.id)}
-                        style={{ cursor: 'pointer' }}
-                        title="Ver historial de estados"
-                      >
+                      <span className={`status-badge ${getStatusClass(cot.estado)}`}>
                         {cot.estado}
                       </span>
                     </td>
@@ -170,32 +191,9 @@ const Cotizaciones: React.FC = () => {
                   </tr>
                   <tr className="stepper-row">
                     <td colSpan={7}>
-                      <StatusStepper currentStatus={cot.estado} />
+                      <StatusStepper currentStatus={cot.estado} historial={cot.historial} />
                     </td>
                   </tr>
-                  {expandedRow === cot.id && (
-                    <tr className="history-row">
-                      <td colSpan={7}>
-                        <div className="history-container">
-                          <h4>Historial de Estados</h4>
-                          <div className="history-timeline">
-                            {cot.historial?.map((h: any, idx: number) => (
-                              <div key={idx} className="history-item">
-                                <div className="history-dot"></div>
-                                <div className="history-info">
-                                  <span className={`status-text ${getStatusClass(h.estado)}`}>{h.estado}</span>
-                                  <span className="history-user">por {h.usuario?.nombres}</span>
-                                  <span className="history-date">
-                                    {new Date(h.fechaHora).toLocaleDateString()} {new Date(h.fechaHora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
                 </React.Fragment>
               ))}
             </tbody>
@@ -268,17 +266,18 @@ const Cotizaciones: React.FC = () => {
         }
         .status-stepper {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 0.5rem;
           padding-left: 1rem;
         }
         .step-item {
           display: flex;
-          align-items: center;
-          gap: 0.5rem;
+          align-items: flex-start;
+          gap: 0.75rem;
           color: var(--text-light);
           opacity: 0.4;
           transition: all 0.3s;
+          min-width: 120px;
         }
         .step-item.active {
           opacity: 1;
@@ -300,16 +299,34 @@ const Cotizaciones: React.FC = () => {
           align-items: center;
           justify-content: center;
           font-size: 0.7rem;
+          margin-top: 2px;
+          flex-shrink: 0;
+        }
+        .step-content {
+          display: flex;
+          flex-direction: column;
         }
         .step-label {
           font-size: 0.75rem;
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
+        .step-details {
+          font-size: 0.65rem;
+          color: var(--text-light);
+          margin-top: 0.25rem;
+          line-height: 1.2;
+          font-weight: 400;
+        }
+        .step-user {
+          color: var(--text-dark);
+          font-weight: 600;
+        }
         .step-line {
           height: 2px;
           width: 40px;
           background: #e2e8f0;
+          margin-top: 12px;
         }
         .step-line.active {
           background: var(--primary);

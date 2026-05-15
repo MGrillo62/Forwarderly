@@ -97,7 +97,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
               margen: l.margen
             }))
           },
-          ...(estado !== existing.estado && {
+          ...(estado && estado !== existing.estado && {
             historial: {
               create: {
                 estado: estado,
