@@ -39,7 +39,7 @@ export const generateQuotationPDF = (cotizacion: any) => {
     head: [['Categoría', 'Concepto', 'Precio Venta']],
     body: tableRows,
     theme: 'grid',
-    headStyles: { fillStyle: 'F', fillColor: [41, 128, 185], textColor: 255 },
+    headStyles: { fillColor: [41, 128, 185], textColor: 255 },
   });
 
   // Totals
