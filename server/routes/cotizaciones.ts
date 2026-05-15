@@ -68,47 +68,64 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: 'No se puede modificar una cotización aprobada o rechazada' });
     }
 
-    const calculatedLineas = lineas.map((linea: any) => ({
-      ...linea,
-      ...calculateLineValues(linea.costo, linea.precioVenta, linea.afectoIGV)
-    }));
+    let updated;
+    if (lineas) {
+      const calculatedLineas = lineas.map((linea: any) => ({
+        ...linea,
+        ...calculateLineValues(linea.costo, linea.precioVenta, linea.afectoIGV)
+      }));
 
-    const totals = calculateTotals(calculatedLineas);
+      const totals = calculateTotals(calculatedLineas);
 
-    // Delete old lines and create new ones
-    await prisma.cotizacionLinea.deleteMany({ where: { cotizacionId: id } });
+      await prisma.cotizacionLinea.deleteMany({ where: { cotizacionId: id } });
 
-    const updated = await prisma.cotizacion.update({
-      where: { id },
-      data: {
-        clienteId,
-        estado,
-        ...totals,
-        lineas: {
-          create: calculatedLineas.map((l: any) => ({
-            conceptoId: l.conceptoId,
-            proveedorId: l.proveedorId,
-            costo: l.costo,
-            precioVenta: l.precioVenta,
-            valorVenta: l.valorVenta,
-            igv: l.igv,
-            utilidad: l.utilidad,
-            margen: l.margen
-          }))
-        },
-        ...(estado !== existing.estado && {
-          historial: {
-            create: {
-              estado: estado,
-              usuarioId: req.user!.id
+      updated = await prisma.cotizacion.update({
+        where: { id },
+        data: {
+          clienteId,
+          estado,
+          ...totals,
+          lineas: {
+            create: calculatedLineas.map((l: any) => ({
+              conceptoId: l.conceptoId,
+              proveedorId: l.proveedorId,
+              costo: l.costo,
+              precioVenta: l.precioVenta,
+              valorVenta: l.valorVenta,
+              igv: l.igv,
+              utilidad: l.utilidad,
+              margen: l.margen
+            }))
+          },
+          ...(estado !== existing.estado && {
+            historial: {
+              create: {
+                estado: estado,
+                usuarioId: req.user!.id
+              }
             }
-          }
-        })
-      },
-      include: { lineas: true, historial: { include: { usuario: true } } }
-    });
+          })
+        },
+        include: { lineas: true, historial: { include: { usuario: true } } }
+      });
+    } else {
+      updated = await prisma.cotizacion.update({
+        where: { id },
+        data: {
+          estado,
+          ...(estado !== existing.estado && {
+            historial: {
+              create: {
+                estado: estado,
+                usuarioId: req.user!.id
+              }
+            }
+          })
+        },
+        include: { lineas: true, historial: { include: { usuario: true } } }
+      });
+    }
 
-    // If approved, create Order
     if (estado === 'APROBADA') {
       const year = new Date().getFullYear();
       const lastOrden = await prisma.orden.findFirst({
@@ -129,6 +146,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
     res.json(updated);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Error al actualizar cotización' });
   }
 });
