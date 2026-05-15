@@ -69,6 +69,35 @@ const Cotizaciones: React.FC = () => {
     }
   };
 
+  const StatusStepper = ({ currentStatus }: { currentStatus: string }) => {
+    const steps = ['BORRADOR', 'ENVIADA', 'APROBADA'];
+    const currentIndex = steps.indexOf(currentStatus);
+    const isRejected = currentStatus === 'RECHAZADA';
+
+    return (
+      <div className="status-stepper">
+        {steps.map((step, idx) => (
+          <React.Fragment key={step}>
+            <div className={`step-item ${idx <= currentIndex ? 'active' : 'pending'} ${step === currentStatus ? 'current' : ''}`}>
+              <div className="step-circle">{idx + 1}</div>
+              <span className="step-label">{step}</span>
+            </div>
+            {idx < steps.length - 1 && <div className={`step-line ${idx < currentIndex ? 'active' : 'pending'}`}></div>}
+          </React.Fragment>
+        ))}
+        {isRejected && (
+          <>
+            <div className="step-line active danger"></div>
+            <div className="step-item active danger">
+              <div className="step-circle">X</div>
+              <span className="step-label">RECHAZADA</span>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -113,15 +142,15 @@ const Cotizaciones: React.FC = () => {
                     </td>
                     <td>
                       <div className="actions-cell">
+                        {(cot.estado === 'BORRADOR' || cot.estado === 'ENVIADA') && (
+                          <button title="Editar" onClick={() => handleEdit(cot)}>
+                            <Edit size={16} />
+                          </button>
+                        )}
                         {cot.estado === 'BORRADOR' && (
-                          <>
-                            <button title="Editar" onClick={() => handleEdit(cot)}>
-                              <Edit size={16} />
-                            </button>
-                            <button title="Enviar" onClick={() => handleUpdateStatus(cot.id, 'ENVIADA')}>
-                              <Send size={16} />
-                            </button>
-                          </>
+                          <button title="Enviar" onClick={() => handleUpdateStatus(cot.id, 'ENVIADA')}>
+                            <Send size={16} />
+                          </button>
                         )}
                         {cot.estado === 'ENVIADA' && (
                           <>
@@ -137,6 +166,11 @@ const Cotizaciones: React.FC = () => {
                           <Eye size={16} />
                         </button>
                       </div>
+                    </td>
+                  </tr>
+                  <tr className="stepper-row">
+                    <td colSpan={7}>
+                      <StatusStepper currentStatus={cot.estado} />
                     </td>
                   </tr>
                   {expandedRow === cot.id && (
@@ -223,6 +257,66 @@ const Cotizaciones: React.FC = () => {
         .status-text { font-weight: 700; text-transform: uppercase; width: 80px; }
         .history-user { color: var(--text-dark); font-weight: 600; }
         .history-date { color: var(--text-light); }
+
+        .stepper-row {
+          background: white;
+        }
+        .stepper-row td {
+          padding-top: 0;
+          padding-bottom: 1.5rem;
+          border-top: none;
+        }
+        .status-stepper {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding-left: 1rem;
+        }
+        .step-item {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: var(--text-light);
+          opacity: 0.4;
+          transition: all 0.3s;
+        }
+        .step-item.active {
+          opacity: 1;
+          color: var(--primary);
+        }
+        .step-item.current {
+          font-weight: 700;
+        }
+        .step-item.danger {
+          color: var(--danger);
+        }
+        .step-circle {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: currentColor;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.7rem;
+        }
+        .step-label {
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .step-line {
+          height: 2px;
+          width: 40px;
+          background: #e2e8f0;
+        }
+        .step-line.active {
+          background: var(--primary);
+        }
+        .step-line.danger {
+          background: var(--danger);
+        }
       `}</style>
     </div>
   );
