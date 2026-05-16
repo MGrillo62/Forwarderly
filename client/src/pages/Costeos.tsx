@@ -309,16 +309,29 @@ const Costeos = () => {
                     <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
                       <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20 flex justify-between items-center">
                         <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Tributos Aduaneros</h3>
-                        <div className="flex items-center gap-4">
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ADValorem Global (%)</p>
-                          <input 
-                            type="number" 
-                            value={formData.adValoremGlobal || ''} 
-                            onChange={(e) => setFormData({...formData, adValoremGlobal: parseFloat(e.target.value) || 0})} 
-                            className="bg-indigo-50 text-indigo-600 rounded-xl px-4 py-2 border-0 font-black w-24 text-center focus:ring-2 focus:ring-indigo-500" 
-                            placeholder="0.00"
-                            disabled={isViewing}
-                          />
+                        <div className="flex items-center gap-6">
+                          <div className="flex items-center gap-3">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Percepción (%)</p>
+                            <input 
+                              type="number" 
+                              value={formData.percepcionPorcentaje || ''} 
+                              onChange={(e) => setFormData({...formData, percepcionPorcentaje: parseFloat(e.target.value) || 0})} 
+                              className="bg-orange-50 text-orange-600 rounded-xl px-4 py-2 border-0 font-black w-20 text-center focus:ring-2 focus:ring-orange-400" 
+                              placeholder="0.00"
+                              disabled={isViewing}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ADValorem Global (%)</p>
+                            <input 
+                              type="number" 
+                              value={formData.adValoremGlobal || ''} 
+                              onChange={(e) => setFormData({...formData, adValoremGlobal: parseFloat(e.target.value) || 0})} 
+                              className="bg-indigo-50 text-indigo-600 rounded-xl px-4 py-2 border-0 font-black w-24 text-center focus:ring-2 focus:ring-indigo-500" 
+                              placeholder="0.00"
+                              disabled={isViewing}
+                            />
+                          </div>
                         </div>
                       </div>
                       <div className="p-12 grid grid-cols-2 gap-20 items-center">
@@ -327,7 +340,7 @@ const Costeos = () => {
                             { l: `Ad Valorem (${(Number(formData.adValoremGlobal) > 0 || !items.some(i => Number(i.adValoremPorcentaje) > 0)) ? (formData.adValoremGlobal || 0) : 'Variable'}%)`, v: totals.adValoremG },
                             { l: 'IGV (16%)', v: totals.igv },
                             { l: 'IPM (2%)', v: totals.ipm },
-                            { l: 'Percepción (3.5%)', v: totals.perc }
+                            { l: `Percepción (${formData.percepcionPorcentaje || 0}%)`, v: totals.perc }
                           ].map((t, i) => (
                             <div key={i} className="flex justify-between items-center font-black text-slate-500 text-base">
                               <span className="opacity-50 text-sm">{t.l}</span>
@@ -340,6 +353,134 @@ const Costeos = () => {
                           <p className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-4 relative z-10">TOTAL IMPUESTOS</p>
                           <p className="text-6xl font-black text-[#0F172A] tracking-tighter relative z-10 leading-none">S/ {formatNum((totals.adValoremG + totals.igv + totals.ipm + totals.perc) * (formData.tipoCambio || 1))}</p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Distribución de Costos y Proyección de Ventas */}
+                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20">
+                        <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Distribución de Costos y Proyección de Ventas</h3>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Análisis de rentabilidad por producto</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[10px] border-b border-slate-100">
+                            <tr>
+                              <th className="px-6 py-5 text-left whitespace-nowrap">PRODUCTO</th>
+                              <th className="px-6 py-5 text-center whitespace-nowrap">CANT.</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">COSTO UNIT. ({formData.moneda})</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap text-indigo-500">COSTO LOTE ({formData.moneda})</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">COSTO UNIT. (PEN)</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">PRECIO VENTA (PEN)</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">DESC. B2B (%)</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">MARGEN %</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">UTILIDAD UNIT. (PEN)</th>
+                              <th className="px-6 py-5 text-right whitespace-nowrap">UTILIDAD TOTAL (PEN)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {totals.finalItems.map((item: any, idx: number) => {
+                              const tc = Number(formData.tipoCambio || 1);
+                              const costoUnitUSD = item.costoTotalUnitario || 0;
+                              const costoLoteUSD = costoUnitUSD * (Number(item.cantidad) || 0);
+                              const costoUnitPEN = costoUnitUSD * tc;
+                              
+                              const precioVenta = Number(item.precioVentaPEN) || 0;
+                              const descPct = Number(item.descuentoPorcentaje) || 0;
+                              const precioSinIGV = precioVenta / 1.18;
+                              const descMonto = precioSinIGV * (descPct / 100);
+                              const utilidadUnit = precioSinIGV - descMonto - costoUnitPEN;
+                              const utilidadTotal = utilidadUnit * (Number(item.cantidad) || 0);
+                              const margen = (precioSinIGV - descMonto) > 0 ? (utilidadUnit / (precioSinIGV - descMonto)) * 100 : 0;
+                              const isPositive = utilidadUnit >= 0;
+                              
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-6 py-5">
+                                    <p className="font-black text-[#1E293B] text-sm leading-tight">{item.producto || '-'}</p>
+                                    {item.sku && <p className="text-[10px] font-bold text-slate-400 mt-0.5">{item.sku}</p>}
+                                  </td>
+                                  <td className="px-6 py-5 text-center">
+                                    <span className="font-black text-slate-600">{item.cantidad}</span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <span className="font-black text-slate-700">{formData.moneda === 'EUR' ? '€' : '$'}{formatNum(costoUnitUSD)}</span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <span className="font-black text-indigo-600 text-base">{formData.moneda === 'EUR' ? '€' : '$'}{formatNum(costoLoteUSD)}</span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <span className="font-black text-slate-700">S/{formatNum(costoUnitPEN)}</span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <input
+                                      type="number"
+                                      value={item.precioVentaPEN || ''}
+                                      onChange={(e) => updateItem(idx, 'precioVentaPEN', parseFloat(e.target.value) || 0)}
+                                      className="bg-slate-50 rounded-xl px-3 py-2 border-0 font-black text-[#1E293B] w-24 text-right focus:ring-2 focus:ring-indigo-400"
+                                      placeholder="0"
+                                      disabled={isViewing}
+                                    />
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <input
+                                      type="number"
+                                      value={item.descuentoPorcentaje || ''}
+                                      onChange={(e) => updateItem(idx, 'descuentoPorcentaje', parseFloat(e.target.value) || 0)}
+                                      className="bg-slate-50 rounded-xl px-3 py-2 border-0 font-black text-slate-600 w-20 text-right focus:ring-2 focus:ring-slate-300"
+                                      placeholder="0.0"
+                                      disabled={isViewing}
+                                    />
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <span className={`font-black text-base ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                      {formatNum(margen)}%
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <span className={`font-black text-base ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                      S/{formatNum(utilidadUnit)}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-5 text-right">
+                                    <span className={`font-black text-base ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                      S/{formatNum(utilidadTotal)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          {totals.finalItems.length > 0 && (
+                            <tfoot className="bg-[#F8FAFC] border-t-2 border-slate-200">
+                              <tr>
+                                <td colSpan={3} className="px-6 py-5 font-black text-slate-500 uppercase text-[11px] tracking-widest">TOTALES</td>
+                                <td className="px-6 py-5 text-right font-black text-indigo-700 text-base">
+                                  {formData.moneda === 'EUR' ? '€' : '$'}{formatNum(totals.finalItems.reduce((s: number, i: any) => s + (i.costoTotalUnitario || 0) * (Number(i.cantidad) || 0), 0))}
+                                </td>
+                                <td colSpan={4} className="px-6 py-5"></td>
+                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-base">
+                                  S/{formatNum(totals.finalItems.reduce((s: number, i: any) => {
+                                    const tc2 = Number(formData.tipoCambio || 1);
+                                    const costoU = (i.costoTotalUnitario || 0) * tc2;
+                                    const pvSinIGV = (Number(i.precioVentaPEN) || 0) / 1.18;
+                                    const dsc = pvSinIGV * ((Number(i.descuentoPorcentaje) || 0) / 100);
+                                    return s + (pvSinIGV - dsc - costoU);
+                                  }, 0))}
+                                </td>
+                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-base">
+                                  S/{formatNum(totals.finalItems.reduce((s: number, i: any) => {
+                                    const tc2 = Number(formData.tipoCambio || 1);
+                                    const costoU = (i.costoTotalUnitario || 0) * tc2;
+                                    const pvSinIGV = (Number(i.precioVentaPEN) || 0) / 1.18;
+                                    const dsc = pvSinIGV * ((Number(i.descuentoPorcentaje) || 0) / 100);
+                                    return s + (pvSinIGV - dsc - costoU) * (Number(i.cantidad) || 0);
+                                  }, 0))}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
                       </div>
                     </div>
                   </div>
