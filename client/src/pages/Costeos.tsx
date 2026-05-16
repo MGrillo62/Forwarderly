@@ -156,7 +156,7 @@ const Costeos = () => {
   };
 
   const totals = useMemo(() => {
-    const totalFacturaComercial = items.reduce((sum, item) => sum + (item.valorTotal || 0), 0);
+    const totalFacturaComercial = items.reduce((sum: number, item: Item) => sum + (item.valorTotal || 0), 0);
     
     const itemsCalculated = items.map(item => {
       const participacion = totalFacturaComercial > 0 ? (item.valorTotal / totalFacturaComercial) : 0;
@@ -236,13 +236,13 @@ const Costeos = () => {
 
     // Resumen de Proyección (PEN)
     const costoTotalImportacionPEN = costoTotalImportacion * Number(formData.tipoCambio || 1);
-    const ingresosTotalesPEN = finalItems.reduce((sum, item) => {
+    const ingresosTotalesPEN = finalItems.reduce((sum: number, item: any) => {
       const cant = Number(item.cantidad) || 0;
       const precioVentaNum = Number(item.precioVentaPEN) || 0;
       const descPorcNum = Number(item.descuentoPorcentaje) || 0;
       return sum + ((precioVentaNum * (1 - descPorcNum / 100)) / 1.18) * cant;
     }, 0);
-    const utilidadTotalPEN_Sum = finalItems.reduce((sum, item) => sum + (item.utilidadTotalPEN || 0), 0);
+    const utilidadTotalPEN_Sum = finalItems.reduce((sum: number, item: any) => sum + (item.utilidadTotalPEN || 0), 0);
     const margenPromedio = ingresosTotalesPEN > 0 ? (utilidadTotalPEN_Sum / ingresosTotalesPEN) * 100 : 0;
 
     return {
@@ -856,15 +856,15 @@ const Costeos = () => {
                   </div>
                   <div className="summary-item border-l">
                     <small>Ingresos Totales (Valor Venta)</small>
-                    <div className="value">S/ {formatNum(isViewing ? selectedCosteo?.items.reduce((s, i) => s + i.utilidadTotalPEN + (i.costoTotalSoles || 0), 0) : totals.ingresosTotalesPEN)}</div>
+                    <div className="value">S/ {formatNum(isViewing ? selectedCosteo?.items.reduce((s: number, i: any) => s + (i.utilidadTotalPEN || 0) + (i.costoTotalSoles || 0), 0) : totals.ingresosTotalesPEN)}</div>
                   </div>
                   <div className="summary-item border-l">
                     <small>Utilidad Total</small>
-                    <div className="value text-success">+{formatNum(isViewing ? selectedCosteo?.items.reduce((s, i) => s + i.utilidadTotalPEN, 0) : totals.utilidadTotalPEN_Sum)}</div>
+                    <div className="value text-success">+{formatNum(isViewing ? selectedCosteo?.items.reduce((s: number, i: any) => s + (i.utilidadTotalPEN || 0), 0) : totals.utilidadTotalPEN_Sum)}</div>
                   </div>
                   <div className="summary-item border-l">
                     <small>Margen Promedio</small>
-                    <div className="value text-success">{formatNum(isViewing ? (selectedCosteo?.items.reduce((s, i) => s + i.margenPorcentaje, 0) / selectedCosteo?.items.length) : totals.margenPromedio)}%</div>
+                    <div className="value text-success">{formatNum(isViewing ? (selectedCosteo?.items.reduce((s: number, i: any) => s + (i.margenPorcentaje || 0), 0) / selectedCosteo?.items.length) : totals.margenPromedio)}%</div>
                   </div>
                   <div className="summary-item border-l">
                     <small>Ratio de Importación</small>
