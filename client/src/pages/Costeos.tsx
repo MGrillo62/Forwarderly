@@ -946,9 +946,18 @@ const Costeos = () => {
         .modal-overlay { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        /* Ajustes para pantalla completa */
+        /* Ajustes para pantalla completa real */
+        .modal-overlay {
+          padding: 0 !important;
+        }
         .modal-content {
           animation: slideUp 0.3s ease-out;
+          width: 100vw !important;
+          height: 100vh !important;
+          max-width: 100vw !important;
+          max-height: 100vh !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
         }
         @keyframes slideUp {
           from { transform: translateY(20px); opacity: 0; }
