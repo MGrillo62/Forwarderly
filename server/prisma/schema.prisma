@@ -67,6 +67,12 @@ model CosteoImportacion {
   adValoremGlobal       Float                 @default(0)
   percepcionPorcentaje  Float                 @default(0)
   
+  // Logistics
+  fechaEmbarque         DateTime?
+  fechaLlegada          DateTime?
+  canal                 CanalImportacion?
+  nroDAM                String?
+  
   // Calculated stored values
   cifGlobal             Float
   baseImponible         Float
