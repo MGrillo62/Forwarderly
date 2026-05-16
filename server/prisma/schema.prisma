@@ -74,6 +74,7 @@ model CosteoImportacion {
   ipm                   Float
   percepcionMonto       Float
   costoTotalImportacion Float
+  ratioImportacion      Float                 @default(0)
 
   items                 CosteoImportacionItem[]
   
@@ -104,6 +105,13 @@ model CosteoImportacionItem {
   gastosLocalesUnitario   Float
   costoTotalUnitario      Float
   costoTotalSoles         Float
+  
+  // Sales Projection
+  precioVentaPEN          Float             @default(0)
+  descuentoPorcentaje     Float             @default(0)
+  utilidadUnitarioPEN     Float             @default(0)
+  utilidadTotalPEN        Float             @default(0)
+  margenPorcentaje        Float             @default(0)
 
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt

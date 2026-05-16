@@ -109,6 +109,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ipm: parseFloat(ipm),
         percepcionMonto: parseFloat(percepcionMonto),
         costoTotalImportacion: parseFloat(costoTotalImportacion),
+        ratioImportacion: parseFloat(ratioImportacion || 0),
         items: {
           create: items.map((item: any) => ({
             sku: item.sku,
@@ -125,7 +126,12 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
             gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario),
             gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario),
             costoTotalUnitario: parseFloat(item.costoTotalUnitario),
-            costoTotalSoles: parseFloat(item.costoTotalSoles)
+            costoTotalSoles: parseFloat(item.costoTotalSoles),
+            precioVentaPEN: parseFloat(item.precioVentaPEN || 0),
+            descuentoPorcentaje: parseFloat(item.descuentoPorcentaje || 0),
+            utilidadUnitarioPEN: parseFloat(item.utilidadUnitarioPEN || 0),
+            utilidadTotalPEN: parseFloat(item.utilidadTotalPEN || 0),
+            margenPorcentaje: parseFloat(item.margenPorcentaje || 0)
           }))
         }
       }

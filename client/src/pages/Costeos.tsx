@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Search, FileText, ChevronRight, Save, X, Trash2, 
-  Calculator, Info, Package, DollarSign, RefreshCw 
+  Calculator, Info, Package, DollarSign, RefreshCw, TrendingUp 
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -14,6 +14,10 @@ interface Item {
   valorUnitario: number;
   valorTotal: number;
   adValoremPorcentaje: number | '';
+  // Sales Projection fields
+  precioVentaPEN: number;
+  descuentoPorcentaje: number;
+  
   // Calculated fields for UI display
   participacionPorcentual?: number;
   cifOculto?: number;
@@ -25,6 +29,11 @@ interface Item {
   costoTotalUnitario?: number;
   costoTotalTotal?: number;
   costoTotalSoles?: number;
+  
+  // Projection calculated fields
+  utilidadUnitarioPEN?: number;
+  utilidadTotalPEN?: number;
+  margenPorcentaje?: number;
 }
 
 const Costeos = () => {
@@ -36,6 +45,9 @@ const Costeos = () => {
   const [showModal, setShowModal] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [selectedCosteo, setSelectedCosteo] = useState<any>(null);
+
+  // Helper for formatting
+  const formatNum = (val: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -99,17 +111,12 @@ const Costeos = () => {
   const handleOrdenChange = (ordenId: string) => {
     const orden = ordenes.find(o => o.id === ordenId);
     if (orden) {
-      // For now, these fields are not in the Order model based on schema, 
-      // but the prompt says "si selecciona una orden, se deben autocompletar".
-      // Usually these would come from Cotizacion lines or other places.
-      // We'll fill what we can and leave others for manual entry if not found.
       setFormData({
         ...formData,
         ordenId,
         clienteId: orden.cotizacion.clienteId,
         clienteNombre: orden.cotizacion.cliente.razonSocial,
         clienteDocumento: orden.cotizacion.cliente.ruc,
-        // Hypothetical autocompletion as per prompt
         gastosOrigen: 0, 
         fleteInternacional: 0,
         gastosLocales: 0,
@@ -121,7 +128,10 @@ const Costeos = () => {
   };
 
   const addItem = () => {
-    setItems([...items, { sku: '', producto: '', cantidad: 0, valorUnitario: 0, valorTotal: 0, adValoremPorcentaje: '' }]);
+    setItems([...items, { 
+      sku: '', producto: '', cantidad: 0, valorUnitario: 0, valorTotal: 0, 
+      adValoremPorcentaje: '', precioVentaPEN: 0, descuentoPorcentaje: 0 
+    }]);
   };
 
   const removeItem = (index: number) => {
@@ -180,6 +190,14 @@ const Costeos = () => {
       const costoTotalMercaderia = item.valorTotal + fleteItem + seguroItem + origenItem + localesItem + adValoremMonto;
       const costoUnitario = item.cantidad > 0 ? (costoTotalMercaderia / item.cantidad) : 0;
       const costoSoles = costoTotalMercaderia * Number(formData.tipoCambio || 1);
+      const costoUnitarioSoles = item.cantidad > 0 ? (costoSoles / item.cantidad) : 0;
+
+      // Projection Calculations
+      const precioConDescuento = item.precioVentaPEN * (1 - (item.descuentoPorcentaje || 0) / 100);
+      const valorVentaNeto = precioConDescuento / 1.18;
+      const utilidadUnitarioPEN = valorVentaNeto - costoUnitarioSoles;
+      const utilidadTotalPEN = utilidadUnitarioPEN * item.cantidad;
+      const margenPorcentaje = valorVentaNeto > 0 ? (utilidadUnitarioPEN / valorVentaNeto) * 100 : 0;
 
       return {
         ...item,
@@ -192,7 +210,11 @@ const Costeos = () => {
         gastosLocalesUnitario: item.cantidad > 0 ? localesItem / item.cantidad : 0,
         costoTotalUnitario: costoUnitario,
         costoTotalTotal: costoTotalMercaderia,
-        costoTotalSoles: costoSoles
+        costoTotalSoles: costoSoles,
+        costoUnitarioSoles, // Added for display
+        utilidadUnitarioPEN,
+        utilidadTotalPEN,
+        margenPorcentaje
       };
     });
 
@@ -206,6 +228,8 @@ const Costeos = () => {
                                   Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + 
                                   finalAdValoremGlobal + Number(formData.gastosLocales || 0);
 
+    const ratioImportacion = totalFacturaComercial > 0 ? (costoTotalImportacion / totalFacturaComercial) : 0;
+
     return {
       totalFacturaComercial,
       fobEquivalente,
@@ -216,6 +240,7 @@ const Costeos = () => {
       ipm,
       percepcionMonto,
       costoTotalImportacion,
+      ratioImportacion,
       finalItems,
       hasItemAdValorem
     };
@@ -236,7 +261,8 @@ const Costeos = () => {
         igv: totals.igv,
         ipm: totals.ipm,
         percepcionMonto: totals.percepcionMonto,
-        costoTotalImportacion: totals.costoTotalImportacion
+        costoTotalImportacion: totals.costoTotalImportacion,
+        ratioImportacion: totals.ratioImportacion
       };
 
       await api.post('/costeos', payload);
@@ -318,7 +344,7 @@ const Costeos = () => {
                     <td>{c.cliente?.razonSocial || c.clienteNombre}</td>
                     <td>{c.nroFacturaComercial || '-'}</td>
                     <td><span className="badge">{c.incoterm}</span></td>
-                    <td className="font-bold text-primary">${c.costoTotalImportacion.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="font-bold text-primary">${formatNum(c.costoTotalImportacion)}</td>
                     <td>
                       <button className="btn-icon" onClick={() => viewCosteo(c)}>
                         <Search size={16} />
@@ -480,8 +506,8 @@ const Costeos = () => {
                         <th>Val. Unit.</th>
                         <th>Val. Total</th>
                         <th>% AdVal.</th>
-                        <th>Cost. Unit. (USD)</th>
-                        <th>Cost. Total (PEN)</th>
+                        <th>Costo Unit. (USD)</th>
+                        <th>Costo Unit. (PEN)</th>
                         {!isViewing && <th></th>}
                       </tr>
                     </thead>
@@ -497,6 +523,7 @@ const Costeos = () => {
                                 onChange={(e) => updateItem(idx, 'sku', e.target.value)}
                                 className="form-control-sm"
                                 disabled={isViewing}
+                                style={{ minWidth: '80px' }}
                               />
                             </td>
                             <td>
@@ -506,15 +533,17 @@ const Costeos = () => {
                                 onChange={(e) => updateItem(idx, 'producto', e.target.value)}
                                 className="form-control-sm"
                                 disabled={isViewing}
+                                style={{ minWidth: '150px' }}
                               />
                             </td>
-                            <td width="80">
+                            <td width="90">
                               <input 
                                 type="number" 
                                 value={item.cantidad} 
                                 onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)}
                                 className="form-control-sm text-right"
                                 disabled={isViewing}
+                                style={{ minWidth: '70px' }}
                               />
                             </td>
                             <td width="100">
@@ -524,10 +553,11 @@ const Costeos = () => {
                                 onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)}
                                 className="form-control-sm text-right"
                                 disabled={isViewing}
+                                style={{ minWidth: '90px' }}
                               />
                             </td>
                             <td className="text-right font-semibold">
-                              ${(item.valorTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              {formatNum(item.valorTotal || 0)}
                             </td>
                             <td width="80">
                               <input 
@@ -540,10 +570,10 @@ const Costeos = () => {
                               />
                             </td>
                             <td className="text-right text-primary font-bold">
-                              ${(calcItem?.costoTotalUnitario || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              ${formatNum(calcItem?.costoTotalUnitario || 0)}
                             </td>
                             <td className="text-right text-success font-bold">
-                              S/ {(calcItem?.costoTotalSoles || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              S/ {formatNum(calcItem?.costoUnitarioSoles || 0)}
                             </td>
                             {!isViewing && (
                               <td>
@@ -555,6 +585,63 @@ const Costeos = () => {
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Nueva Sección: Distribución de Costos y Proyección de Ventas */}
+              <div className="form-section projection-section">
+                <h3 className="section-title"><TrendingUp size={18} /> Distribución de Costos y Proyección de Ventas</h3>
+                <div className="table-responsive">
+                  <table className="table projection-table">
+                    <thead>
+                      <tr>
+                        <th>Producto</th>
+                        <th className="text-right">Costo Unit. (USD)</th>
+                        <th className="text-right">Costo Lote (USD)</th>
+                        <th className="text-right">Costo Unit. (PEN)</th>
+                        <th className="text-right">Precio Venta (PEN)</th>
+                        <th className="text-right">Desc. B2B (%)</th>
+                        <th className="text-right">Margen %</th>
+                        <th className="text-right">Utilidad Unit. (PEN)</th>
+                        <th className="text-right">Utilidad Total (PEN)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(isViewing ? selectedCosteo?.items : totals.finalItems).map((item: any, idx: number) => (
+                        <tr key={idx}>
+                          <td className="font-medium">{item.producto}</td>
+                          <td className="text-right">${formatNum(item.costoTotalUnitario)}</td>
+                          <td className="text-right text-primary">${formatNum(item.costoTotalTotal)}</td>
+                          <td className="text-right text-success">S/ {formatNum(item.costoUnitarioSoles)}</td>
+                          <td className="text-right">
+                            <input 
+                              type="number" 
+                              value={item.precioVentaPEN} 
+                              onChange={(e) => updateItem(idx, 'precioVentaPEN', parseFloat(e.target.value) || 0)}
+                              className="form-control-sm text-right bg-white"
+                              disabled={isViewing}
+                              style={{ width: '100px' }}
+                            />
+                          </td>
+                          <td className="text-right">
+                            <input 
+                              type="number" 
+                              value={item.descuentoPorcentaje} 
+                              onChange={(e) => updateItem(idx, 'descuentoPorcentaje', parseFloat(e.target.value) || 0)}
+                              className="form-control-sm text-right bg-white"
+                              disabled={isViewing}
+                              style={{ width: '80px' }}
+                            />
+                          </td>
+                          <td className={`text-right font-bold ${item.margenPorcentaje > 0 ? 'text-success' : 'text-danger'}`}>
+                            {formatNum(item.margenPorcentaje)}%
+                          </td>
+                          <td className="text-right text-success font-bold">S/ {formatNum(item.utilidadUnitarioPEN)}</td>
+                          <td className="text-right text-success font-bold">S/ {formatNum(item.utilidadTotalPEN)}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -642,27 +729,27 @@ const Costeos = () => {
                 <div className="summary-grid">
                   <div className="summary-card">
                     <span>Total Factura</span>
-                    <strong>${(isViewing ? selectedCosteo?.totalFacturaComercial : totals.totalFacturaComercial).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    <strong>${formatNum(isViewing ? selectedCosteo?.totalFacturaComercial : totals.totalFacturaComercial)}</strong>
                   </div>
                   <div className="summary-card">
                     <span>CIF Global</span>
-                    <strong>${(isViewing ? selectedCosteo?.cifGlobal : totals.cifGlobal).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    <strong>${formatNum(isViewing ? selectedCosteo?.cifGlobal : totals.cifGlobal)}</strong>
                   </div>
                   <div className="summary-card">
                     <span>AdValorem Total</span>
-                    <strong>${(isViewing ? selectedCosteo?.adValoremGlobal : totals.adValoremGlobal).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    <strong>${formatNum(isViewing ? selectedCosteo?.adValoremGlobal : totals.adValoremGlobal)}</strong>
                   </div>
                   <div className="summary-card">
                     <span>IGV (16%)</span>
-                    <strong>${(isViewing ? selectedCosteo?.igv : totals.igv).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    <strong>${formatNum(isViewing ? selectedCosteo?.igv : totals.igv)}</strong>
                   </div>
                   <div className="summary-card">
-                    <span>IPM (2%)</span>
-                    <strong>${(isViewing ? selectedCosteo?.ipm : totals.ipm).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    <span>RATIO IMPORTACIÓN</span>
+                    <strong className="text-primary">{formatNum(isViewing ? selectedCosteo?.ratioImportacion : totals.ratioImportacion)}</strong>
                   </div>
                   <div className="summary-card highlight">
                     <span>COSTO TOTAL IMPORTACIÓN</span>
-                    <strong>${(isViewing ? selectedCosteo?.costoTotalImportacion : totals.costoTotalImportacion).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                    <strong>${formatNum(isViewing ? selectedCosteo?.costoTotalImportacion : totals.costoTotalImportacion)}</strong>
                   </div>
                 </div>
               </div>
@@ -683,11 +770,12 @@ const Costeos = () => {
       )}
 
       <style>{`
-        .grid-table input {
+        .grid-table input, .projection-table input {
           width: 100%;
           border: 1px solid #e2e8f0;
           border-radius: 4px;
           padding: 0.25rem 0.5rem;
+          font-family: inherit;
         }
         .form-section {
           background: #f8fafc;
@@ -741,8 +829,17 @@ const Costeos = () => {
           font-size: 1.5rem;
         }
         .modal-content.large {
-          max-width: 1100px;
-          width: 95%;
+          max-width: 1200px;
+          width: 98%;
+        }
+        .projection-section {
+          background: #f1f5f9;
+        }
+        .projection-table th {
+          background: #e2e8f0 !important;
+          color: #475569 !important;
+          font-size: 0.75rem;
+          text-transform: uppercase;
         }
         .badge {
           background: #e2e8f0;
