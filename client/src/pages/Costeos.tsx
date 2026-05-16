@@ -239,6 +239,40 @@ const Costeos = () => {
     setFormData({ ...formData, clienteId: costeo.clienteId || '', clienteNombre: costeo.clienteNombre || costeo.cliente?.razonSocial || '', clienteDocumento: costeo.clienteDocumento || costeo.cliente?.ruc || '', ordenId: costeo.ordenId || '', nroFacturaComercial: costeo.nroFacturaComercial || '', proveedorExtranjero: costeo.proveedorExtranjero || '', incoterm: costeo.incoterm || 'FOB', moneda: costeo.moneda || 'USD', tipoCambio: costeo.tipoCambio || 0, observaciones: costeo.observaciones || '', gastosOrigen: costeo.gastosOrigen || 0, fleteInternacional: costeo.fleteInternacional || 0, seguro: costeo.seguro || 0, gastosLocales: costeo.gastosLocales || 0, adValoremGlobal: costeo.adValoremGlobal || 0, percepcionPorcentaje: costeo.percepcionPorcentaje || 0, fechaEmbarque: costeo.fechaEmbarque ? format(new Date(costeo.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: costeo.fechaLlegada ? format(new Date(costeo.fechaLlegada), 'yyyy-MM-dd') : '', canal: costeo.canal || '', nroDAM: costeo.nroDAM || '' });
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        const newItems: Item[] = [];
+        data.forEach((row: any) => {
+          if (row.Producto && row.Cantidad) {
+            newItems.push({
+              sku: row.SKU || '',
+              producto: row.Producto,
+              cantidad: parseFloat(row.Cantidad) || 0,
+              valorUnitario: parseFloat(row['Valor Unitario']) || 0,
+              valorTotal: (parseFloat(row.Cantidad) || 0) * (parseFloat(row['Valor Unitario']) || 0),
+              adValoremPorcentaje: row['% AdValorem'] !== undefined ? parseFloat(row['% AdValorem']) : '',
+              precioVentaPEN: 0,
+              descuentoPorcentaje: 0
+            });
+          }
+        });
+        setItems([...items, ...newItems]);
+      } catch (err) {
+        alert('Error al leer el archivo Excel');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const deleteCosteo = async (id: string) => {
     if (!window.confirm('¿Eliminar registro?')) return;
     try { await api.delete(`/costeos/${id}`); fetchCosteos(); } catch (err) { alert('Error al eliminar'); }
