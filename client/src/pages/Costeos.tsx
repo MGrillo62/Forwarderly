@@ -263,9 +263,9 @@ const Costeos = () => {
                               <th className="px-10 py-6 text-left">SKU</th>
                               <th className="px-10 py-6 text-left">DESCRIPTION</th>
                               <th className="px-10 py-6 text-center">QTY</th>
-                              <th className="px-10 py-6 text-right">PRICE (USD)</th>
+                              <th className="px-10 py-6 text-right">PRICE ({formData.moneda})</th>
                               <th className="px-10 py-6 text-center">ADVALOREM (%)</th>
-                              <th className="px-10 py-6 text-right">TOTAL (PEN)</th>
+                              <th className="px-10 py-6 text-right">TOTAL ({formData.moneda})</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
@@ -293,7 +293,10 @@ const Costeos = () => {
                                       disabled={isViewing || isGlobalAVActive} 
                                     />
                                   </td>
-                                  <td className="px-10 py-7 text-right"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">S/</p><p className="font-black text-[#1E293B] text-base leading-tight tracking-tight">{formatNum(calc?.costoTotalSoles || 0)}</p></td>
+                                  <td className="px-10 py-7 text-right">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formData.moneda === 'EUR' ? '€' : '$'}</p>
+                                    <p className="font-black text-[#1E293B] text-base leading-tight tracking-tight">{formatNum(Number(it.valorTotal) || 0)}</p>
+                                  </td>
                                 </tr>
                               );
                             })}
