@@ -10,6 +10,7 @@ import categoriaRoutes from './routes/categorias';
 import cotizacionRoutes from './routes/cotizaciones';
 import ordenRoutes from './routes/ordenes';
 import usuarioRoutes from './routes/usuarios';
+import costeoRoutes from './routes/costeos';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/categorias', categoriaRoutes);
 app.use('/api/cotizaciones', cotizacionRoutes);
 app.use('/api/ordenes', ordenRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/costeos', costeoRoutes);
 
 const PORT = process.env.PORT || 5000;
 

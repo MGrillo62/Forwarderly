@@ -16,7 +16,8 @@ const Dashboard: React.FC = () => {
     cotizaciones: 0,
     ordenes: 0,
     clientes: 0,
-    montoTotal: 0
+    montoTotal: 0,
+    costeos: 0
   });
 
   useEffect(() => {
@@ -25,18 +26,33 @@ const Dashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const [cotRes, ordRes, cliRes] = await Promise.all([
-        api.get('/cotizaciones'),
-        api.get('/ordenes'),
-        api.get('/clientes')
-      ]);
+      const endpoints = [];
+      if (user?.rol !== 'IMPORTADOR') {
+        endpoints.push(api.get('/cotizaciones'), api.get('/ordenes'), api.get('/clientes'));
+      }
+      endpoints.push(api.get('/costeos'));
+
+      const results = await Promise.all(endpoints);
       
-      setStats({
-        cotizaciones: cotRes.data.length,
-        ordenes: ordRes.data.length,
-        clientes: cliRes.data.length,
-        montoTotal: ordRes.data.reduce((acc: number, o: any) => acc + o.cotizacion.precioTotal, 0)
-      });
+      if (user?.rol !== 'IMPORTADOR') {
+        const [cotRes, ordRes, cliRes, costRes] = results;
+        setStats({
+          cotizaciones: cotRes.data.length,
+          ordenes: ordRes.data.length,
+          clientes: cliRes.data.length,
+          montoTotal: ordRes.data.reduce((acc: number, o: any) => acc + (o.cotizacion?.precioTotal || 0), 0),
+          costeos: costRes.data.length
+        });
+      } else {
+        const [costRes] = results;
+        setStats({
+          cotizaciones: 0,
+          ordenes: 0,
+          clientes: 0,
+          montoTotal: 0,
+          costeos: costRes.data.length
+        });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -50,43 +66,47 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <FileText />
-          </div>
-          <div className="stat-info">
-            <small>Cotizaciones</small>
-            <h3>{stats.cotizaciones}</h3>
-          </div>
-        </div>
+        {user?.rol !== 'IMPORTADOR' && (
+          <>
+            <div className="stat-card">
+              <div className="stat-icon blue">
+                <FileText />
+              </div>
+              <div className="stat-info">
+                <small>Cotizaciones</small>
+                <h3>{stats.cotizaciones}</h3>
+              </div>
+            </div>
 
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <Package />
-          </div>
-          <div className="stat-info">
-            <small>Órdenes Activas</small>
-            <h3>{stats.ordenes}</h3>
-          </div>
-        </div>
+            <div className="stat-card">
+              <div className="stat-icon green">
+                <Package />
+              </div>
+              <div className="stat-info">
+                <small>Órdenes Activas</small>
+                <h3>{stats.ordenes}</h3>
+              </div>
+            </div>
 
-        <div className="stat-card">
-          <div className="stat-icon purple">
-            <Users />
-          </div>
-          <div className="stat-info">
-            <small>Clientes</small>
-            <h3>{stats.clientes}</h3>
-          </div>
-        </div>
+            <div className="stat-card">
+              <div className="stat-icon purple">
+                <Users />
+              </div>
+              <div className="stat-info">
+                <small>Clientes</small>
+                <h3>{stats.clientes}</h3>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="stat-card">
           <div className="stat-icon orange">
             <TrendingUp />
           </div>
           <div className="stat-info">
-            <small>Monto en Órdenes</small>
-            <h3>S/ {stats.montoTotal.toLocaleString()}</h3>
+            <small>Costeos de Importación</small>
+            <h3>{stats.costeos}</h3>
           </div>
         </div>
       </div>

@@ -10,7 +10,8 @@ import {
   Building2,
   Tags,
   Truck,
-  LogOut
+  LogOut,
+  Calculator
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -25,15 +26,16 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
   const location = useLocation();
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'] },
     { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'] },
     { name: 'Clientes', icon: Users, path: '/clientes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
     { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
     { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
     { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Costeos', icon: Calculator, path: '/costeos', roles: ['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR'] },
     { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'] },
     { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
+    { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(rol));

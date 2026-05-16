@@ -25,6 +25,88 @@ enum Rol {
   SUPER_ADMIN
   ADMIN
   VENDEDOR
+  IMPORTADOR
+}
+
+enum Incoterm {
+  EXW
+  FOB
+  FCA
+}
+
+enum Moneda {
+  USD
+  EUR
+}
+
+model CosteoImportacion {
+  id                    String                @id @default(uuid())
+  codigo                String                // AAAA-99999
+  empresaId             String
+  empresa               Empresa               @relation(fields: [empresaId], references: [id])
+  clienteId             String?
+  cliente               Cliente?              @relation(fields: [clienteId], references: [id])
+  clienteNombre         String?
+  clienteDocumento      String?
+  ordenId               String?               @unique
+  orden                 Orden?                @relation(fields: [ordenId], references: [id])
+  nroFacturaComercial   String?
+  proveedorExtranjero   String?
+  incoterm              Incoterm
+  moneda                Moneda
+  tipoCambio            Float
+  observaciones         String?
+  
+  // Totales
+  totalFacturaComercial Float
+  gastosOrigen          Float                 @default(0)
+  fleteInternacional    Float                 @default(0)
+  seguro                Float                 @default(0)
+  gastosLocales         Float                 @default(0)
+  
+  adValoremGlobal       Float                 @default(0)
+  percepcionPorcentaje  Float                 @default(0)
+  
+  // Calculated stored values
+  cifGlobal             Float
+  baseImponible         Float
+  igv                   Float
+  ipm                   Float
+  percepcionMonto       Float
+  costoTotalImportacion Float
+
+  items                 CosteoImportacionItem[]
+  
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([codigo, empresaId])
+}
+
+model CosteoImportacionItem {
+  id                      String            @id @default(uuid())
+  costeoId                String
+  costeo                  CosteoImportacion @relation(fields: [costeoId], references: [id], onDelete: Cascade)
+  sku                     String?
+  producto                String
+  cantidad                Float
+  valorUnitario           Float
+  valorTotal              Float
+  adValoremPorcentaje     Float?
+  
+  // Calculated per item
+  participacionPorcentual Float
+  cifOculto               Float
+  adValoremMonto          Float
+  fleteUnitario           Float
+  seguroUnitario          Float
+  gastosOrigenUnitario    Float
+  gastosLocalesUnitario   Float
+  costoTotalUnitario      Float
+  costoTotalSoles         Float
+
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
 }
 
 enum CotizacionEstado {
@@ -64,6 +146,7 @@ model Empresa {
   proveedores   Proveedor[]
   categorias    Categoria[]
   cotizaciones  Cotizacion[]
+  costeos       CosteoImportacion[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 }
@@ -98,6 +181,7 @@ model Cliente {
   empresaId        String
   empresa          Empresa      @relation(fields: [empresaId], references: [id])
   cotizaciones     Cotizacion[]
+  costeos          CosteoImportacion[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -206,6 +290,7 @@ model Orden {
   referencia       String?
   email            String?
   estado           OrdenEstado  @default(COORDINACION_EMBARQUE)
+  costeo           CosteoImportacion?
   historial        OrdenEstadoHistorial[]
   pagos            OrdenPago[]
   createdAt        DateTime     @default(now())

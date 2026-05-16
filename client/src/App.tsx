@@ -12,6 +12,7 @@ import Categorias from './pages/Categorias';
 import Usuarios from './pages/Usuarios';
 import Perfil from './pages/Perfil';
 import Empresas from './pages/Empresas';
+import Costeos from './pages/Costeos';
 
 const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles: string[] }) => {
   const { token, user, loading } = useAuth();
@@ -131,7 +132,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           
           <Route path="/" element={
-            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR']}>
               <Layout><Dashboard /></Layout>
             </ProtectedRoute>
           } />
@@ -179,8 +180,14 @@ function App() {
           } />
 
           <Route path="/perfil" element={
-            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR']}>
               <Layout><Perfil /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/costeos" element={
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR']}>
+              <Layout><Costeos /></Layout>
             </ProtectedRoute>
           } />
 
