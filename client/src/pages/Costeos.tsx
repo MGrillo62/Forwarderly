@@ -6,11 +6,12 @@ import {
   Calculator, Info, Package, DollarSign, RefreshCw, TrendingUp,
   Download, Upload, FileSpreadsheet, CheckCircle, AlertTriangle,
   Edit2, FileDown, Eye, Calendar, Ship, MapPin, ExternalLink,
-  ChevronDown, ChevronUp, Clock, User, ArrowRight, Printer
+  ChevronDown, ChevronUp, Clock, User, ArrowRight, Printer,
+  Gavel, Landmark
 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import autoTable from 'jspdf-autotable';
 
 interface Item {
@@ -133,7 +134,8 @@ const Costeos = () => {
         gastosOrigen: orden.incoterm === 'FOB' ? 0 : formData.gastosOrigen,
         fleteInternacional: 0,
         gastosLocales: 0,
-        seguro: 0
+        seguro: 0,
+        tipoCambio: formData.tipoCambio // Preserve TC
       });
     } else {
       setFormData({ ...formData, ordenId: '' });
@@ -239,7 +241,7 @@ const Costeos = () => {
     const baseImponible = cifGlobal + finalAdValoremGlobal;
     const igv = baseImponible * 0.16;
     const ipm = baseImponible * 0.02;
-    const percepcionMonto = baseImponible * (Number(formData.percepcionPorcentaje || 0) / 100);
+    const percepcionMonto = (baseImponible + igv + ipm) * (Number(formData.percepcionPorcentaje || 0) / 100);
 
     const costoTotalImportacion = totalFacturaComercial + gastosOrigenEfectivo + 
                                   Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + 
@@ -338,8 +340,6 @@ const Costeos = () => {
     setIsViewing(false);
     setIsEditing(false);
     setSelectedCosteo(null);
-    setUploadProgress(0);
-    setUploadStats({ total: 0, success: 0, errors: 0 });
   };
 
   const viewCosteo = (costeo: any) => {
@@ -348,6 +348,26 @@ const Costeos = () => {
     setIsEditing(false);
     setShowModal(true);
     setItems(costeo.items || []);
+    setFormData({
+      ...formData,
+      tipoCambio: costeo.tipoCambio,
+      incoterm: costeo.incoterm,
+      moneda: costeo.moneda,
+      gastosOrigen: costeo.gastosOrigen,
+      fleteInternacional: costeo.fleteInternacional,
+      seguro: costeo.seguro,
+      gastosLocales: costeo.gastosLocales,
+      adValoremGlobal: costeo.adValoremGlobal,
+      percepcionPorcentaje: costeo.percepcionPorcentaje,
+      fechaEmbarque: costeo.fechaEmbarque ? format(new Date(costeo.fechaEmbarque), 'yyyy-MM-dd') : '',
+      fechaLlegada: costeo.fechaLlegada ? format(new Date(costeo.fechaLlegada), 'yyyy-MM-dd') : '',
+      canal: costeo.canal || '',
+      nroDAM: costeo.nroDAM || '',
+      clienteNombre: costeo.clienteNombre || costeo.cliente?.razonSocial || '',
+      clienteDocumento: costeo.clienteDocumento || costeo.cliente?.ruc || '',
+      nroFacturaComercial: costeo.nroFacturaComercial || '',
+      proveedorExtranjero: costeo.proveedorExtranjero || ''
+    });
   };
 
   const editCosteo = (costeo: any) => {
@@ -405,10 +425,8 @@ const Costeos = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setIsUploading(true);
     setUploadProgress(10);
-
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -417,13 +435,8 @@ const Costeos = () => {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
-        
         setUploadProgress(50);
-        
         const newItems: Item[] = [];
-        let success = 0;
-        let errors = 0;
-
         data.forEach((row: any) => {
           if (row.Producto && row.Cantidad) {
             newItems.push({
@@ -436,154 +449,153 @@ const Costeos = () => {
               precioVentaPEN: 0,
               descuentoPorcentaje: 0
             });
-            success++;
-          } else {
-            errors++;
           }
         });
-
         setItems([...items, ...newItems]);
-        setUploadStats({ total: data.length, success, errors });
         setUploadProgress(100);
         setTimeout(() => setIsUploading(false), 2000);
       } catch (err) {
-        console.error('Error reading excel', err);
         alert('Error al leer el archivo Excel');
         setIsUploading(false);
       }
     };
     reader.readAsBinaryString(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const exportPDF = () => {
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
-      const data = isViewing ? selectedCosteo : { ...formData, ...totals };
+      const data = isViewing ? { ...formData, ...totals } : { ...formData, ...totals };
+      const tc = Number(formData.tipoCambio || 1);
       const clienteName = isViewing ? (selectedCosteo.cliente?.razonSocial || selectedCosteo.clienteNombre) : formData.clienteNombre;
       
-      // Header
-      doc.setFillColor(30, 41, 59); // Slate-800
-      doc.rect(0, 0, 210, 40, 'F');
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, 210, 35, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
+      doc.setFontSize(20);
       doc.text("COSTEO DE IMPORTACIÓN", 15, 18);
-      doc.setFontSize(10);
-      doc.text(`CÓDIGO: ${selectedCosteo?.codigo || 'BORRADOR'}`, 15, 26);
-      doc.text(`FECHA: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 15, 32);
-
-      // Section: General Info
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text("DATOS GENERALES", 15, 50);
-      doc.setDrawColor(226, 232, 240);
-      doc.line(15, 52, 195, 52);
-
-      doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.text(`Cliente: ${clienteName}`, 15, 60);
-      doc.text(`RUC: ${isViewing ? (selectedCosteo.cliente?.ruc || selectedCosteo.clienteDocumento) : formData.clienteDocumento}`, 15, 65);
-      doc.text(`Factura: ${data.nroFacturaComercial || '-'}`, 15, 70);
-      doc.text(`Incoterm: ${data.incoterm}`, 110, 60);
-      doc.text(`Moneda: ${data.moneda}`, 110, 65);
-      doc.text(`T.C.: ${data.tipoCambio}`, 110, 70);
+      doc.text(`CÓDIGO: ${selectedCosteo?.codigo || 'BORRADOR'}`, 15, 26);
+      doc.text(`FECHA: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 15, 30);
 
-      // Section: Items Table
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text("DETALLE DE PRODUCTOS", 15, 85);
-      doc.line(15, 87, 195, 87);
+      const drawSection = (title: string, y: number) => {
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, 15, y);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, y + 2, 195, y + 2);
+        return y + 10;
+      };
 
-      const tableData = (isViewing ? items : totals.finalItems).map((i: any) => [
-        i.sku || '-', i.producto, i.cantidad, formatNum(i.valorUnitario), formatNum(i.valorTotal), formatNum(i.costoTotalUnitario), formatNum(i.costoUnitarioSoles)
+      let currentY = 45;
+      currentY = drawSection("DATOS GENERALES Y LOGÍSTICA", currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Cliente: ${clienteName}`, 15, currentY);
+      doc.text(`Factura: ${data.nroFacturaComercial || '-'}`, 15, currentY + 5);
+      doc.text(`Incoterm: ${data.incoterm}`, 100, currentY);
+      doc.text(`Moneda: ${data.moneda} / T.C.: ${tc}`, 100, currentY + 5);
+      doc.text(`Fecha Embarque: ${data.fechaEmbarque || '-'}`, 15, currentY + 10);
+      doc.text(`DAM: ${data.nroDAM || '-'}`, 100, currentY + 10);
+
+      currentY += 20;
+      currentY = drawSection("TRIBUTOS POR PAGAR", currentY);
+      doc.setFontSize(8);
+      const taxData = [
+        ["CONCEPTO", `MONEDA (${data.moneda})`, "SOLES (PEN)"],
+        ["AdValorem", `$${formatNum(data.adValoremGlobal)}`, `S/ ${formatNum(data.adValoremGlobal * tc)}`],
+        ["IGV (16%)", `$${formatNum(data.igv)}`, `S/ ${formatNum(data.igv * tc)}`],
+        ["IPM (2%)", `$${formatNum(data.ipm)}`, `S/ ${formatNum(data.ipm * tc)}`],
+        ["Percepción", `$${formatNum(data.percepcionMonto)}`, `S/ ${formatNum(data.percepcionMonto * tc)}`],
+        ["TOTAL TRIBUTOS", `$${formatNum(data.adValoremGlobal + data.igv + data.ipm + data.percepcionMonto)}`, `S/ ${formatNum((data.adValoremGlobal + data.igv + data.ipm + data.percepcionMonto) * tc)}`]
+      ];
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [taxData[0]],
+        body: taxData.slice(1),
+        theme: 'grid',
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [51, 65, 85] }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 10;
+      currentY = drawSection("DETALLE DE PRODUCTOS", currentY);
+      const itemsTable = (isViewing ? items : totals.finalItems).map((i: any) => [
+        i.sku || '-', i.producto, i.cantidad, formatNum(i.valorUnitario), formatNum(i.costoTotalUnitario), formatNum(i.costoUnitarioSoles)
       ]);
 
       autoTable(doc, {
-        startY: 92,
-        head: [['SKU', 'Producto', 'Cant', 'Val. Unit', 'Total USD', 'Costo USD', 'Costo PEN']],
-        body: tableData,
+        startY: currentY,
+        head: [['SKU', 'Producto', 'Cant', 'Val. Unit', 'Costo USD', 'Costo PEN']],
+        body: itemsTable,
         theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-        styles: { fontSize: 8 }
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [79, 70, 229] }
       });
 
-      // Section: Totals Summary
-      const finalY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text("RESUMEN DE COSTOS", 15, finalY);
-      doc.line(15, finalY + 2, 195, finalY + 2);
-
-      doc.setFont('helvetica', 'normal');
+      currentY = (doc as any).lastAutoTable.finalY + 10;
+      currentY = drawSection("RESUMEN DE PROYECCIÓN ESTRATÉGICA", currentY);
       doc.setFontSize(9);
-      doc.text("Total Factura (USD):", 15, finalY + 10);
-      doc.text(`$${formatNum(data.totalFacturaComercial)}`, 70, finalY + 10, { align: 'right' });
-      
-      doc.text("Gastos Totales (USD):", 15, finalY + 15);
-      doc.text(`$${formatNum(data.gastosOrigen + data.fleteInternacional + data.seguro + data.gastosLocales)}`, 70, finalY + 15, { align: 'right' });
+      doc.text(`Inversión Total: S/ ${formatNum(data.costoTotalImportacionPEN)}`, 15, currentY);
+      doc.text(`Utilidad Total: S/ ${formatNum(data.utilidadTotalPEN_Sum)}`, 100, currentY);
+      doc.text(`Margen Promedio: ${formatNum(data.margenPromedio)}%`, 15, currentY + 6);
+      doc.text(`Ratio de Importación: ${formatNum(data.ratioImportacion)}`, 100, currentY + 6);
 
-      doc.text("Impuestos (USD):", 15, finalY + 20);
-      doc.text(`$${formatNum(data.adValoremGlobal + data.igv + data.ipm)}`, 70, finalY + 20, { align: 'right' });
-
-      doc.setFont('helvetica', 'bold');
-      doc.text("COSTO TOTAL (USD):", 15, finalY + 30);
-      doc.text(`$${formatNum(data.costoTotalImportacion)}`, 70, finalY + 30, { align: 'right' });
-
-      doc.save(`Costeo_${selectedCosteo?.codigo || 'Nuevo'}.pdf`);
+      doc.save(`Costeo_Peru_${selectedCosteo?.codigo || 'Nuevo'}.pdf`);
     } catch (err) {
-      console.error('Error generating PDF', err);
-      alert('Error al generar PDF. Asegúrese de que jspdf-autotable esté cargado.');
+      alert('Error al generar PDF.');
     }
   };
 
   const exportExcel = () => {
-    const costeo = isViewing ? selectedCosteo : { ...formData, ...totals };
+    const data = isViewing ? { ...formData, ...totals } : { ...formData, ...totals };
+    const tc = Number(formData.tipoCambio || 1);
     const clienteName = isViewing ? (selectedCosteo.cliente?.razonSocial || selectedCosteo.clienteNombre) : formData.clienteNombre;
     
-    // Create sections
-    const generalInfo = [
+    const content = [
+      ["COSTEO DE IMPORTACIÓN - DETALLE COMPLETO"],
+      ["FECHA", format(new Date(), 'dd/MM/yyyy')],
+      [],
       ["DATOS GENERALES"],
       ["Código", selectedCosteo?.codigo || "BORRADOR"],
       ["Cliente", clienteName],
-      ["Documento", isViewing ? (selectedCosteo.cliente?.ruc || selectedCosteo.clienteDocumento) : formData.clienteDocumento],
-      ["Factura", costeo.nroFacturaComercial || "-"],
-      ["Incoterm", costeo.incoterm],
-      ["Moneda", costeo.moneda],
-      ["Tipo Cambio", costeo.tipoCambio],
+      ["Factura", data.nroFacturaComercial],
+      ["Incoterm", data.incoterm],
+      ["Moneda", data.moneda],
+      ["Tipo Cambio", tc],
       [],
       ["LOGÍSTICA"],
-      ["Fecha Embarque", costeo.fechaEmbarque || "-"],
-      ["Fecha Llegada", costeo.fechaLlegada || "-"],
-      ["Canal", costeo.canal || "-"],
-      ["Nro DAM", costeo.nroDAM || "-"],
+      ["Fecha Embarque", data.fechaEmbarque],
+      ["DAM", data.nroDAM],
+      ["Canal", data.canal],
       [],
-      ["RESUMEN FINANCIERO (USD)"],
-      ["Total Factura", costeo.totalFacturaComercial],
-      ["CIF Global", costeo.cifGlobal],
-      ["AdValorem", costeo.adValoremGlobal],
-      ["IGV", costeo.igv],
-      ["COSTO TOTAL IMPORTACIÓN", costeo.costoTotalImportacion],
-      ["Ratio Importación", costeo.ratioImportacion],
+      ["TRIBUTOS POR PAGAR", `EN ${data.moneda}`, "EN SOLES (PEN)"],
+      ["AdValorem", data.adValoremGlobal, data.adValoremGlobal * tc],
+      ["IGV", data.igv, data.igv * tc],
+      ["IPM", data.ipm, data.ipm * tc],
+      ["Percepción", data.percepcionMonto, data.percepcionMonto * tc],
+      ["TOTAL TRIBUTOS", data.adValoremGlobal + data.igv + data.ipm + data.percepcionMonto, (data.adValoremGlobal + data.igv + data.ipm + data.percepcionMonto) * tc],
       [],
-      ["RESUMEN PROYECCIÓN (PEN)"],
-      ["Costo Total (PEN)", costeo.costoTotalImportacionPEN || (costeo.costoTotalImportacion * costeo.tipoCambio)],
-      ["Utilidad Total (PEN)", isViewing ? items.reduce((s: number, i: any) => s + (i.utilidadTotalPEN || 0), 0) : totals.utilidadTotalPEN_Sum],
-      ["Margen Promedio (%)", isViewing ? (items.reduce((s: number, i: any) => s + (i.margenPorcentaje || 0), 0) / items.length) : totals.margenPromedio],
+      ["RESUMEN PROYECCIÓN"],
+      ["Inversión Total (PEN)", data.costoTotalImportacionPEN],
+      ["Utilidad Total (PEN)", data.utilidadTotalPEN_Sum],
+      ["Margen Promedio (%)", data.margenPromedio],
+      ["Ratio de Importación", data.ratioImportacion],
       [],
-      ["DETALLE DE PRODUCTOS"]
+      ["DETALLE DE PRODUCTOS"],
+      ["SKU", "Producto", "Cantidad", "Val Unit USD", "Total USD", "Costo Unit USD", "Costo Unit PEN", "Precio Venta PEN", "Utilidad PEN", "Margen %"]
     ];
 
-    const itemHeaders = ["SKU", "Producto", "Cantidad", "Val. Unit USD", "Total USD", "Costo Unit USD", "Costo Unit PEN", "Precio Venta PEN", "Utilidad PEN", "Margen %"];
-    const itemData = (isViewing ? items : totals.finalItems).map((i: any) => [
-      i.sku, i.producto, i.cantidad, i.valorUnitario, i.valorTotal, i.costoTotalUnitario, i.costoUnitarioSoles, i.precioVentaPEN, i.utilidadUnitarioPEN, i.margenPorcentaje
-    ]);
+    (isViewing ? items : totals.finalItems).forEach((i: any) => {
+      content.push([i.sku, i.producto, i.cantidad, i.valorUnitario, i.valorTotal, i.costoTotalUnitario, i.costoUnitarioSoles, i.precioVentaPEN, i.utilidadUnitarioPEN, i.margenPorcentaje]);
+    });
 
-    const finalSheetData = [...generalInfo, itemHeaders, ...itemData];
-    const ws = XLSX.utils.aoa_to_sheet(finalSheetData);
+    const ws = XLSX.utils.aoa_to_sheet(content);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Costeo Completo");
-    XLSX.writeFile(wb, `Costeo_Completo_${selectedCosteo?.codigo || 'Nuevo'}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Costeo");
+    XLSX.writeFile(wb, `Costeo_Excel_${selectedCosteo?.codigo || 'Nuevo'}.xlsx`);
   };
 
   return (
@@ -591,344 +603,238 @@ const Costeos = () => {
       <div className="page-header flex justify-between items-end mb-8 border-b border-slate-200 pb-6">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Costeo de Importación</h1>
-          <p className="text-slate-500 mt-1 flex items-center gap-2">
-            <TrendingUp size={16} /> Inteligencia de costos y proyección de márgenes
-          </p>
+          <p className="text-slate-500 mt-1 flex items-center gap-2"><TrendingUp size={16} /> Gestión avanzada de costos y rentabilidad</p>
         </div>
-        <button className="btn btn-primary shadow-indigo-200 shadow-lg px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary shadow-indigo-200 shadow-lg px-6 py-3 rounded-xl hover:scale-105 transition-all" onClick={() => setShowModal(true)}>
           <Plus size={20} /> Nuevo Cálculo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {costeos.length === 0 && !loading ? (
-          <div className="card flex flex-col items-center justify-center py-20 text-center border-dashed border-2 border-slate-300 bg-white/50">
-            <Calculator size={64} className="text-slate-300 mb-4" />
-            <h2 className="text-xl font-bold text-slate-600">No hay costeos registrados</h2>
-            <p className="text-slate-400 mt-2">Comience creando un nuevo cálculo para sus importaciones.</p>
-          </div>
-        ) : (
-          <div className="card overflow-hidden border-0 shadow-xl shadow-slate-200/50">
-            <div className="table-responsive">
-              <table className="table">
-                <thead className="bg-slate-800 text-white">
-                  <tr>
-                    <th className="px-6 py-4">Código</th>
-                    <th className="px-6 py-4">Fecha</th>
-                    <th className="px-6 py-4">Cliente</th>
-                    <th className="px-6 py-4">Incoterm</th>
-                    <th className="px-6 py-4 text-right">Costo Total (USD)</th>
-                    <th className="px-6 py-4 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {costeos.map((c) => (
-                    <tr key={c.id} className="hover:bg-indigo-50/30 transition-colors group">
-                      <td className="px-6 py-4 font-bold text-indigo-600">{c.codigo}</td>
-                      <td className="px-6 py-4 text-slate-500">{format(new Date(c.createdAt), 'dd/MM/yyyy')}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-700">{c.cliente?.razonSocial || c.clienteNombre}</span>
-                          <span className="text-xs text-slate-400">{c.nroFacturaComercial || 'S/F'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4"><span className="px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-600">{c.incoterm}</span></td>
-                      <td className="px-6 py-4 text-right font-extrabold text-slate-900">${formatNum(c.costoTotalImportacion)}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center gap-3">
-                          <button className="p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm" onClick={() => viewCosteo(c)} title="Ver Detalle">
-                            <Eye size={18} />
-                          </button>
-                          <button className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all shadow-sm" onClick={() => editCosteo(c)} title="Editar">
-                            <Edit2 size={18} />
-                          </button>
-                          <button className="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all shadow-sm" onClick={() => deleteCosteo(c.id)} title="Eliminar">
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      <div className="card overflow-hidden border-0 shadow-xl shadow-slate-200/50">
+        <div className="table-responsive">
+          <table className="table">
+            <thead className="bg-slate-800 text-white">
+              <tr>
+                <th className="px-6 py-4">Código</th>
+                <th className="px-6 py-4">Fecha</th>
+                <th className="px-6 py-4">Cliente</th>
+                <th className="px-6 py-4">Incoterm</th>
+                <th className="px-6 py-4 text-right">Costo Total (USD)</th>
+                <th className="px-6 py-4 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {costeos.map((c) => (
+                <tr key={c.id} className="hover:bg-indigo-50/30 transition-colors">
+                  <td className="px-6 py-4 font-bold text-indigo-600">{c.codigo}</td>
+                  <td className="px-6 py-4 text-slate-500">{format(new Date(c.createdAt), 'dd/MM/yyyy')}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-700">{c.cliente?.razonSocial || c.clienteNombre}</td>
+                  <td className="px-6 py-4"><span className="px-3 py-1 bg-slate-100 rounded-full text-xs font-bold">{c.incoterm}</span></td>
+                  <td className="px-6 py-4 text-right font-extrabold text-slate-900">${formatNum(c.costoTotalImportacion)}</td>
+                  <td className="px-6 py-4 text-center flex justify-center gap-2">
+                    <button className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all" onClick={() => viewCosteo(c)} title="Ver"><Eye size={18} /></button>
+                    <button className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all" onClick={() => editCosteo(c)} title="Editar"><Edit2 size={18} /></button>
+                    <button className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all" onClick={() => deleteCosteo(c.id)} title="Eliminar"><Trash2 size={18} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
-        <div className="modal-overlay backdrop-blur-sm bg-slate-900/60 transition-opacity flex items-center justify-center z-50 p-0">
-          <div className="modal-content w-full h-full max-w-none max-h-none bg-white shadow-2xl overflow-hidden flex flex-col border-0 rounded-none">
-            {/* Modal Header */}
-            <div className="bg-slate-900 p-6 flex justify-between items-center text-white relative">
+        <div className="modal-overlay backdrop-blur-sm bg-slate-900/60 z-50 fixed inset-0 flex items-center justify-center p-4">
+          <div className="modal-content-custom bg-white shadow-2xl overflow-hidden flex flex-col rounded-3xl w-full max-w-[1400px] h-[95vh]">
+            {/* Header */}
+            <div className="bg-slate-900 p-6 flex justify-between items-center text-white shrink-0">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-500/30">
-                  <Calculator size={24} />
-                </div>
+                <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg"><Calculator size={24} /></div>
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight">
-                    {isViewing ? 'Resumen de Costeo' : isEditing ? 'Editar Registro' : 'Nuevo Análisis de Importación'}
-                  </h2>
-                  <div className="flex items-center gap-3 mt-1 opacity-80 text-xs">
-                    <span className="flex items-center gap-1"><Clock size={12} /> {format(new Date(), 'dd/MM/yyyy HH:mm')}</span>
-                    {selectedCosteo?.codigo && <span className="bg-white/20 px-2 py-0.5 rounded"># {selectedCosteo.codigo}</span>}
-                    {formData.ordenId && <span className="text-indigo-400 font-bold">Orden: {ordenes.find(o => o.id === formData.ordenId)?.correlativo}</span>}
+                  <h2 className="text-xl font-bold tracking-tight">{isViewing ? 'Resumen de Costeo' : isEditing ? 'Editar Registro' : 'Nuevo Análisis'}</h2>
+                  <div className="flex items-center gap-3 mt-1 opacity-80 text-[10px] font-bold uppercase tracking-wider">
+                    <span># {selectedCosteo?.codigo || 'BORRADOR'}</span>
+                    {formData.ordenId && <span className="text-indigo-400">Orden: {ordenes.find(o => o.id === formData.ordenId)?.correlativo}</span>}
                   </div>
                 </div>
               </div>
-              
               <div className="flex items-center gap-3">
                 {(isViewing || isEditing) && (
-                  <div className="flex gap-2 bg-white/10 p-1.5 rounded-xl mr-4 border border-white/10">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-bold transition-all" onClick={exportPDF}>
-                      <Printer size={14} /> PDF
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold transition-all" onClick={exportExcel}>
-                      <FileSpreadsheet size={14} /> EXCEL
-                    </button>
+                  <div className="flex gap-2 mr-4">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold transition-all" onClick={exportPDF}><Printer size={14} /> PDF</button>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold transition-all" onClick={exportExcel}><FileSpreadsheet size={14} /> EXCEL</button>
                   </div>
                 )}
-                <button className="p-2 hover:bg-white/10 rounded-full transition-colors" onClick={() => { setShowModal(false); resetForm(); }}>
-                  <X size={24} />
-                </button>
+                <button className="p-2 hover:bg-white/10 rounded-full transition-colors" onClick={() => { setShowModal(false); resetForm(); }}><X size={24} /></button>
               </div>
             </div>
             
-            <div className="modal-body overflow-y-auto p-8 bg-slate-50/50 space-y-8 flex-1 custom-scrollbar">
-              
-              {/* Step 1: General & Logistics */}
+            {/* Body */}
+            <div className="overflow-y-auto p-8 bg-slate-50/30 flex-1 space-y-8 custom-scrollbar">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-7 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-6">
-                    <Info size={16} className="text-indigo-600" /> Información General
-                  </h3>
-                  <div className="grid grid-cols-2 gap-6">
-                    {(user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') && !isViewing && !isEditing && (
-                      <div className="col-span-2 form-group">
-                        <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Vincular Orden de Servicio</label>
-                        <select value={formData.ordenId} onChange={(e) => handleOrdenChange(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium">
-                          <option value="">-- Sin orden previa --</option>
-                          {ordenes.map(o => (
-                            <option key={o.id} value={o.id}>{o.anio}-{o.correlativo.toString().padStart(5, '0')} ({o.cotizacion.cliente.razonSocial})</option>
-                          ))}
+                {/* General Data */}
+                <div className="lg:col-span-8 space-y-8">
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-6"><Info size={16} className="text-indigo-600" /> Datos Principales</h3>
+                    <div className="grid grid-cols-3 gap-6">
+                      {!isViewing && !isEditing && (
+                        <div className="col-span-3 form-group">
+                          <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase">Vincular con Orden</label>
+                          <select value={formData.ordenId} onChange={(e) => handleOrdenChange(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium">
+                            <option value="">-- Manual / Sin orden --</option>
+                            {ordenes.map(o => (
+                              <option key={o.id} value={o.id}>{o.anio}-{o.correlativo.toString().padStart(5, '0')} ({o.cotizacion.cliente.razonSocial})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase">Cliente</label>
+                        <input type="text" value={formData.clienteNombre} onChange={(e) => setFormData({ ...formData, clienteNombre: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" disabled={isViewing || !!formData.ordenId} />
+                      </div>
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase">Factura Comercial</label>
+                        <input type="text" value={formData.nroFacturaComercial} onChange={(e) => setFormData({ ...formData, nroFacturaComercial: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" disabled={isViewing} />
+                      </div>
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 uppercase">Tipo Cambio (PEN)</label>
+                        <input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({ ...formData, tipoCambio: parseFloat(e.target.value) || 0 })} className="w-full bg-indigo-50 border-indigo-200 border rounded-xl px-4 py-2.5 font-bold text-indigo-700 text-sm" disabled={isViewing} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Products Grid */}
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><Package size={18} className="text-indigo-600" /> Detalle de Productos</h3>
+                      {!isViewing && (
+                        <div className="flex gap-2">
+                          <button className="p-2 bg-white border border-slate-200 rounded-lg shadow-sm" onClick={() => fileInputRef.current?.click()} title="Importar Excel"><Upload size={14} /></button>
+                          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" style={{ display: 'none' }} />
+                          <button className="px-4 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-bold" onClick={addItem}>+ AGREGAR ÍTEM</button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto max-h-[400px]">
+                      <table className="w-full text-xs">
+                        <thead className="bg-slate-50/50 text-slate-500 uppercase text-[9px] font-black sticky top-0 z-10 border-b border-slate-100">
+                          <tr>
+                            <th className="px-4 py-3 text-left">SKU</th>
+                            <th className="px-4 py-3 text-left">Producto</th>
+                            <th className="px-4 py-3 text-right">Cant</th>
+                            <th className="px-4 py-3 text-right">Unit USD</th>
+                            <th className="px-4 py-3 text-right">Costo PEN</th>
+                            {!isViewing && <th className="px-4 py-3"></th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {items.map((item, idx) => {
+                            const calc = isViewing ? item : totals.finalItems[idx];
+                            return (
+                              <tr key={idx} className="hover:bg-indigo-50/10">
+                                <td className="px-4 py-2"><input type="text" value={item.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent w-16 border-0 focus:ring-0" disabled={isViewing} /></td>
+                                <td className="px-4 py-2"><input type="text" value={item.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent w-full border-0 focus:ring-0 font-medium" disabled={isViewing} /></td>
+                                <td className="px-4 py-2 text-right"><input type="number" value={item.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="w-16 text-right border-0 focus:ring-0 bg-slate-50 rounded" disabled={isViewing} /></td>
+                                <td className="px-4 py-2 text-right"><input type="number" value={item.valorUnitario || ''} onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)} className="w-16 text-right border-0 focus:ring-0 bg-slate-50 rounded" disabled={isViewing} /></td>
+                                <td className="px-4 py-2 text-right font-black text-emerald-600">S/ {formatNum(calc?.costoUnitarioSoles || 0)}</td>
+                                {!isViewing && <td className="px-4 py-2 text-center"><button onClick={() => removeItem(idx)} className="text-slate-300 hover:text-rose-500"><Trash2 size={14} /></button></td>}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Panel: Logistics & Taxes */}
+                <div className="lg:col-span-4 space-y-6">
+                  {/* Logistics Section */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-4"><Ship size={16} className="text-indigo-600" /> Logística</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Incoterm</label>
+                        <select value={formData.incoterm} onChange={(e) => setFormData({ ...formData, incoterm: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs" disabled={isViewing}>
+                          <option value="EXW">EXW</option><option value="FOB">FOB</option><option value="FCA">FCA</option>
                         </select>
                       </div>
-                    )}
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Cliente / Empresa</label>
-                      <input type="text" value={formData.clienteNombre} onChange={(e) => setFormData({ ...formData, clienteNombre: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" disabled={isViewing || !!formData.ordenId} />
-                    </div>
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Nro Documento</label>
-                      <input type="text" value={formData.clienteDocumento} onChange={(e) => setFormData({ ...formData, clienteDocumento: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" disabled={isViewing || !!formData.ordenId} />
-                    </div>
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Factura Comercial</label>
-                      <input type="text" value={formData.nroFacturaComercial} onChange={(e) => setFormData({ ...formData, nroFacturaComercial: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3" disabled={isViewing} />
-                    </div>
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Proveedor Extranjero</label>
-                      <input type="text" value={formData.proveedorExtranjero} onChange={(e) => setFormData({ ...formData, proveedorExtranjero: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3" disabled={isViewing} />
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">DAM / DUA</label>
+                        <input type="text" value={formData.nroDAM} onChange={(e) => setFormData({ ...formData, nroDAM: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs" disabled={isViewing} placeholder="118-2024..." />
+                      </div>
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Gastos Origen</label>
+                        <input type="number" value={formData.gastosOrigen || ''} onChange={(e) => setFormData({ ...formData, gastosOrigen: parseFloat(e.target.value) || 0 })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs" disabled={isViewing || formData.incoterm === 'FOB'} />
+                      </div>
+                      <div className="form-group">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Flete / Seguro</label>
+                        <input type="number" value={formData.fleteInternacional || ''} onChange={(e) => setFormData({ ...formData, fleteInternacional: parseFloat(e.target.value) || 0 })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs" disabled={isViewing} placeholder="Flete" />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="lg:col-span-5 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-6">
-                    <Ship size={16} className="text-indigo-600" /> Logística y Aduanas
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Incoterm</label>
-                      <select value={formData.incoterm} onChange={(e) => setFormData({ ...formData, incoterm: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" disabled={isViewing}>
-                        <option value="EXW">EXW</option><option value="FOB">FOB</option><option value="FCA">FCA</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">T. Cambio (PEN)</label>
-                      <input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({ ...formData, tipoCambio: parseFloat(e.target.value) || 0 })} className="w-full bg-indigo-50 border-indigo-200 border rounded-lg px-3 py-2 font-bold text-indigo-700" disabled={isViewing} placeholder="0.000" />
-                    </div>
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Fecha Embarque</label>
-                      <input type="date" value={formData.fechaEmbarque} onChange={(e) => setFormData({ ...formData, fechaEmbarque: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs" disabled={isViewing} />
-                    </div>
-                    <div className="form-group">
-                      <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Canal Aduana</label>
-                      <select value={formData.canal} onChange={(e) => setFormData({ ...formData, canal: e.target.value })} className={`w-full border rounded-lg px-3 py-2 font-bold text-xs ${formData.canal === 'VERDE' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : formData.canal === 'NARANJA' ? 'bg-orange-50 border-orange-200 text-orange-600' : formData.canal === 'ROJO' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-slate-50 border-slate-200'}`} disabled={isViewing}>
-                        <option value="">-- Seleccionar --</option><option value="VERDE">VERDE</option><option value="NARANJA">NARANJA</option><option value="ROJO">ROJO</option>
-                      </select>
-                    </div>
-                    <div className="form-group col-span-2">
-                      <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Nro DAM</label>
-                      <input type="text" value={formData.nroDAM} onChange={(e) => setFormData({ ...formData, nroDAM: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" disabled={isViewing} placeholder="Ej: 118-2024-10-..." />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 2: Product Grid */}
-              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="bg-slate-50 px-8 py-5 border-b border-slate-100 flex justify-between items-center">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                    <Package size={18} className="text-indigo-600" /> Detalle de Productos
-                  </h3>
-                  {!isViewing && (
-                    <div className="flex gap-2">
-                      <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-slate-600 shadow-sm" onClick={downloadTemplate}>
-                        <Download size={14} /> Plantilla
-                      </button>
-                      <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-slate-600 shadow-sm" onClick={() => fileInputRef.current?.click()}>
-                        <Upload size={14} /> Importar Excel
-                      </button>
-                      <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" style={{ display: 'none' }} />
-                      <button className="flex items-center gap-2 px-6 py-2 bg-slate-800 hover:bg-slate-900 rounded-xl text-xs font-bold text-white shadow-lg transition-all" onClick={addItem}>
-                        <Plus size={16} /> Nuevo Ítem
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="table-responsive">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50/50 text-slate-500 uppercase text-[10px] font-black border-b border-slate-100">
-                      <tr>
-                        <th className="px-6 py-4 text-left">SKU / Ref</th>
-                        <th className="px-6 py-4 text-left">Producto</th>
-                        <th className="px-6 py-4 text-right">Cantidad</th>
-                        <th className="px-6 py-4 text-right">Val. Unit (USD)</th>
-                        <th className="px-6 py-4 text-right">Total USD</th>
-                        <th className="px-6 py-4 text-right">% AdVal</th>
-                        <th className="px-6 py-4 text-right">Costo Unit (PEN)</th>
-                        {!isViewing && <th className="px-6 py-4 text-center"></th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {items.map((item, idx) => {
-                        const calc = isViewing ? item : totals.finalItems[idx];
-                        return (
-                          <tr key={idx} className="group hover:bg-indigo-50/20 transition-all">
-                            <td className="px-6 py-3"><input type="text" value={item.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 focus:ring-0 w-24 font-mono text-xs" disabled={isViewing} placeholder="SKU-..." /></td>
-                            <td className="px-6 py-3"><input type="text" value={item.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 focus:ring-0 w-full font-medium" disabled={isViewing} placeholder="Nombre producto" /></td>
-                            <td className="px-6 py-3 text-right font-bold"><input type="number" value={item.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="bg-slate-100/50 rounded px-2 py-1 border-0 focus:ring-1 focus:ring-indigo-300 w-20 text-right" disabled={isViewing} /></td>
-                            <td className="px-6 py-3 text-right"><input type="number" value={item.valorUnitario || ''} onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)} className="bg-slate-100/50 rounded px-2 py-1 border-0 focus:ring-1 focus:ring-indigo-300 w-24 text-right" disabled={isViewing} /></td>
-                            <td className="px-6 py-3 text-right font-bold text-slate-700">${formatNum(item.valorTotal || 0)}</td>
-                            <td className="px-6 py-3 text-right"><input type="number" value={item.adValoremPorcentaje} onChange={(e) => updateItem(idx, 'adValoremPorcentaje', e.target.value === '' ? '' : parseFloat(e.target.value))} className="bg-transparent border-0 w-16 text-right text-indigo-600 font-bold" placeholder="Auto" disabled={isViewing} /></td>
-                            <td className="px-6 py-3 text-right font-black text-emerald-600">S/ {formatNum(calc?.costoUnitarioSoles || 0)}</td>
-                            {!isViewing && (
-                              <td className="px-6 py-3 text-center"><button onClick={() => removeItem(idx)} className="text-slate-300 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button></td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Step 3: Expenses & Projections */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                {/* Financial Summary */}
-                <div className="xl:col-span-4 space-y-6">
-                  <div className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-200 text-white">
-                    <h3 className="text-xs font-black uppercase tracking-widest opacity-75 mb-4">Resumen Financiero (USD)</h3>
+                  {/* Tributos Section - IMPORTANT */}
+                  <div className="bg-slate-800 p-6 rounded-3xl shadow-xl text-white">
+                    <h3 className="text-xs font-black uppercase tracking-widest opacity-50 mb-4 flex items-center gap-2"><Landmark size={16} /> Tributos por Pagar</h3>
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center"><span className="text-sm">Total Factura</span><span className="font-bold">${formatNum(isViewing ? selectedCosteo.totalFacturaComercial : totals.totalFacturaComercial)}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-sm">Gastos Operativos</span><span className="font-bold">${formatNum(isViewing ? (selectedCosteo.gastosOrigen + selectedCosteo.fleteInternacional + selectedCosteo.seguro + selectedCosteo.gastosLocales) : (Number(formData.gastosOrigen) + Number(formData.fleteInternacional) + Number(formData.seguro) + Number(formData.gastosLocales)))}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-sm">Impuestos (AdV+IGV+IPM)</span><span className="font-bold">${formatNum(isViewing ? (selectedCosteo.adValoremGlobal + selectedCosteo.igv + selectedCosteo.ipm) : (totals.adValoremGlobal + totals.igv + totals.ipm))}</span></div>
-                      <div className="pt-4 border-t border-white/20 flex justify-between items-end">
-                        <span className="text-xs uppercase font-black">Costo Total Importación</span>
-                        <span className="text-2xl font-black">${formatNum(isViewing ? selectedCosteo.costoTotalImportacion : totals.costoTotalImportacion)}</span>
+                      {[
+                        { label: 'AdValorem', val: totals.adValoremGlobal, tc: formData.tipoCambio },
+                        { label: 'IGV (16%)', val: totals.igv, tc: formData.tipoCambio },
+                        { label: 'IPM (2%)', val: totals.ipm, tc: formData.tipoCambio },
+                        { label: 'Percepción', val: totals.percepcionMonto, tc: formData.tipoCambio }
+                      ].map((tax, i) => (
+                        <div key={i} className="flex justify-between items-center text-xs">
+                          <span className="opacity-70">{tax.label}</span>
+                          <div className="text-right">
+                            <div className="font-bold">${formatNum(tax.val)}</div>
+                            <div className="text-[9px] opacity-50">S/ {formatNum(tax.val * Number(tax.tc || 1))}</div>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                        <span className="text-[10px] font-black uppercase">Total Tributos</span>
+                        <div className="text-right">
+                          <div className="text-lg font-black text-indigo-400">${formatNum(totals.adValoremGlobal + totals.igv + totals.ipm + totals.percepcionMonto)}</div>
+                          <div className="text-[10px] opacity-50 font-bold">S/ {formatNum((totals.adValoremGlobal + totals.igv + totals.ipm + totals.percepcionMonto) * Number(formData.tipoCambio || 1))}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Indicador Clave</h3>
-                    <div className="flex items-center gap-4">
-                      <div className="p-4 bg-slate-50 rounded-2xl">
-                        <TrendingUp size={24} className="text-indigo-600" />
-                      </div>
-                      <div>
-                        <div className="text-2xl font-black text-slate-800">{formatNum(isViewing ? selectedCosteo.ratioImportacion : totals.ratioImportacion)}</div>
-                        <div className="text-[10px] text-slate-400 font-bold uppercase">Ratio de Importación</div>
-                      </div>
+                  {/* Profit Projections Card */}
+                  <div className="bg-indigo-600 p-6 rounded-3xl shadow-xl shadow-indigo-200 text-white">
+                    <h3 className="text-xs font-black uppercase tracking-widest opacity-75 mb-4">Proyección de Rentabilidad</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center"><span className="text-xs opacity-80">Ingresos Totales (Neto)</span><span className="font-black">S/ {formatNum(totals.ingresosTotalesPEN)}</span></div>
+                      <div className="flex justify-between items-center"><span className="text-xs opacity-80">Utilidad Proyectada</span><span className="font-black text-emerald-300">S/ {formatNum(totals.utilidadTotalPEN_Sum)}</span></div>
+                      <div className="flex justify-between items-center"><span className="text-xs opacity-80">Margen Promedio</span><span className="px-2 py-0.5 bg-white/20 rounded-full font-black">{formatNum(totals.margenPromedio)}%</span></div>
                     </div>
                   </div>
                 </div>
-
-                {/* Projection Grid */}
-                <div className="xl:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-                  <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Proyección de Ventas</h3>
-                    <div className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full">UTILIDAD NETA (SIN IGV)</div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-slate-50 text-slate-400 uppercase text-[9px] font-black">
-                        <tr>
-                          <th className="px-4 py-3 text-left">Ítem</th>
-                          <th className="px-4 py-3 text-right">Precio Venta (PEN)</th>
-                          <th className="px-4 py-3 text-right">Desc (%)</th>
-                          <th className="px-4 py-3 text-right">Margen (%)</th>
-                          <th className="px-4 py-3 text-right">Utilidad Total (PEN)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {(isViewing ? items : totals.finalItems).map((i: any, idx: number) => (
-                          <tr key={idx}>
-                            <td className="px-4 py-3 font-medium truncate max-w-[150px]">{i.producto}</td>
-                            <td className="px-4 py-3 text-right"><input type="number" value={i.precioVentaPEN || ''} onChange={(e) => updateItem(idx, 'precioVentaPEN', parseFloat(e.target.value) || 0)} className="w-20 text-right font-bold text-slate-700 bg-slate-50 rounded p-1" disabled={isViewing} /></td>
-                            <td className="px-4 py-3 text-right"><input type="number" value={i.descuentoPorcentaje || ''} onChange={(e) => updateItem(idx, 'descuentoPorcentaje', parseFloat(e.target.value) || 0)} className="w-12 text-right bg-slate-50 rounded p-1" disabled={isViewing} /></td>
-                            <td className={`px-4 py-3 text-right font-bold ${i.margenPorcentaje > 30 ? 'text-emerald-500' : 'text-orange-500'}`}>{formatNum(i.margenPorcentaje)}%</td>
-                            <td className="px-4 py-3 text-right font-black text-slate-800">S/ {formatNum(i.utilidadTotalPEN)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
               </div>
-
-              {/* Step 4: Proyeccion Dashboard Footer */}
-              <div className="bg-slate-900 p-8 rounded-[2rem] shadow-2xl text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-10 opacity-10"><TrendingUp size={120} /></div>
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] opacity-50 mb-8">Resumen de Proyección Estratégica (PEN)</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-12 relative z-10">
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Inversión Total</div>
-                    <div className="text-3xl font-black">S/ {formatNum(isViewing ? (selectedCosteo.costoTotalImportacion * selectedCosteo.tipoCambio) : totals.costoTotalImportacionPEN)}</div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Ingresos Proyectados</div>
-                    <div className="text-3xl font-black">S/ {formatNum(isViewing ? items.reduce((s: number, i: any) => s + (i.utilidadTotalPEN || 0) + (i.costoTotalSoles || 0), 0) : totals.ingresosTotalesPEN)}</div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Utilidad Estimada</div>
-                    <div className="text-3xl font-black text-emerald-400">+{formatNum(isViewing ? items.reduce((s: number, i: any) => s + (i.utilidadTotalPEN || 0), 0) : totals.utilidadTotalPEN_Sum)}</div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-[10px] text-emerald-400 font-black uppercase tracking-widest">Margen Promedio</div>
-                    <div className="text-3xl font-black text-emerald-400">{formatNum(isViewing ? (items.reduce((s: number, i: any) => s + (i.margenPorcentaje || 0), 0) / items.length) : totals.margenPromedio)}%</div>
-                  </div>
-                </div>
-              </div>
-
             </div>
 
-            <div className="modal-footer p-6 bg-white border-t border-slate-100 flex justify-between items-center">
-              <div className="flex items-center gap-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                {isViewing && selectedCosteo && (
-                  <>
-                    <span className="flex items-center gap-1.5"><User size={12} /> Creado por: {selectedCosteo.empresa?.razonSocial}</span>
-                    <span className="flex items-center gap-1.5"><Calendar size={12} /> {format(new Date(selectedCosteo.createdAt), 'dd/MM/yyyy HH:mm')}</span>
-                  </>
-                )}
+            {/* Footer Dashboard */}
+            <div className="bg-slate-900 p-6 flex justify-between items-center text-white shrink-0">
+              <div className="flex gap-12">
+                <div className="space-y-0.5">
+                  <div className="text-[9px] text-indigo-400 font-black uppercase tracking-widest">Inversión Total (PEN)</div>
+                  <div className="text-2xl font-black">S/ {formatNum(totals.costoTotalImportacionPEN)}</div>
+                </div>
+                <div className="space-y-0.5">
+                  <div className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">Ratio de Importación</div>
+                  <div className="text-2xl font-black text-emerald-400">{formatNum(totals.ratioImportacion)}</div>
+                </div>
               </div>
-              <div className="flex gap-4">
-                <button className="px-8 py-3 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-2xl font-bold transition-all" onClick={() => { setShowModal(false); resetForm(); }}>{isViewing ? 'Cerrar Vista' : 'Descartar'}</button>
+              <div className="flex gap-4 items-center">
+                <div className="text-right text-[10px] text-slate-500 mr-8 leading-tight">
+                  {selectedCosteo && <div>Creado: {format(new Date(selectedCosteo.createdAt), 'dd/MM/yyyy HH:mm')}</div>}
+                </div>
+                <button className="px-8 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all" onClick={() => { setShowModal(false); resetForm(); }}>CERRAR</button>
                 {!isViewing && (
-                  <button className="px-10 py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-2xl font-bold shadow-lg shadow-indigo-200 transition-all transform active:scale-95" onClick={handleSave}>
-                    {isEditing ? 'Confirmar Cambios' : 'Finalizar y Guardar'}
+                  <button className="px-10 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 transition-all" onClick={handleSave}>
+                    {isEditing ? 'ACTUALIZAR REGISTRO' : 'FINALIZAR Y GUARDAR'}
                   </button>
                 )}
               </div>
@@ -938,31 +844,10 @@ const Costeos = () => {
       )}
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-        .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: white; border: none; }
-        .modal-overlay { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        
-        /* Ajustes para pantalla completa real */
-        .modal-overlay {
-          padding: 0 !important;
-        }
-        .modal-content {
-          animation: slideUp 0.3s ease-out;
-          width: 100vw !important;
-          height: 100vh !important;
-          max-width: 100vw !important;
-          max-height: 100vh !important;
-          margin: 0 !important;
-          border-radius: 0 !important;
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .modal-content-custom { animation: zoomIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
       `}</style>
     </div>
   );
