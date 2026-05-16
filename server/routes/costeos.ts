@@ -65,7 +65,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     tipoCambio, observaciones, items, 
     totalFacturaComercial, gastosOrigen, fleteInternacional, seguro, gastosLocales,
     adValoremGlobal, percepcionPorcentaje,
-    cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion
+    cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion
   } = req.body;
 
   try {
@@ -86,10 +86,10 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       data: {
         codigo,
         empresaId,
-        clienteId,
+        clienteId: clienteId || null,
         clienteNombre,
         clienteDocumento,
-        ordenId,
+        ordenId: ordenId || null,
         nroFacturaComercial,
         proveedorExtranjero,
         incoterm,

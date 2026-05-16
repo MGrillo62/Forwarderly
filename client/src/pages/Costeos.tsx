@@ -1,24 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Search, FileText, ChevronRight, Save, X, Trash2, 
-  Calculator, Info, Package, DollarSign, RefreshCw, TrendingUp 
+  Calculator, Info, Package, DollarSign, RefreshCw, TrendingUp,
+  Download, Upload, FileSpreadsheet, CheckCircle, AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 interface Item {
   sku: string;
   producto: string;
-  cantidad: number;
-  valorUnitario: number;
+  cantidad: number | '';
+  valorUnitario: number | '';
   valorTotal: number;
   adValoremPorcentaje: number | '';
-  // Sales Projection fields
-  precioVentaPEN: number;
-  descuentoPorcentaje: number;
+  precioVentaPEN: number | '';
+  descuentoPorcentaje: number | '';
   
-  // Calculated fields for UI display
   participacionPorcentual?: number;
   cifOculto?: number;
   adValoremMonto?: number;
@@ -29,8 +29,7 @@ interface Item {
   costoTotalUnitario?: number;
   costoTotalTotal?: number;
   costoTotalSoles?: number;
-  
-  // Projection calculated fields
+  costoUnitarioSoles?: number;
   utilidadUnitarioPEN?: number;
   utilidadTotalPEN?: number;
   margenPorcentaje?: number;
@@ -45,11 +44,15 @@ const Costeos = () => {
   const [showModal, setShowModal] = useState(false);
   const [isViewing, setIsViewing] = useState(false);
   const [selectedCosteo, setSelectedCosteo] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper for formatting
+  // Excel Upload State
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStats, setUploadStats] = useState({ total: 0, success: 0, errors: 0 });
+  const [isUploading, setIsUploading] = useState(false);
+
   const formatNum = (val: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
-  // Form State
   const [formData, setFormData] = useState({
     clienteId: '',
     clienteNombre: '',
@@ -143,14 +146,15 @@ const Costeos = () => {
     const item = { ...newItems[index], [field]: value };
     
     if (field === 'cantidad' || field === 'valorUnitario') {
-      item.valorTotal = (Number(item.cantidad) || 0) * (Number(item.valorUnitario) || 0);
+      const cant = Number(item.cantidad) || 0;
+      const unit = Number(item.valorUnitario) || 0;
+      item.valorTotal = cant * unit;
     }
     
     newItems[index] = item;
     setItems(newItems);
   };
 
-  // Calculations
   const totals = useMemo(() => {
     const totalFacturaComercial = items.reduce((sum, item) => sum + (item.valorTotal || 0), 0);
     
@@ -165,7 +169,6 @@ const Costeos = () => {
 
     const cifGlobal = fobEquivalente + Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0);
 
-    // AdValorem Logic
     let adValoremGlobalCalculated = 0;
     const hasItemAdValorem = items.some(item => item.adValoremPorcentaje !== '');
 
@@ -181,22 +184,23 @@ const Costeos = () => {
       
       adValoremGlobalCalculated += adValoremMonto;
 
-      // Distribution of expenses
       const fleteItem = Number(formData.fleteInternacional || 0) * item.participacion;
       const seguroItem = Number(formData.seguro || 0) * item.participacion;
       const origenItem = Number(formData.gastosOrigen || 0) * item.participacion;
       const localesItem = Number(formData.gastosLocales || 0) * item.participacion;
       
       const costoTotalMercaderia = item.valorTotal + fleteItem + seguroItem + origenItem + localesItem + adValoremMonto;
-      const costoUnitario = item.cantidad > 0 ? (costoTotalMercaderia / item.cantidad) : 0;
+      const cantNum = Number(item.cantidad) || 0;
+      const costoUnitario = cantNum > 0 ? (costoTotalMercaderia / cantNum) : 0;
       const costoSoles = costoTotalMercaderia * Number(formData.tipoCambio || 1);
-      const costoUnitarioSoles = item.cantidad > 0 ? (costoSoles / item.cantidad) : 0;
+      const costoUnitarioSoles = cantNum > 0 ? (costoSoles / cantNum) : 0;
 
-      // Projection Calculations
-      const precioConDescuento = item.precioVentaPEN * (1 - (item.descuentoPorcentaje || 0) / 100);
+      const precioVentaNum = Number(item.precioVentaPEN) || 0;
+      const descPorcNum = Number(item.descuentoPorcentaje) || 0;
+      const precioConDescuento = precioVentaNum * (1 - descPorcNum / 100);
       const valorVentaNeto = precioConDescuento / 1.18;
       const utilidadUnitarioPEN = valorVentaNeto - costoUnitarioSoles;
-      const utilidadTotalPEN = utilidadUnitarioPEN * item.cantidad;
+      const utilidadTotalPEN = utilidadUnitarioPEN * cantNum;
       const margenPorcentaje = valorVentaNeto > 0 ? (utilidadUnitarioPEN / valorVentaNeto) * 100 : 0;
 
       return {
@@ -204,14 +208,14 @@ const Costeos = () => {
         participacionPorcentual: item.participacion * 100,
         cifOculto,
         adValoremMonto,
-        fleteUnitario: item.cantidad > 0 ? fleteItem / item.cantidad : 0,
-        seguroUnitario: item.cantidad > 0 ? seguroItem / item.cantidad : 0,
-        gastosOrigenUnitario: item.cantidad > 0 ? origenItem / item.cantidad : 0,
-        gastosLocalesUnitario: item.cantidad > 0 ? localesItem / item.cantidad : 0,
+        fleteUnitario: cantNum > 0 ? fleteItem / cantNum : 0,
+        seguroUnitario: cantNum > 0 ? seguroItem / cantNum : 0,
+        gastosOrigenUnitario: cantNum > 0 ? origenItem / cantNum : 0,
+        gastosLocalesUnitario: cantNum > 0 ? localesItem / cantNum : 0,
         costoTotalUnitario: costoUnitario,
         costoTotalTotal: costoTotalMercaderia,
         costoTotalSoles: costoSoles,
-        costoUnitarioSoles, // Added for display
+        costoUnitarioSoles,
         utilidadUnitarioPEN,
         utilidadTotalPEN,
         margenPorcentaje
@@ -230,6 +234,17 @@ const Costeos = () => {
 
     const ratioImportacion = totalFacturaComercial > 0 ? (costoTotalImportacion / totalFacturaComercial) : 0;
 
+    // Resumen de Proyección (PEN)
+    const costoTotalImportacionPEN = costoTotalImportacion * Number(formData.tipoCambio || 1);
+    const ingresosTotalesPEN = finalItems.reduce((sum, item) => {
+      const cant = Number(item.cantidad) || 0;
+      const precioVentaNum = Number(item.precioVentaPEN) || 0;
+      const descPorcNum = Number(item.descuentoPorcentaje) || 0;
+      return sum + ((precioVentaNum * (1 - descPorcNum / 100)) / 1.18) * cant;
+    }, 0);
+    const utilidadTotalPEN_Sum = finalItems.reduce((sum, item) => sum + (item.utilidadTotalPEN || 0), 0);
+    const margenPromedio = ingresosTotalesPEN > 0 ? (utilidadTotalPEN_Sum / ingresosTotalesPEN) * 100 : 0;
+
     return {
       totalFacturaComercial,
       fobEquivalente,
@@ -242,7 +257,12 @@ const Costeos = () => {
       costoTotalImportacion,
       ratioImportacion,
       finalItems,
-      hasItemAdValorem
+      hasItemAdValorem,
+      // Projection Totals
+      costoTotalImportacionPEN,
+      ingresosTotalesPEN,
+      utilidadTotalPEN_Sum,
+      margenPromedio
     };
   }, [items, formData]);
 
@@ -271,7 +291,7 @@ const Costeos = () => {
       resetForm();
     } catch (err) {
       console.error('Error saving costeo', err);
-      alert('Error al guardar el costeo');
+      alert('Error al guardar el costeo. Verifique que todos los datos sean correctos.');
     }
   };
 
@@ -297,12 +317,82 @@ const Costeos = () => {
     setItems([]);
     setIsViewing(false);
     setSelectedCosteo(null);
+    setUploadProgress(0);
+    setUploadStats({ total: 0, success: 0, errors: 0 });
   };
 
   const viewCosteo = (costeo: any) => {
     setSelectedCosteo(costeo);
     setIsViewing(true);
     setShowModal(true);
+  };
+
+  // Excel Handlers
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { SKU: 'SKU001', Producto: 'Ejemplo Producto 1', Cantidad: 100, 'Valor Unitario': 15.50, '% AdValorem': 6 },
+      { SKU: 'SKU002', Producto: 'Ejemplo Producto 2', Cantidad: 50, 'Valor Unitario': 25.00, '% AdValorem': 0 }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+    XLSX.writeFile(wb, "Plantilla_Costeo.xlsx");
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadProgress(10);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        setUploadProgress(50);
+        
+        const newItems: Item[] = [];
+        let success = 0;
+        let errors = 0;
+
+        data.forEach((row: any) => {
+          if (row.Producto && row.Cantidad) {
+            newItems.push({
+              sku: row.SKU || '',
+              producto: row.Producto,
+              cantidad: parseFloat(row.Cantidad) || 0,
+              valorUnitario: parseFloat(row['Valor Unitario']) || 0,
+              valorTotal: (parseFloat(row.Cantidad) || 0) * (parseFloat(row['Valor Unitario']) || 0),
+              adValoremPorcentaje: row['% AdValorem'] !== undefined ? parseFloat(row['% AdValorem']) : '',
+              precioVentaPEN: 0,
+              descuentoPorcentaje: 0
+            });
+            success++;
+          } else {
+            errors++;
+          }
+        });
+
+        setItems([...items, ...newItems]);
+        setUploadStats({ total: data.length, success, errors });
+        setUploadProgress(100);
+        
+        setTimeout(() => {
+          setIsUploading(false);
+        }, 2000);
+      } catch (err) {
+        console.error('Error reading excel', err);
+        alert('Error al leer el archivo Excel');
+        setIsUploading(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -465,36 +555,68 @@ const Costeos = () => {
                     <input 
                       type="number" 
                       step="0.001"
-                      value={isViewing ? selectedCosteo?.tipoCambio : formData.tipoCambio}
-                      onChange={(e) => setFormData({ ...formData, tipoCambio: parseFloat(e.target.value) || 0 })}
+                      value={isViewing ? selectedCosteo?.tipoCambio : (formData.tipoCambio === 0 ? '' : formData.tipoCambio)}
+                      onChange={(e) => setFormData({ ...formData, tipoCambio: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                       className="form-control"
                       disabled={isViewing}
+                      placeholder="0.000"
                     />
                   </div>
                 </div>
-                
-                <div className="form-group mt-3">
-                  <label>Observaciones</label>
-                  <textarea 
-                    value={isViewing ? selectedCosteo?.observaciones : formData.observaciones}
-                    onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-                    className="form-control"
-                    rows={2}
-                    disabled={isViewing}
-                  ></textarea>
-                </div>
               </div>
 
-              {/* Seccion 2: Grilla de Productos */}
+              {/* Seccion 2: Productos con Excel */}
               <div className="form-section">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="section-title mb-0"><Package size={18} /> Grilla de Productos</h3>
+                  <div className="flex items-center gap-4">
+                    <h3 className="section-title mb-0"><Package size={18} /> Productos</h3>
+                    {!isViewing && (
+                      <div className="excel-actions flex items-center gap-2">
+                        <button className="btn btn-secondary btn-sm" onClick={downloadTemplate} title="Descargar Plantilla">
+                          <Download size={14} /> Plantilla
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => fileInputRef.current?.click()} title="Subir Excel">
+                          <Upload size={14} /> Subir Excel
+                        </button>
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          onChange={handleFileUpload} 
+                          accept=".xlsx, .xls" 
+                          style={{ display: 'none' }} 
+                        />
+                      </div>
+                    )}
+                  </div>
                   {!isViewing && (
-                    <button className="btn btn-secondary btn-sm" onClick={addItem}>
+                    <button className="btn btn-primary btn-sm" onClick={addItem}>
                       <Plus size={14} /> Agregar Item
                     </button>
                   )}
                 </div>
+
+                {isUploading && (
+                  <div className="upload-progress-container mb-4">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>Procesando archivo... {uploadProgress}%</span>
+                      {uploadProgress === 100 && (
+                        <span className="text-success flex items-center gap-1">
+                          <CheckCircle size={12} /> Carga finalizada
+                        </span>
+                      )}
+                    </div>
+                    <div className="progress-bar-bg">
+                      <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
+                    </div>
+                    {uploadStats.total > 0 && (
+                      <div className="flex gap-3 mt-2 text-xs">
+                        <span>Total: <strong>{uploadStats.total}</strong></span>
+                        <span className="text-success">Éxito: <strong>{uploadStats.success}</strong></span>
+                        <span className="text-danger">Errores: <strong>{uploadStats.errors}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <div className="table-responsive">
                   <table className="table grid-table">
@@ -539,8 +661,8 @@ const Costeos = () => {
                             <td width="90">
                               <input 
                                 type="number" 
-                                value={item.cantidad} 
-                                onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)}
+                                value={item.cantidad === 0 ? '' : item.cantidad} 
+                                onChange={(e) => updateItem(idx, 'cantidad', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                 className="form-control-sm text-right"
                                 disabled={isViewing}
                                 style={{ minWidth: '70px' }}
@@ -549,8 +671,8 @@ const Costeos = () => {
                             <td width="100">
                               <input 
                                 type="number" 
-                                value={item.valorUnitario} 
-                                onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)}
+                                value={item.valorUnitario === 0 ? '' : item.valorUnitario} 
+                                onChange={(e) => updateItem(idx, 'valorUnitario', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                 className="form-control-sm text-right"
                                 disabled={isViewing}
                                 style={{ minWidth: '90px' }}
@@ -590,7 +712,7 @@ const Costeos = () => {
                 </div>
               </div>
 
-              {/* Nueva Sección: Distribución de Costos y Proyección de Ventas */}
+              {/* Sección: Distribución de Costos y Proyección de Ventas */}
               <div className="form-section projection-section">
                 <h3 className="section-title"><TrendingUp size={18} /> Distribución de Costos y Proyección de Ventas</h3>
                 <div className="table-responsive">
@@ -618,8 +740,8 @@ const Costeos = () => {
                           <td className="text-right">
                             <input 
                               type="number" 
-                              value={item.precioVentaPEN} 
-                              onChange={(e) => updateItem(idx, 'precioVentaPEN', parseFloat(e.target.value) || 0)}
+                              value={item.precioVentaPEN === 0 ? '' : item.precioVentaPEN} 
+                              onChange={(e) => updateItem(idx, 'precioVentaPEN', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                               className="form-control-sm text-right bg-white"
                               disabled={isViewing}
                               style={{ width: '100px' }}
@@ -628,8 +750,8 @@ const Costeos = () => {
                           <td className="text-right">
                             <input 
                               type="number" 
-                              value={item.descuentoPorcentaje} 
-                              onChange={(e) => updateItem(idx, 'descuentoPorcentaje', parseFloat(e.target.value) || 0)}
+                              value={item.descuentoPorcentaje === 0 ? '' : item.descuentoPorcentaje} 
+                              onChange={(e) => updateItem(idx, 'descuentoPorcentaje', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                               className="form-control-sm text-right bg-white"
                               disabled={isViewing}
                               style={{ width: '80px' }}
@@ -656,8 +778,8 @@ const Costeos = () => {
                       <label>Gastos Origen (USD)</label>
                       <input 
                         type="number" 
-                        value={isViewing ? selectedCosteo?.gastosOrigen : formData.gastosOrigen}
-                        onChange={(e) => setFormData({ ...formData, gastosOrigen: parseFloat(e.target.value) || 0 })}
+                        value={isViewing ? selectedCosteo?.gastosOrigen : (formData.gastosOrigen === 0 ? '' : formData.gastosOrigen)}
+                        onChange={(e) => setFormData({ ...formData, gastosOrigen: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="form-control"
                         disabled={isViewing}
                       />
@@ -666,8 +788,8 @@ const Costeos = () => {
                       <label>Flete Internacional (USD)</label>
                       <input 
                         type="number" 
-                        value={isViewing ? selectedCosteo?.fleteInternacional : formData.fleteInternacional}
-                        onChange={(e) => setFormData({ ...formData, fleteInternacional: parseFloat(e.target.value) || 0 })}
+                        value={isViewing ? selectedCosteo?.fleteInternacional : (formData.fleteInternacional === 0 ? '' : formData.fleteInternacional)}
+                        onChange={(e) => setFormData({ ...formData, fleteInternacional: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="form-control"
                         disabled={isViewing}
                       />
@@ -676,8 +798,8 @@ const Costeos = () => {
                       <label>Seguro (USD)</label>
                       <input 
                         type="number" 
-                        value={isViewing ? selectedCosteo?.seguro : formData.seguro}
-                        onChange={(e) => setFormData({ ...formData, seguro: parseFloat(e.target.value) || 0 })}
+                        value={isViewing ? selectedCosteo?.seguro : (formData.seguro === 0 ? '' : formData.seguro)}
+                        onChange={(e) => setFormData({ ...formData, seguro: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="form-control"
                         disabled={isViewing}
                       />
@@ -686,8 +808,8 @@ const Costeos = () => {
                       <label>Gastos Locales (USD)</label>
                       <input 
                         type="number" 
-                        value={isViewing ? selectedCosteo?.gastosLocales : formData.gastosLocales}
-                        onChange={(e) => setFormData({ ...formData, gastosLocales: parseFloat(e.target.value) || 0 })}
+                        value={isViewing ? selectedCosteo?.gastosLocales : (formData.gastosLocales === 0 ? '' : formData.gastosLocales)}
+                        onChange={(e) => setFormData({ ...formData, gastosLocales: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="form-control"
                         disabled={isViewing}
                       />
@@ -702,8 +824,8 @@ const Costeos = () => {
                       <label>% AdValorem Global</label>
                       <input 
                         type="number" 
-                        value={isViewing ? selectedCosteo?.adValoremGlobalPorc : formData.adValoremGlobal}
-                        onChange={(e) => setFormData({ ...formData, adValoremGlobal: parseFloat(e.target.value) || 0 })}
+                        value={isViewing ? selectedCosteo?.adValoremGlobalPorc : (formData.adValoremGlobal === 0 ? '' : formData.adValoremGlobal)}
+                        onChange={(e) => setFormData({ ...formData, adValoremGlobal: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="form-control"
                         placeholder="Solo si no hay en grilla"
                         disabled={isViewing || totals.hasItemAdValorem}
@@ -714,8 +836,8 @@ const Costeos = () => {
                       <label>% Percepción</label>
                       <input 
                         type="number" 
-                        value={isViewing ? selectedCosteo?.percepcionPorcentaje : formData.percepcionPorcentaje}
-                        onChange={(e) => setFormData({ ...formData, percepcionPorcentaje: parseFloat(e.target.value) || 0 })}
+                        value={isViewing ? selectedCosteo?.percepcionPorcentaje : (formData.percepcionPorcentaje === 0 ? '' : formData.percepcionPorcentaje)}
+                        onChange={(e) => setFormData({ ...formData, percepcionPorcentaje: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                         className="form-control"
                         disabled={isViewing}
                       />
@@ -724,8 +846,35 @@ const Costeos = () => {
                 </div>
               </div>
 
-              {/* Seccion 4: Resumen de Totales */}
-              <div className="summary-section mt-6">
+              {/* Seccion 4: Resumen de Proyección (PEN) - Estilo Imagen 1 */}
+              <div className="form-section projection-summary-section">
+                <h3 className="section-title text-sm uppercase opacity-70">RESUMEN DE PROYECCIÓN (PEN)</h3>
+                <div className="projection-summary-grid">
+                  <div className="summary-item">
+                    <small>Costo Total Importación</small>
+                    <div className="value">S/ {formatNum(isViewing ? (selectedCosteo?.costoTotalImportacion * selectedCosteo?.tipoCambio) : totals.costoTotalImportacionPEN)}</div>
+                  </div>
+                  <div className="summary-item border-l">
+                    <small>Ingresos Totales (Valor Venta)</small>
+                    <div className="value">S/ {formatNum(isViewing ? selectedCosteo?.items.reduce((s, i) => s + i.utilidadTotalPEN + (i.costoTotalSoles || 0), 0) : totals.ingresosTotalesPEN)}</div>
+                  </div>
+                  <div className="summary-item border-l">
+                    <small>Utilidad Total</small>
+                    <div className="value text-success">+{formatNum(isViewing ? selectedCosteo?.items.reduce((s, i) => s + i.utilidadTotalPEN, 0) : totals.utilidadTotalPEN_Sum)}</div>
+                  </div>
+                  <div className="summary-item border-l">
+                    <small>Margen Promedio</small>
+                    <div className="value text-success">{formatNum(isViewing ? (selectedCosteo?.items.reduce((s, i) => s + i.margenPorcentaje, 0) / selectedCosteo?.items.length) : totals.margenPromedio)}%</div>
+                  </div>
+                  <div className="summary-item border-l">
+                    <small>Ratio de Importación</small>
+                    <div className="value text-primary">{formatNum(isViewing ? selectedCosteo?.ratioImportacion : totals.ratioImportacion)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resumen Final de Totales (USD) */}
+              <div className="summary-section mt-4">
                 <div className="summary-grid">
                   <div className="summary-card">
                     <span>Total Factura</span>
@@ -742,10 +891,6 @@ const Costeos = () => {
                   <div className="summary-card">
                     <span>IGV (16%)</span>
                     <strong>${formatNum(isViewing ? selectedCosteo?.igv : totals.igv)}</strong>
-                  </div>
-                  <div className="summary-card">
-                    <span>RATIO IMPORTACIÓN</span>
-                    <strong className="text-primary">{formatNum(isViewing ? selectedCosteo?.ratioImportacion : totals.ratioImportacion)}</strong>
                   </div>
                   <div className="summary-card highlight">
                     <span>COSTO TOTAL IMPORTACIÓN</span>
@@ -829,7 +974,7 @@ const Costeos = () => {
           font-size: 1.5rem;
         }
         .modal-content.large {
-          max-width: 1200px;
+          max-width: 1250px;
           width: 98%;
         }
         .projection-section {
@@ -841,12 +986,61 @@ const Costeos = () => {
           font-size: 0.75rem;
           text-transform: uppercase;
         }
+        .projection-summary-section {
+          background: #f8fafc;
+          padding: 1rem 1.5rem;
+        }
+        .projection-summary-grid {
+          display: flex;
+          justify-content: space-between;
+          padding: 0.5rem 0;
+        }
+        .summary-item {
+          flex: 1;
+          padding: 0 1.5rem;
+        }
+        .summary-item.border-l {
+          border-left: 1px solid #e2e8f0;
+        }
+        .summary-item small {
+          display: block;
+          color: #64748b;
+          font-size: 0.8rem;
+          margin-bottom: 0.5rem;
+        }
+        .summary-item .value {
+          font-size: 1.5rem;
+          font-weight: 800;
+          color: #1e293b;
+        }
+        .progress-bar-bg {
+          background: #e2e8f0;
+          height: 8px;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .progress-bar-fill {
+          background: var(--primary);
+          height: 100%;
+          transition: width 0.3s ease;
+        }
         .badge {
           background: #e2e8f0;
           padding: 0.2rem 0.5rem;
           border-radius: 4px;
           font-size: 0.75rem;
           font-weight: 700;
+        }
+        @media (max-width: 768px) {
+          .projection-summary-grid {
+            flex-direction: column;
+            gap: 1.5rem;
+          }
+          .summary-item.border-l {
+            border-left: none;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 1rem;
+          }
         }
       `}</style>
     </div>
