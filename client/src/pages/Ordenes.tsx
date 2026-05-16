@@ -42,8 +42,9 @@ const Ordenes: React.FC = () => {
   const getCanalBadge = (canal: string) => {
     switch (canal) {
       case 'VERDE': return 'badge-green';
-      case 'NARANJA': return 'badge-orange';
+      case 'AMARILLO': return 'badge-yellow';
       case 'ROJO': return 'badge-red';
+      case 'SIN_CANAL': return 'badge-gray';
       default: return 'badge-gray';
     }
   };
@@ -169,8 +170,9 @@ const Ordenes: React.FC = () => {
                   >
                     <option value="">Pendiente</option>
                     <option value="VERDE">Verde</option>
-                    <option value="NARANJA">Naranja</option>
+                    <option value="AMARILLO">Amarillo</option>
                     <option value="ROJO">Rojo</option>
+                    <option value="SIN_CANAL">Sin Canal</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -248,8 +250,9 @@ const Ordenes: React.FC = () => {
           margin-right: 0.5rem;
         }
         .badge-green { background: #10b981; }
-        .badge-orange { background: #f59e0b; }
+        .badge-yellow { background: #fbbf24; }
         .badge-red { background: #ef4444; }
+        .badge-gray { background: #94a3b8; }
         .status-pill {
           background: #f1f5f9;
           padding: 0.25rem 0.5rem;

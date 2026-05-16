@@ -43,6 +43,6 @@ Este sistema permite gestionar todo el flujo de importación, desde la cotizaci�
 ## Funcionalidades Core
 - **Cotizador Dinámico**: Cálculos automáticos de IGV (18%), Utilidad y Margen.
 - **Flujo de Órdenes**: Conversión automática al aprobar cotizaciones.
-- **Seguimiento de Importación**: Gestión de BL, DAM, Canal (Verde/Naranja/Rojo) y fechas ETD/ETA.
+- **Seguimiento de Importación**: Gestión de BL, DAM, Canal (Verde/Amarillo/Rojo/Sin Canal) y fechas ETD/ETA.
 - **Control de Pagos**: Registro de pagos múltiples (Yape, Plin, Transferencia).
 - **Roles**: Super Admin, Administrador de Empresa y Vendedor.

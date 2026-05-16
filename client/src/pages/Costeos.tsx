@@ -78,7 +78,7 @@ const Costeos = () => {
     const gOrigen = Number(formData.gastosOrigen || 0);
     
     // Seguro: if empty or 0, default to 2% of FOB
-    const seguroVal = (formData.seguro === 0 || formData.seguro === '') ? totalFC * 0.02 : Number(formData.seguro || 0);
+    const seguroVal = (!formData.seguro || Number(formData.seguro) === 0) ? totalFC * 0.02 : Number(formData.seguro);
     
     const cifG = (isFob ? totalFC : totalFC + gOrigen) + Number(formData.fleteInternacional || 0) + seguroVal;
     const tc = Number(formData.tipoCambio || 1);
