@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jsPDF';
+import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 interface Item {
