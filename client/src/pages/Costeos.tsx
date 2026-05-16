@@ -36,7 +36,7 @@ const Costeos = () => {
   const [formData, setFormData] = useState({
     clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '',
     incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0,
-    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: '', nroDAM: ''
+    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', nroDAM: ''
   });
 
   const [items, setItems] = useState<Item[]>([]);
@@ -56,7 +56,7 @@ const Costeos = () => {
     if (orden) {
       setFormData({
         ...formData, ordenId, clienteId: orden.cotizacion.clienteId, clienteNombre: orden.cotizacion.cliente.razonSocial,
-        clienteDocumento: orden.cotizacion.cliente.ruc, canal: orden.canal || '', nroDAM: orden.nroDAM || '',
+        clienteDocumento: orden.cotizacion.cliente.ruc, canal: orden.canal || 'VERDE', nroDAM: orden.nroDAM || '',
         fechaEmbarque: orden.fechaETD ? format(new Date(orden.fechaETD), 'yyyy-MM-dd') : '',
         fechaLlegada: orden.fechaETA ? format(new Date(orden.fechaETA), 'yyyy-MM-dd') : '',
         gastosOrigen: orden.incoterm === 'FOB' ? 0 : formData.gastosOrigen
@@ -109,7 +109,7 @@ const Costeos = () => {
     } catch (err) { alert('Error'); }
   };
 
-  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: '', nroDAM: '' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
+  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', nroDAM: '' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
 
   const viewCosteo = (c: any) => { setSelectedCosteo(c); setIsViewing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
   const editCosteo = (c: any) => { setSelectedCosteo(c); setIsEditing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
@@ -136,124 +136,128 @@ const Costeos = () => {
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] p-8 font-sans">
-      {/* Main List View */}
-      <div className="flex justify-between items-center mb-8">
+      {/* Principal View */}
+      <div className="flex justify-between items-center mb-10">
         <div>
           <h1 className="text-3xl font-black text-[#0F172A] tracking-tight">Costeo de Importación</h1>
-          <p className="text-slate-500 font-bold text-[10px] tracking-[0.3em] mt-1 uppercase">FORWARDERLY LOGISTICS SYSTEM</p>
+          <p className="text-slate-500 font-bold text-[10px] tracking-[0.3em] mt-1 uppercase opacity-60">SISTEMA ESTRATÉGICO DE ANÁLISIS DE COSTOS</p>
         </div>
         <button 
-          className="bg-[#4F46E5] text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:scale-105 transition-all flex items-center gap-3 z-0" 
-          onClick={() => setShowModal(true)}
+          className="bg-[#4F46E5] text-white px-10 py-4 rounded-2xl font-black shadow-2xl shadow-indigo-100 hover:scale-105 transition-all flex items-center gap-3" 
+          onClick={() => { setShowModal(true); setIsViewing(false); setIsEditing(false); }}
         >
           <Plus size={24} /> NUEVO COSTEO
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
         {costeos.map((c) => (
-          <div key={c.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all">
+          <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-xl transition-all group">
             <div className="flex justify-between items-start mb-6">
-              <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-3 py-1 rounded-full uppercase tracking-widest">{c.codigo}</span>
-              <div className="flex gap-2">
-                <button onClick={() => viewCosteo(c)} className="p-2 text-slate-300 hover:text-indigo-600"><Eye size={16} /></button>
-                <button onClick={() => editCosteo(c)} className="p-2 text-slate-300 hover:text-emerald-600"><Edit2 size={16} /></button>
-                <button onClick={() => { if(window.confirm('Eliminar?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} className="p-2 text-slate-300 hover:text-rose-600"><Trash2 size={16} /></button>
+              <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-4 py-1.5 rounded-full uppercase tracking-widest">{c.codigo}</span>
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => viewCosteo(c)} className="p-2 text-slate-300 hover:text-indigo-600"><Eye size={18} /></button>
+                <button onClick={() => editCosteo(c)} className="p-2 text-slate-300 hover:text-emerald-600"><Edit2 size={18} /></button>
+                <button onClick={() => { if(window.confirm('Eliminar?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} className="p-2 text-slate-300 hover:text-rose-600"><Trash2 size={18} /></button>
               </div>
             </div>
-            <h3 className="font-black text-slate-800 mb-4 truncate text-sm uppercase">{c.clienteNombre || c.cliente?.razonSocial}</h3>
-            <div className="pt-4 border-t border-slate-50 flex justify-between items-end">
+            <h3 className="font-black text-slate-800 mb-6 truncate text-base uppercase tracking-tight">{c.clienteNombre || c.cliente?.razonSocial}</h3>
+            <div className="pt-6 border-t border-slate-50 flex justify-between items-end">
               <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Inversión Soles</p>
-                <p className="text-xl font-black text-slate-900 leading-none">S/ {formatNum(c.costoTotalImportacion * (c.tipoCambio || 1))}</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Inversión Soles</p>
+                <p className="text-2xl font-black text-[#0F172A] leading-none">S/ {formatNum(c.costoTotalImportacion * (c.tipoCambio || 1))}</p>
               </div>
-              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full ${c.canal === 'VERDE' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>{c.canal || 'PENDIENTE'}</div>
+              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full ${c.canal === 'VERDE' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>{c.canal || 'VERDE'}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* FULL SCREEN MODAL - CRITICAL FIX */}
+      {/* FULL SCREEN MODAL - REDESIGNED FOR MAX ROBUSTNESS */}
       {showModal && (
-        <div className="fixed inset-0 z-[1000] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-0 m-0 overflow-hidden">
-          <div className="bg-[#F8FAFC] w-full h-full flex flex-col shadow-2xl relative">
+        <div className="modal-container-fixed">
+          <div className="modal-inner-full">
             
-            {/* Header Exactly as Image */}
-            <div className="bg-white px-10 py-6 flex justify-between items-center shrink-0 border-b border-slate-100">
-              <div className="flex items-center gap-6">
+            {/* Header */}
+            <div className="bg-white px-10 py-6 flex justify-between items-center shrink-0 border-b border-slate-100 shadow-sm z-10">
+              <div className="flex items-center gap-8">
                 <h2 className="text-3xl font-black text-[#1E293B] tracking-tighter">NUEVO COSTEO ESTRATÉGICO</h2>
-                <span className="bg-[#FEF3C7] text-[#D97706] text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-widest">DRAFTING</span>
+                <span className="bg-[#FEF3C7] text-[#D97706] text-[11px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">DRAFTING</span>
               </div>
-              <div className="flex items-center gap-4">
-                <button onClick={exportPDF} className="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 rounded-xl text-[#4F46E5] font-black text-xs hover:bg-slate-50 transition-all uppercase tracking-widest"><FileDown size={18} /> Descargar PDF</button>
+              <div className="flex items-center gap-5">
+                <button onClick={exportPDF} className="flex items-center gap-2 px-6 py-3.5 border-2 border-slate-100 rounded-2xl text-[#4F46E5] font-black text-xs hover:bg-slate-50 transition-all uppercase tracking-[0.2em]"><FileDown size={18} /> PDF</button>
                 {!isViewing && (
-                  <button onClick={handleSave} className="flex items-center gap-2 px-10 py-3.5 bg-[#1E293B] text-white rounded-xl font-black text-xs hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 uppercase tracking-widest"><Save size={20} /> Guardar Costeo</button>
+                  <button onClick={handleSave} className="flex items-center gap-3 px-10 py-4 bg-[#0F172A] text-white rounded-2xl font-black text-xs hover:bg-slate-800 transition-all shadow-2xl shadow-slate-200 uppercase tracking-[0.2em]"><Save size={20} /> Guardar Costeo</button>
                 )}
-                <button onClick={() => { setShowModal(false); resetForm(); }} className="ml-4 p-2 text-slate-400 hover:text-rose-600 transition-all"><X size={36} /></button>
+                <button onClick={() => { setShowModal(false); resetForm(); }} className="ml-6 p-2 text-slate-300 hover:text-rose-600 transition-all"><X size={40} /></button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
-              <div className="max-w-[1500px] mx-auto">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-10 custom-scrollbar relative">
+              <div className="max-w-[1500px] mx-auto pb-20">
                 
                 {/* Metrics Row */}
-                <div className="grid grid-cols-4 gap-8 mb-10">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
                   {[
                     { l: 'TOTAL INVESTMENT (PEN)', v: `S/ ${formatNum(totals.cTotalPEN)}`, trend: true },
                     { l: 'FOB VALUE (USD)', v: `$ ${formatNum(totals.totalFC)}` },
                     { l: 'ROI RATIO', v: `${formatNum(totals.ratio)}x` },
                     { l: 'MARGEN PROMEDIO', v: `${formatNum(totals.margProm)}%`, emerald: true }
                   ].map((m, i) => (
-                    <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">{m.l}</p>
-                      <div className="flex items-baseline gap-3">
-                        <span className={`text-3xl font-black tracking-tighter ${m.emerald ? 'text-emerald-500' : 'text-[#1E293B]'}`}>{m.v}</span>
-                        {m.trend && <span className="text-emerald-500 text-[10px] font-black flex items-center mb-1"><TrendingUp size={12} className="mr-1" /> 4.2%</span>}
+                    <div key={i} className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm relative group overflow-hidden">
+                      <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:scale-110 transition-transform"><Calculator size={100} /></div>
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">{m.l}</p>
+                      <div className="flex items-baseline gap-4">
+                        <span className={`text-4xl font-black tracking-tighter ${m.emerald ? 'text-emerald-500' : 'text-[#0F172A]'}`}>{m.v}</span>
+                        {m.trend && <span className="text-emerald-500 text-[11px] font-black flex items-center mb-1"><TrendingUp size={14} className="mr-1" /> 4.2%</span>}
                       </div>
                     </div>
                   ))}
                 </div>
 
                 <div className="grid grid-cols-12 gap-10">
-                  {/* Left Column */}
-                  <div className="col-span-12 xl:col-span-8 space-y-10">
+                  {/* LEFT COLUMN (8/12) */}
+                  <div className="col-span-12 xl:col-span-8 space-y-12">
                     
-                    {/* Products Card */}
-                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-10 py-8 flex justify-between items-center border-b border-slate-50 bg-slate-50/30">
-                        <h3 className="font-black text-[#1E293B] text-xl tracking-tight">Detalle de Mercadería</h3>
-                        <div className="flex items-center gap-3">
-                          <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all"><Download size={14} /> Plantilla</button>
-                          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"><Upload size={14} /> Importar</button>
+                    {/* Products Grid */}
+                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-10 py-10 flex justify-between items-center border-b border-slate-50 bg-slate-50/20">
+                        <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Detalle de Mercadería</h3>
+                        <div className="flex items-center gap-4">
+                          <button onClick={downloadTemplate} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all"><Download size={14} /> Plantilla</button>
+                          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"><Upload size={14} /> Importar</button>
                           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
-                          <button onClick={addItem} className="flex items-center gap-2 text-[#4F46E5] font-black text-xs uppercase tracking-[0.2em] ml-4 hover:scale-105 transition-all"><Plus size={20} /> Agregar Producto</button>
+                          <button onClick={addItem} className="flex items-center gap-2 text-[#4F46E5] font-black text-[11px] uppercase tracking-[0.25em] ml-6 hover:scale-110 transition-all"><Plus size={22} /> Agregar Producto</button>
                         </div>
                       </div>
-                      <table className="w-full text-xs">
-                        <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[10px] border-b border-slate-100">
-                          <tr><th className="px-10 py-5 text-left">SKU</th><th className="px-10 py-5 text-left">DESCRIPTION</th><th className="px-10 py-5 text-center">QTY</th><th className="px-10 py-5 text-right">PRICE (USD)</th><th className="px-10 py-5 text-right">TOTAL (PEN)</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {items.map((it, idx) => {
-                            const calc = totals.finalItems[idx];
-                            return (
-                              <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-10 py-6"><input type="text" value={it.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 font-bold w-20 text-[#1E293B]" disabled={isViewing} /></td>
-                                <td className="px-10 py-6"><input type="text" value={it.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 font-bold text-slate-700 w-full" disabled={isViewing} /></td>
-                                <td className="px-10 py-6 text-center font-black text-slate-900">{it.cantidad || 0}</td>
-                                <td className="px-10 py-6 text-right font-black text-slate-900">$ {formatNum(it.valorUnitario || 0)}</td>
-                                <td className="px-10 py-6 text-right font-black text-[#1E293B] text-sm">S/ {formatNum(calc?.costoTotalSoles || 0)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      <div className="p-0">
+                        <table className="w-full text-sm">
+                          <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[11px] border-b border-slate-100">
+                            <tr><th className="px-10 py-6 text-left">SKU</th><th className="px-10 py-6 text-left">DESCRIPTION</th><th className="px-10 py-6 text-center">QTY</th><th className="px-10 py-6 text-right">PRICE (USD)</th><th className="px-10 py-6 text-right">TOTAL (PEN)</th></tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {items.map((it, idx) => {
+                              const calc = totals.finalItems[idx];
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="px-10 py-7"><input type="text" value={it.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 font-bold w-24 text-[#1E293B] focus:ring-0" placeholder="SKU" disabled={isViewing} /></td>
+                                  <td className="px-10 py-7"><input type="text" value={it.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 font-black text-slate-700 w-full focus:ring-0" placeholder="Descripción del producto..." disabled={isViewing} /></td>
+                                  <td className="px-10 py-7 text-center"><input type="number" value={it.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-16 text-center" disabled={isViewing} /></td>
+                                  <td className="px-10 py-7 text-right font-black text-slate-900">$ {formatNum(it.valorUnitario || 0)}</td>
+                                  <td className="px-10 py-7 text-right"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">S/</p><p className="font-black text-[#1E293B] text-base leading-tight tracking-tight">{formatNum(calc?.costoTotalSoles || 0)}</p></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
-                    {/* Taxes Card */}
-                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/30"><h3 className="font-black text-[#1E293B] text-xl tracking-tight">Tributos Aduaneros</h3></div>
-                      <div className="p-10 grid grid-cols-2 gap-16 items-center">
+                    {/* Taxes Section */}
+                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20"><h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Tributos Aduaneros</h3></div>
+                      <div className="p-12 grid grid-cols-2 gap-20 items-center">
                         <div className="space-y-6">
                           {[
                             { l: 'Ad Valorem (6%)', v: totals.adValoremG },
@@ -261,74 +265,75 @@ const Costeos = () => {
                             { l: 'IPM (2%)', v: totals.ipm },
                             { l: 'Percepción (3.5%)', v: totals.perc }
                           ].map((t, i) => (
-                            <div key={i} className="flex justify-between items-center font-black text-slate-500 text-sm">
-                              <span className="opacity-60">{t.l}</span>
+                            <div key={i} className="flex justify-between items-center font-black text-slate-500 text-base">
+                              <span className="opacity-50 text-sm">{t.l}</span>
                               <span className="text-[#1E293B]">S/ {formatNum(t.v * Number(formData.tipoCambio || 1))}</span>
                             </div>
                           ))}
                         </div>
-                        <div className="bg-[#F0F9FF] p-12 rounded-[3rem] text-center border-2 border-indigo-50 shadow-inner">
-                          <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-3">TOTAL IMPUESTOS</p>
-                          <p className="text-5xl font-black text-[#0F172A] tracking-tighter">S/ {formatNum((totals.adValoremG + totals.igv + totals.ipm + totals.perc) * (formData.tipoCambio || 1))}</p>
+                        <div className="bg-[#F0F9FF] p-16 rounded-[4rem] text-center border-2 border-indigo-50 shadow-inner relative overflow-hidden group">
+                          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent"></div>
+                          <p className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-4 relative z-10">TOTAL IMPUESTOS</p>
+                          <p className="text-6xl font-black text-[#0F172A] tracking-tighter relative z-10 leading-none">S/ {formatNum((totals.adValoremG + totals.igv + totals.ipm + totals.perc) * (formData.tipoCambio || 1))}</p>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column */}
-                  <div className="col-span-12 xl:col-span-4 space-y-10">
+                  {/* RIGHT COLUMN (4/12) */}
+                  <div className="col-span-12 xl:col-span-4 space-y-12">
                     
                     {/* Operation Info */}
-                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                      <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-10 flex items-center gap-2"><Info size={20} className="text-indigo-600" /> Información de Operación</h3>
-                      <div className="space-y-8">
-                        <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CLIENTE</p><p className="font-black text-[#1E293B] text-lg uppercase tracking-tight">{formData.clienteNombre || 'CLIENTE NO SELECCIONADO'}</p></div>
-                        <div className="grid grid-cols-2 gap-8">
-                          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">TIPO DE CAMBIO</p><div className="flex items-center gap-2"><span className="text-indigo-500 font-black text-sm">S/</span><input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({...formData, tipoCambio: parseFloat(e.target.value) || 0})} className="bg-transparent border-0 font-black text-[#1E293B] text-lg p-0 focus:ring-0" disabled={isViewing} /></div></div>
-                          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">INCOTERM</p><p className="font-black text-[#4F46E5] text-lg">FOB</p></div>
+                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
+                      <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12 flex items-center gap-3"><Info size={22} className="text-indigo-600" /> Información de Operación</h3>
+                      <div className="space-y-10">
+                        <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CLIENTE</p><p className="font-black text-[#1E293B] text-xl uppercase tracking-tighter leading-tight">{formData.clienteNombre || 'SELECCIONAR CLIENTE'}</p></div>
+                        <div className="grid grid-cols-2 gap-10">
+                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">TIPO DE CAMBIO</p><div className="flex items-center gap-2"><span className="text-indigo-500 font-black text-sm">S/</span><input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({...formData, tipoCambio: parseFloat(e.target.value) || 0})} className="bg-transparent border-0 font-black text-[#1E293B] text-2xl p-0 focus:ring-0 leading-none" disabled={isViewing} /></div></div>
+                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">INCOTERM</p><p className="font-black text-[#4F46E5] text-2xl leading-none">FOB</p></div>
                         </div>
-                        <div className="grid grid-cols-2 gap-8">
-                          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CANAL</p><div className="flex items-center gap-3"><span className={`w-3.5 h-3.5 rounded-full ${formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-lg shadow-emerald-200' : 'bg-orange-500 shadow-lg shadow-orange-200'}`}></span><p className="font-black text-[#1E293B] text-lg tracking-tight uppercase">{formData.canal || 'PENDIENTE'}</p></div></div>
-                          <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MODALIDAD</p><p className="font-black text-slate-500 text-lg uppercase">AÉREO</p></div>
+                        <div className="grid grid-cols-2 gap-10">
+                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CANAL ADUANA</p><div className="flex items-center gap-4"><span className={`w-5 h-5 rounded-full ${formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-xl shadow-emerald-200' : 'bg-orange-500 shadow-xl shadow-orange-200'}`}></span><p className="font-black text-[#1E293B] text-xl tracking-tighter leading-none">{formData.canal || 'VERDE'}</p></div></div>
+                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">MODALIDAD</p><p className="font-black text-slate-500 text-xl tracking-tighter leading-none uppercase">AÉREO</p></div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Operational Logistics */}
-                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                      <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-10">LOGÍSTICA OPERATIVA</h3>
-                      <div className="space-y-6">
+                    {/* Logistics Card */}
+                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
+                      <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12">LOGÍSTICA OPERATIVA</h3>
+                      <div className="space-y-8">
                         {[
                           { l: 'Flete Internacional', f: 'fleteInternacional' },
                           { l: 'Seguro (1.2%)', f: 'seguro' },
                           { l: 'Gastos Puerto', f: 'gastosLocales' }
                         ].map((lo, i) => (
                           <div key={i} className="flex justify-between items-center font-bold text-slate-600">
-                            <span className="text-sm">{lo.l}</span>
-                            <div className="flex items-center gap-2 font-black text-[#1E293B]">
-                              <span className="text-slate-400 text-xs">$</span>
-                              <input type="number" value={(formData as any)[lo.f] || ''} onChange={(e) => setFormData({...formData, [lo.f]: parseFloat(e.target.value) || 0})} className="bg-transparent border-0 p-0 text-right w-20 text-lg focus:ring-0" disabled={isViewing} />
+                            <span className="text-base">{lo.l}</span>
+                            <div className="flex items-center gap-3 font-black text-[#1E293B]">
+                              <span className="text-slate-300 text-sm">$</span>
+                              <input type="number" value={(formData as any)[lo.f] || ''} onChange={(e) => setFormData({...formData, [lo.f]: parseFloat(e.target.value) || 0})} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 text-right w-24 text-xl focus:ring-0 leading-none" disabled={isViewing} />
                             </div>
                           </div>
                         ))}
-                        <div className="pt-8 border-t border-slate-50 flex justify-between items-center">
-                          <span className="font-black text-[#1E293B] text-sm uppercase tracking-widest">Total Operativos</span>
-                          <span className="font-black text-[#1E293B] text-xl">S/ {formatNum((Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + Number(formData.gastosLocales || 0)) * (formData.tipoCambio || 1))}</span>
+                        <div className="pt-10 border-t border-slate-50 flex justify-between items-center">
+                          <span className="font-black text-[#1E293B] text-sm uppercase tracking-[0.2em] opacity-60">Total Operativos</span>
+                          <span className="font-black text-[#1E293B] text-2xl tracking-tighter">S/ {formatNum((Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + Number(formData.gastosLocales || 0)) * (formData.tipoCambio || 1))}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Profitability Dark Card */}
-                    <div className="bg-[#1E293B] p-12 rounded-[3.5rem] shadow-2xl text-white relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:scale-125 transition-all duration-700"><TrendingUp size={160} /></div>
-                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] mb-10">RENTABILIDAD ESTIMADA</p>
-                      <div className="mb-12 relative z-10">
-                        <p className="text-xs font-bold text-indigo-400 mb-3 uppercase tracking-widest">Precio Venta Objetivo (PEN)</p>
-                        <p className="text-5xl font-black tracking-tighter leading-none">S/ {formatNum(totals.ingTotalPEN)}</p>
+                    {/* Rentabilidad ESTIMADA - DARK CARD */}
+                    <div className="bg-[#0F172A] p-12 rounded-[4rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] text-white relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:scale-150 transition-all duration-1000"><TrendingUp size={200} /></div>
+                      <p className="text-[12px] font-black text-slate-500 uppercase tracking-[0.5em] mb-12 relative z-10">RENTABILIDAD ESTIMADA</p>
+                      <div className="mb-14 relative z-10">
+                        <p className="text-[13px] font-black text-indigo-400 mb-4 uppercase tracking-[0.2em]">Precio Venta Objetivo (PEN)</p>
+                        <p className="text-6xl font-black tracking-tighter leading-none">S/ {formatNum(totals.ingTotalPEN)}</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-12 pt-10 border-t border-white/5 relative z-10">
-                        <div><p className="text-[11px] font-black text-slate-500 uppercase mb-2 tracking-widest">UTILIDAD NETA</p><p className="text-2xl font-black text-emerald-400 tracking-tight">S/ {formatNum(totals.uTotalPEN)}</p></div>
-                        <div><p className="text-[11px] font-black text-slate-500 uppercase mb-2 tracking-widest">MARGEN REAL</p><p className="text-2xl font-black text-indigo-400 tracking-tight">{formatNum(totals.margProm)}%</p></div>
+                      <div className="grid grid-cols-2 gap-12 pt-12 border-t border-white/5 relative z-10">
+                        <div><p className="text-[11px] font-black text-slate-500 uppercase mb-3 tracking-widest">UTILIDAD NETA</p><p className="text-3xl font-black text-emerald-400 tracking-tighter leading-none">S/ {formatNum(totals.uTotalPEN)}</p></div>
+                        <div><p className="text-[11px] font-black text-slate-500 uppercase mb-3 tracking-widest">MARGEN REAL</p><p className="text-3xl font-black text-indigo-400 tracking-tighter leading-none">{formatNum(totals.margProm)}%</p></div>
                       </div>
                     </div>
 
@@ -341,6 +346,30 @@ const Costeos = () => {
       )}
 
       <style>{`
+        .modal-container-fixed {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          background: rgba(15, 23, 42, 0.9) !important;
+          backdrop-filter: blur(8px) !important;
+          z-index: 10000 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .modal-inner-full {
+          width: 100vw !important;
+          height: 100vh !important;
+          display: flex !important;
+          flex-direction: column !important;
+          background: #F8FAFC !important;
+          position: relative !important;
+          overflow: hidden !important;
+        }
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
