@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Updated: 2026-05-15 */
 :root {
   --primary: #003366;
