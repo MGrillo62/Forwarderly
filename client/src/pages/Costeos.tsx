@@ -11,7 +11,7 @@ import {
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 interface Item {
   sku: string;
@@ -499,7 +499,7 @@ const Costeos = () => {
         i.sku || '-', i.producto, i.cantidad, formatNum(i.valorUnitario), formatNum(i.valorTotal), formatNum(i.costoTotalUnitario), formatNum(i.costoUnitarioSoles)
       ]);
 
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: 92,
         head: [['SKU', 'Producto', 'Cant', 'Val. Unit', 'Total USD', 'Costo USD', 'Costo PEN']],
         body: tableData,
@@ -657,8 +657,8 @@ const Costeos = () => {
       </div>
 
       {showModal && (
-        <div className="modal-overlay backdrop-blur-sm bg-slate-900/60 transition-opacity flex items-center justify-center z-50">
-          <div className="modal-content large bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col border border-slate-200">
+        <div className="modal-overlay backdrop-blur-sm bg-slate-900/60 transition-opacity flex items-center justify-center z-50 p-0">
+          <div className="modal-content w-full h-full max-w-none max-h-none bg-white shadow-2xl overflow-hidden flex flex-col border-0 rounded-none">
             {/* Modal Header */}
             <div className="bg-slate-900 p-6 flex justify-between items-center text-white relative">
               <div className="flex items-center gap-4">
@@ -945,6 +945,15 @@ const Costeos = () => {
         .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: white; border: none; }
         .modal-overlay { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Ajustes para pantalla completa */
+        .modal-content {
+          animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
       `}</style>
     </div>
   );
