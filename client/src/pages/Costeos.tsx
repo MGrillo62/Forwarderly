@@ -36,7 +36,7 @@ const Costeos = () => {
   const [formData, setFormData] = useState({
     clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '',
     incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0,
-    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', nroDAM: ''
+    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: ''
   });
 
   const [items, setItems] = useState<Item[]>([]);
@@ -75,29 +75,54 @@ const Costeos = () => {
   const totals = useMemo(() => {
     const totalFC = items.reduce((sum, i) => sum + (i.valorTotal || 0), 0);
     const isFob = formData.incoterm === 'FOB';
-    const gOrigen = isFob ? 0 : Number(formData.gastosOrigen || 0);
-    const cifG = (isFob ? totalFC : totalFC + gOrigen) + Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0);
+    const gOrigen = Number(formData.gastosOrigen || 0);
+    
+    // Seguro: if empty or 0, default to 2% of FOB
+    const seguroVal = (formData.seguro === 0 || formData.seguro === '') ? totalFC * 0.02 : Number(formData.seguro || 0);
+    
+    const cifG = (isFob ? totalFC : totalFC + gOrigen) + Number(formData.fleteInternacional || 0) + seguroVal;
     const tc = Number(formData.tipoCambio || 1);
-    const hasItemAV = items.some(i => i.adValoremPorcentaje !== '');
+    
+    // ADValorem Exclusivity
+    const hasItemAV = items.some(i => i.adValoremPorcentaje !== '' && Number(i.adValoremPorcentaje) > 0);
+    const globalAV = Number(formData.adValoremGlobal || 0);
+    const useGlobalAV = globalAV > 0 && !hasItemAV;
+    
     let totalAV = 0;
     const finalItems = items.map(i => {
       const part = totalFC > 0 ? i.valorTotal / totalFC : 0;
       const cifH = cifG * part;
-      const avM = hasItemAV ? cifH * (Number(i.adValoremPorcentaje || 0) / 100) : cifH * (Number(formData.adValoremGlobal || 0) / 100);
+      
+      let avM = 0;
+      if (useGlobalAV) {
+        avM = cifH * (globalAV / 100);
+      } else {
+        avM = cifH * (Number(i.adValoremPorcentaje || 0) / 100);
+      }
+      
       totalAV += avM;
-      const cTotal = i.valorTotal + (Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + gOrigen + Number(formData.gastosLocales || 0)) * part + avM;
+      const cTotal = i.valorTotal + (Number(formData.fleteInternacional || 0) + seguroVal + gOrigen + Number(formData.gastosLocales || 0)) * part + avM;
       const cUnit = Number(i.cantidad) > 0 ? cTotal / Number(i.cantidad) : 0;
       const valVenta = (Number(i.precioVentaPEN) * (1 - Number(i.descuentoPorcentaje) / 100)) / 1.18;
       const uUnit = valVenta - (cUnit * tc);
       return { ...i, adValoremMonto: avM, costoTotalUnitario: cUnit, costoUnitarioSoles: cUnit * tc, utilidadUnitarioPEN: uUnit, utilidadTotalPEN: uUnit * (Number(i.cantidad) || 0), margenPorcentaje: valVenta > 0 ? (uUnit / valVenta) * 100 : 0 };
     });
-    const baseImp = cifG + (hasItemAV ? totalAV : cifG * (Number(formData.adValoremGlobal || 0) / 100));
+    
+    const actualAV = useGlobalAV ? cifG * (globalAV / 100) : totalAV;
+    const baseImp = cifG + actualAV;
     const igv = baseImp * 0.16; const ipm = baseImp * 0.02;
     const perc = (baseImp + igv + ipm) * (Number(formData.percepcionPorcentaje || 0) / 100);
-    const cTotalImp = totalFC + gOrigen + Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + (hasItemAV ? totalAV : baseImp - cifG) + Number(formData.gastosLocales || 0);
+    const cTotalImp = totalFC + gOrigen + Number(formData.fleteInternacional || 0) + seguroVal + actualAV + Number(formData.gastosLocales || 0);
     const uTotalPEN = finalItems.reduce((sum, i) => sum + (i.utilidadTotalPEN || 0), 0);
     const ingTotalPEN = finalItems.reduce((sum, i) => sum + ((Number(i.precioVentaPEN) * (1 - Number(i.descuentoPorcentaje) / 100)) / 1.18) * Number(i.cantidad), 0);
-    return { totalFC, cifG, adValoremG: hasItemAV ? totalAV : baseImp - cifG, igv, ipm, perc, cTotalImp, ratio: totalFC > 0 ? cTotalImp / totalFC : 0, finalItems, cTotalPEN: cTotalImp * tc, uTotalPEN, margProm: ingTotalPEN > 0 ? (uTotalPEN / ingTotalPEN) * 100 : 0, ingTotalPEN };
+    
+    return { 
+      totalFC, cifG, adValoremG: actualAV, igv, ipm, perc, cTotalImp, 
+      ratio: totalFC > 0 ? cTotalImp / totalFC : 0, finalItems, 
+      cTotalPEN: cTotalImp * tc, uTotalPEN, margProm: ingTotalPEN > 0 ? (uTotalPEN / ingTotalPEN) * 100 : 0, 
+      ingTotalPEN, seguroVal, 
+      totalOperativoOriginal: Number(formData.fleteInternacional || 0) + seguroVal + Number(formData.gastosLocales || 0) + gOrigen
+    };
   }, [items, formData]);
 
   const handleSave = async () => {
@@ -109,7 +134,7 @@ const Costeos = () => {
     } catch (err) { alert('Error'); }
   };
 
-  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', nroDAM: '' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
+  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
 
   const viewCosteo = (c: any) => { setSelectedCosteo(c); setIsViewing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
   const editCosteo = (c: any) => { setSelectedCosteo(c); setIsEditing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
@@ -234,17 +259,40 @@ const Costeos = () => {
                       <div className="p-0">
                         <table className="w-full text-sm">
                           <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[11px] border-b border-slate-100">
-                            <tr><th className="px-10 py-6 text-left">SKU</th><th className="px-10 py-6 text-left">DESCRIPTION</th><th className="px-10 py-6 text-center">QTY</th><th className="px-10 py-6 text-right">PRICE (USD)</th><th className="px-10 py-6 text-right">TOTAL (PEN)</th></tr>
+                            <tr>
+                              <th className="px-10 py-6 text-left">SKU</th>
+                              <th className="px-10 py-6 text-left">DESCRIPTION</th>
+                              <th className="px-10 py-6 text-center">QTY</th>
+                              <th className="px-10 py-6 text-right">PRICE (USD)</th>
+                              <th className="px-10 py-6 text-center">ADVALOREM (%)</th>
+                              <th className="px-10 py-6 text-right">TOTAL (PEN)</th>
+                            </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
                             {items.map((it, idx) => {
                               const calc = totals.finalItems[idx];
+                              const isGlobalAVActive = Number(formData.adValoremGlobal) > 0;
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                                   <td className="px-10 py-7"><input type="text" value={it.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 font-bold w-24 text-[#1E293B] focus:ring-0" placeholder="SKU" disabled={isViewing} /></td>
                                   <td className="px-10 py-7"><input type="text" value={it.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 font-black text-slate-700 w-full focus:ring-0" placeholder="Descripción del producto..." disabled={isViewing} /></td>
                                   <td className="px-10 py-7 text-center"><input type="number" value={it.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-16 text-center" disabled={isViewing} /></td>
-                                  <td className="px-10 py-7 text-right font-black text-slate-900">$ {formatNum(it.valorUnitario || 0)}</td>
+                                  <td className="px-10 py-7 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <span className="text-slate-400 font-black">$</span>
+                                      <input type="number" value={it.valorUnitario || ''} onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-24 text-right" disabled={isViewing} />
+                                    </div>
+                                  </td>
+                                  <td className="px-10 py-7 text-center">
+                                    <input 
+                                      type="number" 
+                                      value={it.adValoremPorcentaje ?? ''} 
+                                      onChange={(e) => updateItem(idx, 'adValoremPorcentaje', e.target.value === '' ? '' : parseFloat(e.target.value))} 
+                                      className={`rounded-lg px-2 py-1 border-0 font-black w-16 text-center ${isGlobalAVActive ? 'bg-slate-100 text-slate-300' : 'bg-indigo-50 text-indigo-600'}`} 
+                                      placeholder={isGlobalAVActive ? 'GLOBAL' : '0'}
+                                      disabled={isViewing || isGlobalAVActive} 
+                                    />
+                                  </td>
                                   <td className="px-10 py-7 text-right"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">S/</p><p className="font-black text-[#1E293B] text-base leading-tight tracking-tight">{formatNum(calc?.costoTotalSoles || 0)}</p></td>
                                 </tr>
                               );
@@ -256,11 +304,24 @@ const Costeos = () => {
 
                     {/* Taxes Section */}
                     <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20"><h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Tributos Aduaneros</h3></div>
+                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20 flex justify-between items-center">
+                        <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Tributos Aduaneros</h3>
+                        <div className="flex items-center gap-4">
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ADValorem Global (%)</p>
+                          <input 
+                            type="number" 
+                            value={formData.adValoremGlobal || ''} 
+                            onChange={(e) => setFormData({...formData, adValoremGlobal: parseFloat(e.target.value) || 0})} 
+                            className="bg-indigo-50 text-indigo-600 rounded-xl px-4 py-2 border-0 font-black w-24 text-center focus:ring-2 focus:ring-indigo-500" 
+                            placeholder="0.00"
+                            disabled={isViewing}
+                          />
+                        </div>
+                      </div>
                       <div className="p-12 grid grid-cols-2 gap-20 items-center">
                         <div className="space-y-6">
                           {[
-                            { l: 'Ad Valorem (6%)', v: totals.adValoremG },
+                            { l: `Ad Valorem (${(Number(formData.adValoremGlobal) > 0 || !items.some(i => Number(i.adValoremPorcentaje) > 0)) ? (formData.adValoremGlobal || 0) : 'Variable'}%)`, v: totals.adValoremG },
                             { l: 'IGV (16%)', v: totals.igv },
                             { l: 'IPM (2%)', v: totals.ipm },
                             { l: 'Percepción (3.5%)', v: totals.perc }
@@ -287,14 +348,106 @@ const Costeos = () => {
                     <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
                       <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12 flex items-center gap-3"><Info size={22} className="text-indigo-600" /> Información de Operación</h3>
                       <div className="space-y-10">
-                        <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CLIENTE</p><p className="font-black text-[#1E293B] text-xl uppercase tracking-tighter leading-tight">{formData.clienteNombre || 'SELECCIONAR CLIENTE'}</p></div>
                         <div className="grid grid-cols-2 gap-10">
-                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">TIPO DE CAMBIO</p><div className="flex items-center gap-2"><span className="text-indigo-500 font-black text-sm">S/</span><input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({...formData, tipoCambio: parseFloat(e.target.value) || 0})} className="bg-transparent border-0 font-black text-[#1E293B] text-2xl p-0 focus:ring-0 leading-none" disabled={isViewing} /></div></div>
-                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">INCOTERM</p><p className="font-black text-[#4F46E5] text-2xl leading-none">FOB</p></div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">ORDEN DE IMPORTACIÓN (OPCIONAL)</p>
+                            <select 
+                              value={formData.ordenId} 
+                              onChange={(e) => handleOrdenChange(e.target.value)} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-lg w-full focus:ring-0" 
+                              disabled={isViewing}
+                            >
+                              <option value="">-- NINGUNA --</option>
+                              {ordenes.map(o => (
+                                <option key={o.id} value={o.id}>{o.correlativo}-{o.anio} | {o.cotizacion.cliente.razonSocial}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CLIENTE</p>
+                            <input 
+                              type="text" 
+                              value={formData.clienteNombre} 
+                              onChange={(e) => setFormData({...formData, clienteNombre: e.target.value.toUpperCase()})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-lg w-full focus:ring-2 focus:ring-indigo-500 uppercase" 
+                              placeholder="NOMBRE DEL CLIENTE..." 
+                              disabled={isViewing} 
+                            />
+                          </div>
                         </div>
+                        
                         <div className="grid grid-cols-2 gap-10">
-                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CANAL ADUANA</p><div className="flex items-center gap-4"><span className={`w-5 h-5 rounded-full ${formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-xl shadow-emerald-200' : 'bg-orange-500 shadow-xl shadow-orange-200'}`}></span><p className="font-black text-[#1E293B] text-xl tracking-tighter leading-none">{formData.canal || 'VERDE'}</p></div></div>
-                          <div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">MODALIDAD</p><p className="font-black text-slate-500 text-xl tracking-tighter leading-none uppercase">AÉREO</p></div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">MONEDA</p>
+                            <select 
+                              value={formData.moneda} 
+                              onChange={(e) => setFormData({...formData, moneda: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-xl w-full focus:ring-0" 
+                              disabled={isViewing}
+                            >
+                              <option value="USD">USD - DÓLARES</option>
+                              <option value="EUR">EUR - EUROS</option>
+                            </select>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">TIPO DE CAMBIO</p>
+                            <div className="flex items-center gap-2 bg-slate-50/50 rounded-xl px-4 py-3">
+                              <span className="text-indigo-500 font-black text-sm">S/</span>
+                              <input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({...formData, tipoCambio: parseFloat(e.target.value) || 0})} className="bg-transparent border-0 font-black text-[#1E293B] text-2xl p-0 focus:ring-0 leading-none w-full" disabled={isViewing} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-10">
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">INCOTERM</p>
+                            <select 
+                              value={formData.incoterm} 
+                              onChange={(e) => setFormData({...formData, incoterm: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#4F46E5] text-xl w-full focus:ring-0" 
+                              disabled={isViewing}
+                            >
+                              <option value="FOB">FOB</option>
+                              <option value="EXW">EXW</option>
+                              <option value="FCA">FCA</option>
+                            </select>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">MODALIDAD</p>
+                            <select 
+                              value={formData.modalidad} 
+                              onChange={(e) => setFormData({...formData, modalidad: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-slate-500 text-xl w-full focus:ring-0 uppercase" 
+                              disabled={isViewing}
+                            >
+                              <option value="AEREO">AÉREO</option>
+                              <option value="MARITIMO">MARÍTIMO</option>
+                              <option value="MULTIMODAL">MULTIMODAL</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CANAL ADUANA</p>
+                          <div className="flex items-center gap-4">
+                            <select 
+                              value={formData.canal} 
+                              onChange={(e) => setFormData({...formData, canal: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-xl w-full focus:ring-0" 
+                              disabled={isViewing}
+                            >
+                              <option value="VERDE">VERDE</option>
+                              <option value="AMARILLO">AMARILLO</option>
+                              <option value="ROJO">ROJO</option>
+                              <option value="SIN_CANAL">SIN CANAL</option>
+                            </select>
+                            <span className={`w-10 h-10 rounded-full shrink-0 ${
+                              formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-xl shadow-emerald-200' : 
+                              formData.canal === 'AMARILLO' ? 'bg-yellow-400 shadow-xl shadow-yellow-100' : 
+                              formData.canal === 'ROJO' ? 'bg-rose-500 shadow-xl shadow-rose-200' : 
+                              'bg-slate-200 shadow-xl shadow-slate-100'
+                            }`}></span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -304,21 +457,31 @@ const Costeos = () => {
                       <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12">LOGÍSTICA OPERATIVA</h3>
                       <div className="space-y-8">
                         {[
+                          { l: 'Gastos de Origen', f: 'gastosOrigen' },
                           { l: 'Flete Internacional', f: 'fleteInternacional' },
-                          { l: 'Seguro (1.2%)', f: 'seguro' },
-                          { l: 'Gastos Puerto', f: 'gastosLocales' }
+                          { l: 'Seguro (Auto: 2%)', f: 'seguro', placeholder: `${formatNum(totals.seguroVal)}` },
+                          { l: 'Gastos Locales', f: 'gastosLocales' }
                         ].map((lo, i) => (
                           <div key={i} className="flex justify-between items-center font-bold text-slate-600">
                             <span className="text-base">{lo.l}</span>
                             <div className="flex items-center gap-3 font-black text-[#1E293B]">
-                              <span className="text-slate-300 text-sm">$</span>
-                              <input type="number" value={(formData as any)[lo.f] || ''} onChange={(e) => setFormData({...formData, [lo.f]: parseFloat(e.target.value) || 0})} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 text-right w-24 text-xl focus:ring-0 leading-none" disabled={isViewing} />
+                              <span className="text-slate-300 text-sm">{formData.moneda === 'EUR' ? '€' : '$'}</span>
+                              <input 
+                                type="number" 
+                                value={(formData as any)[lo.f] || ''} 
+                                onChange={(e) => setFormData({...formData, [lo.f]: e.target.value === '' ? 0 : parseFloat(e.target.value)})} 
+                                className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 text-right w-24 text-xl focus:ring-0 leading-none" 
+                                placeholder={lo.placeholder}
+                                disabled={isViewing} 
+                              />
                             </div>
                           </div>
                         ))}
                         <div className="pt-10 border-t border-slate-50 flex justify-between items-center">
                           <span className="font-black text-[#1E293B] text-sm uppercase tracking-[0.2em] opacity-60">Total Operativos</span>
-                          <span className="font-black text-[#1E293B] text-2xl tracking-tighter">S/ {formatNum((Number(formData.fleteInternacional || 0) + Number(formData.seguro || 0) + Number(formData.gastosLocales || 0)) * (formData.tipoCambio || 1))}</span>
+                          <span className="font-black text-[#1E293B] text-2xl tracking-tighter">
+                            {formData.moneda === 'EUR' ? '€' : '$'} {formatNum(totals.totalOperativoOriginal)}
+                          </span>
                         </div>
                       </div>
                     </div>

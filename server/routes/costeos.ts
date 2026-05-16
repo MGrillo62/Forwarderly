@@ -66,7 +66,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     tipoCambio, observaciones, items, 
     totalFacturaComercial, gastosOrigen, fleteInternacional, seguro, gastosLocales,
     adValoremGlobal, percepcionPorcentaje,
-    fechaEmbarque, fechaLlegada, canal, nroDAM,
+    fechaEmbarque, fechaLlegada, canal, modalidad, nroDAM,
     cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion
   } = req.body;
 
@@ -107,6 +107,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         fechaEmbarque: fechaEmbarque ? new Date(fechaEmbarque) : null,
         fechaLlegada: fechaLlegada ? new Date(fechaLlegada) : null,
         canal: canal || null,
+        modalidad: modalidad || 'AEREO',
         nroDAM: nroDAM || null,
         cifGlobal: parseFloat(cifGlobal),
         baseImponible: parseFloat(baseImponible),
@@ -189,6 +190,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         fechaEmbarque: fechaEmbarque ? new Date(fechaEmbarque) : null,
         fechaLlegada: fechaLlegada ? new Date(fechaLlegada) : null,
         canal: canal || null,
+        modalidad: modalidad || 'AEREO',
         nroDAM: nroDAM || null,
         cifGlobal: parseFloat(cifGlobal),
         baseImponible: parseFloat(baseImponible),

@@ -71,6 +71,7 @@ model CosteoImportacion {
   fechaEmbarque         DateTime?
   fechaLlegada          DateTime?
   canal                 CanalImportacion?
+  modalidad             ModalidadImportacion @default(AEREO)
   nroDAM                String?
   
   // Calculated stored values
@@ -139,10 +140,17 @@ enum OrdenEstado {
   DESPACHO_CULMINADO
 }
 
+enum ModalidadImportacion {
+  AEREO
+  MARITIMO
+  MULTIMODAL
+}
+
 enum CanalImportacion {
   VERDE
-  NARANJA
+  AMARILLO
   ROJO
+  SIN_CANAL
 }
 
 model Empresa {
