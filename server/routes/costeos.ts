@@ -124,7 +124,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         canal: canalNormalizado as any,
         modalidad: modalidadNormalizada as any,
         nroDAM: nroDAM || null,
-        estado: (estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR') as any,
+        ...(estado ? { estado: (estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR') } : {}),
         cifGlobal: safeFloat(cifGlobal),
         baseImponible: safeFloat(baseImponible),
         igv: safeFloat(igv),
