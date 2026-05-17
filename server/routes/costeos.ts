@@ -74,7 +74,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    // Raw SQL insert - bypasses all Prisma client enum validation
+    // Raw SQL insert - bypasses all Prisma client enum validation with explicit type casts
     await prisma.$executeRawUnsafe(`
       INSERT INTO "CosteoImportacion" (
         id, codigo, "empresaId", "clienteId", "clienteNombre", "clienteDocumento",
@@ -87,8 +87,10 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         "costoTotalImportacion", "ratioImportacion",
         "createdAt", "updatedAt"
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, cast($10 as "Incoterm"), cast($11 as "Moneda"), $12, $13,
+        $14, $15, $16, $17, $18, $19, $20,
+        $21, $22, cast($23 as "CanalImportacion"), cast($24 as "ModalidadImportacion"), $25, $26, $27, $28, $29, $30,
+        $31, $32, $33, $34
       )`,
       id, codigo, empresaId,
       b.clienteId || null, b.clienteNombre || null, b.clienteDocumento || null,
@@ -169,12 +171,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       UPDATE "CosteoImportacion" SET
         "clienteId" = $1, "clienteNombre" = $2, "clienteDocumento" = $3,
         "ordenId" = $4, "nroFacturaComercial" = $5, "proveedorExtranjero" = $6,
-        incoterm = $7, moneda = $8, "tipoCambio" = $9, observaciones = $10,
+        incoterm = cast($7 as "Incoterm"), moneda = cast($8 as "Moneda"), "tipoCambio" = $9, observaciones = $10,
         "totalFacturaComercial" = $11, "gastosOrigen" = $12, "fleteInternacional" = $13,
         seguro = $14, "gastosLocales" = $15,
         "adValoremGlobal" = $16, "percepcionPorcentaje" = $17,
         "fechaEmbarque" = $18, "fechaLlegada" = $19,
-        canal = $20, modalidad = $21, "nroDAM" = $22,
+        canal = cast($20 as "CanalImportacion"), modalidad = cast($21 as "ModalidadImportacion"), "nroDAM" = $22,
         "cifGlobal" = $23, "baseImponible" = $24, igv = $25, ipm = $26,
         "percepcionMonto" = $27, "costoTotalImportacion" = $28, "ratioImportacion" = $29,
         "updatedAt" = $30
@@ -237,7 +239,7 @@ router.patch('/:id/estado', authenticate, async (req: AuthRequest, res) => {
   const estadoValido = estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR';
   try {
     await prisma.$executeRawUnsafe(
-      `UPDATE "CosteoImportacion" SET estado = $1, "updatedAt" = NOW() WHERE id = $2`,
+      `UPDATE "CosteoImportacion" SET estado = cast($1 as "CosteoEstado"), "updatedAt" = NOW() WHERE id = $2`,
       estadoValido, id
     );
     const costeo = await prisma.costeoImportacion.findUnique({ where: { id } });
