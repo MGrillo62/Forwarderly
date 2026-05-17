@@ -83,14 +83,17 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         "totalFacturaComercial", "gastosOrigen", "fleteInternacional", seguro, "gastosLocales",
         "adValoremGlobal", "percepcionPorcentaje",
         "fechaEmbarque", "fechaLlegada", canal, modalidad, "nroDAM",
+        "tipoCarga", "nroContenedor",
         "cifGlobal", "baseImponible", igv, ipm, "percepcionMonto",
         "costoTotalImportacion", "ratioImportacion",
         "createdAt", "updatedAt"
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, cast($10 as "Incoterm"), cast($11 as "Moneda"), $12, $13,
         $14, $15, $16, $17, $18, $19, $20,
-        cast($21 as timestamp), cast($22 as timestamp), cast($23 as "CanalImportacion"), cast($24 as "ModalidadImportacion"), $25, $26, $27, $28, $29, $30,
-        $31, $32, NOW(), NOW()
+        cast($21 as timestamp), cast($22 as timestamp), cast($23 as "CanalImportacion"), cast($24 as "ModalidadImportacion"), $25,
+        $26, $27,
+        $28, $29, $30, $31, $32, $33, $34,
+        NOW(), NOW()
       )`,
       id, codigo, empresaId,
       b.clienteId || null, b.clienteNombre || null, b.clienteDocumento || null,
@@ -102,10 +105,28 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       b.fechaEmbarque ? new Date(b.fechaEmbarque) : null,
       b.fechaLlegada ? new Date(b.fechaLlegada) : null,
       canal, modalidad, b.nroDAM || null,
+      b.tipoCarga || null, b.nroContenedor || null,
       safeFloat(b.cifGlobal), safeFloat(b.baseImponible),
       safeFloat(b.igv), safeFloat(b.ipm), safeFloat(b.percepcionMonto),
       safeFloat(b.costoTotalImportacion), safeFloat(b.ratioImportacion)
     );
+
+    // Sync with the linked Orden if any
+    if (b.ordenId) {
+      await prisma.orden.update({
+        where: { id: b.ordenId },
+        data: {
+          proveedorExtranjero: b.proveedorExtranjero || null,
+          nroFacturaComercial: b.nroFacturaComercial || null,
+          tipoCarga: b.tipoCarga || null,
+          nroContenedor: b.nroContenedor || null,
+          nroDAM: b.nroDAM || null,
+          canal: b.canal || null,
+          fechaETD: b.fechaEmbarque ? new Date(b.fechaEmbarque) : null,
+          fechaETA: b.fechaLlegada ? new Date(b.fechaLlegada) : null
+        }
+      });
+    }
 
     // Insert items
     for (const item of items) {
@@ -175,10 +196,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         "adValoremGlobal" = $16, "percepcionPorcentaje" = $17,
         "fechaEmbarque" = cast($18 as timestamp), "fechaLlegada" = cast($19 as timestamp),
         canal = cast($20 as "CanalImportacion"), modalidad = cast($21 as "ModalidadImportacion"), "nroDAM" = $22,
-        "cifGlobal" = $23, "baseImponible" = $24, igv = $25, ipm = $26,
-        "percepcionMonto" = $27, "costoTotalImportacion" = $28, "ratioImportacion" = $29,
+        "tipoCarga" = $23, "nroContenedor" = $24,
+        "cifGlobal" = $25, "baseImponible" = $26, igv = $27, ipm = $28,
+        "percepcionMonto" = $29, "costoTotalImportacion" = $30, "ratioImportacion" = $31,
         "updatedAt" = NOW()
-      WHERE id = $30`,
+      WHERE id = $32`,
       b.clienteId || null, b.clienteNombre || null, b.clienteDocumento || null,
       b.ordenId || null, b.nroFacturaComercial || null, b.proveedorExtranjero || null,
       incoterm, moneda, safeFloat(b.tipoCambio, 1), b.observaciones || null,
@@ -188,11 +210,29 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       b.fechaEmbarque ? new Date(b.fechaEmbarque) : null,
       b.fechaLlegada ? new Date(b.fechaLlegada) : null,
       canal, modalidad, b.nroDAM || null,
+      b.tipoCarga || null, b.nroContenedor || null,
       safeFloat(b.cifGlobal), safeFloat(b.baseImponible),
       safeFloat(b.igv), safeFloat(b.ipm), safeFloat(b.percepcionMonto),
       safeFloat(b.costoTotalImportacion), safeFloat(b.ratioImportacion),
       id
     );
+
+    // Sync with the linked Orden if any
+    if (b.ordenId) {
+      await prisma.orden.update({
+        where: { id: b.ordenId },
+        data: {
+          proveedorExtranjero: b.proveedorExtranjero || null,
+          nroFacturaComercial: b.nroFacturaComercial || null,
+          tipoCarga: b.tipoCarga || null,
+          nroContenedor: b.nroContenedor || null,
+          nroDAM: b.nroDAM || null,
+          canal: b.canal || null,
+          fechaETD: b.fechaEmbarque ? new Date(b.fechaEmbarque) : null,
+          fechaETA: b.fechaLlegada ? new Date(b.fechaLlegada) : null
+        }
+      });
+    }
 
     // Insert new items
     for (const item of items) {

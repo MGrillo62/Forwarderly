@@ -86,6 +86,29 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     });
 
+    // Sync to linked CosteoImportacion if any using safe raw SQL
+    await prisma.$executeRawUnsafe(`
+      UPDATE "CosteoImportacion" SET
+        "proveedorExtranjero" = $1,
+        "nroFacturaComercial" = $2,
+        "tipoCarga" = $3,
+        "nroContenedor" = $4,
+        "nroDAM" = $5,
+        "canal" = cast($6 as "CanalImportacion"),
+        "fechaEmbarque" = cast($7 as timestamp),
+        "fechaLlegada" = cast($8 as timestamp)
+      WHERE "ordenId" = $9`,
+      proveedorExtranjero || null,
+      nroFacturaComercial || null,
+      tipoCarga || null,
+      nroContenedor || null,
+      nroDAM || null,
+      canal || null,
+      fechaETD ? new Date(fechaETD) : null,
+      fechaETA ? new Date(fechaETA) : null,
+      id
+    );
+
     if (estado && estado !== existing.estado) {
       await prisma.ordenEstadoHistorial.create({
         data: { ordenId: id, estado }

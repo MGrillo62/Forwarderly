@@ -36,7 +36,8 @@ const Costeos = () => {
   const [formData, setFormData] = useState({
     clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '',
     incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0,
-    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '', estado: 'BORRADOR'
+    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '', estado: 'BORRADOR',
+    tipoCarga: '', nroContenedor: ''
   });
 
   const [items, setItems] = useState<Item[]>([]);
@@ -59,7 +60,11 @@ const Costeos = () => {
         clienteDocumento: orden.cotizacion.cliente.ruc, canal: orden.canal || 'VERDE', nroDAM: orden.nroDAM || '',
         fechaEmbarque: orden.fechaETD ? format(new Date(orden.fechaETD), 'yyyy-MM-dd') : '',
         fechaLlegada: orden.fechaETA ? format(new Date(orden.fechaETA), 'yyyy-MM-dd') : '',
-        gastosOrigen: orden.incoterm === 'FOB' ? 0 : formData.gastosOrigen
+        gastosOrigen: orden.incoterm === 'FOB' ? 0 : formData.gastosOrigen,
+        proveedorExtranjero: orden.proveedorExtranjero || '',
+        nroFacturaComercial: orden.nroFacturaComercial || '',
+        tipoCarga: orden.tipoCarga || '',
+        nroContenedor: orden.nroContenedor || ''
       });
     } else { setFormData({ ...formData, ordenId: '' }); }
   };
@@ -168,7 +173,7 @@ const Costeos = () => {
     }
   };
 
-  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '', estado: 'BORRADOR' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
+  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '', estado: 'BORRADOR', tipoCarga: '', nroContenedor: '' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
 
   const handleCambiarEstado = async (id: string, nuevoEstado: string) => {
     try {
@@ -759,6 +764,34 @@ const Costeos = () => {
                               onChange={(e) => setFormData({...formData, observaciones: e.target.value})} 
                               className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-bold text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
                               placeholder="Observaciones..." 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                        </div>
+
+                        {/* Tipo de Carga / Nro de Contenedor */}
+                        <div className="grid grid-cols-2 gap-10">
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">TIPO DE CARGA</p>
+                            <select 
+                              value={formData.tipoCarga} 
+                              onChange={(e) => setFormData({...formData, tipoCarga: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              disabled={isViewing}
+                            >
+                              <option value="">SELECCIONAR...</option>
+                              <option value="FCL">FCL</option>
+                              <option value="LCL">LCL</option>
+                            </select>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">NRO. CONTENEDOR</p>
+                            <input 
+                              type="text" 
+                              value={formData.nroContenedor || ''} 
+                              onChange={(e) => setFormData({...formData, nroContenedor: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              placeholder="NRO. CONTENEDOR..." 
                               disabled={isViewing} 
                             />
                           </div>

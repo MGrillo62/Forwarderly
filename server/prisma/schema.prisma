@@ -78,6 +78,8 @@ model CosteoImportacion {
   canal                 CanalImportacion?
   modalidad             ModalidadImportacion @default(AEREO)
   nroDAM                String?
+  tipoCarga             String?
+  nroContenedor         String?
   
   // Calculated stored values
   cifGlobal             Float
