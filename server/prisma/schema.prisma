@@ -314,6 +314,10 @@ model Orden {
   canal            CanalImportacion?
   fechaETD         DateTime?
   fechaETA         DateTime?
+  proveedorExtranjero   String?
+  nroFacturaComercial   String?
+  tipoCarga             String?
+  nroContenedor         String?
   fechaRealEntrega DateTime?
   referencia       String?
   email            String?

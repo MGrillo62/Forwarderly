@@ -48,7 +48,8 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { 
     nroBL, nroDAM, canal, fechaETD, fechaETA, fechaRealEntrega, 
-    referencia, email, estado 
+    referencia, email, estado,
+    proveedorExtranjero, nroFacturaComercial, tipoCarga, nroContenedor
   } = req.body;
 
   try {
@@ -80,7 +81,8 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         fechaETD: fechaETD ? new Date(fechaETD) : null,
         fechaETA: fechaETA ? new Date(fechaETA) : null,
         fechaRealEntrega: fechaRealEntrega ? new Date(fechaRealEntrega) : null,
-        referencia, email, estado
+        referencia, email, estado,
+        proveedorExtranjero, nroFacturaComercial, tipoCarga, nroContenedor
       }
     });
 

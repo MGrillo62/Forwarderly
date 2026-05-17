@@ -42,7 +42,7 @@ const Ordenes: React.FC = () => {
   const getCanalBadge = (canal: string) => {
     switch (canal) {
       case 'VERDE': return 'badge-green';
-      case 'AMARILLO': return 'badge-yellow';
+      case 'AMARILLO': return 'badge-orange';
       case 'ROJO': return 'badge-red';
       case 'SIN_CANAL': return 'badge-gray';
       default: return 'badge-gray';
@@ -91,16 +91,27 @@ const Ordenes: React.FC = () => {
                         <small>Ref: {o.cotizacion?.numero}</small>
                       </div>
                     </td>
-                    <td>{o.cotizacion?.cliente?.razonSocial}</td>
+                    <td>
+                      <div className="order-id">
+                        <strong>{o.cotizacion?.cliente?.razonSocial}</strong>
+                        {o.proveedorExtranjero && <small style={{ display: 'block', color: 'var(--text-light)', fontSize: '0.7rem', marginTop: '2px' }}>Prov: {o.proveedorExtranjero}</small>}
+                        {o.nroFacturaComercial && <small style={{ display: 'block', color: 'var(--text-light)', fontSize: '0.7rem' }}>Fact: {o.nroFacturaComercial}</small>}
+                      </div>
+                    </td>
                     <td>
                       <div className="tracking-info">
                         <div>BL: {o.nroBL || '-'}</div>
                         <div>DAM: {o.nroDAM || '-'}</div>
+                        {(o.tipoCarga || o.nroContenedor) && (
+                          <div style={{ color: 'var(--primary)', fontWeight: '600', fontSize: '0.7rem', marginTop: '2px' }}>
+                            {o.tipoCarga ? `[${o.tipoCarga}] ` : ''}{o.nroContenedor || ''}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td>
                       {o.canal && <span className={`canal-dot ${getCanalBadge(o.canal)}`}></span>}
-                      {o.canal || '-'}
+                      {o.canal === 'AMARILLO' ? 'NARANJA' : (o.canal || '-')}
                     </td>
                     <td>
                       <div className="dates-info">
@@ -170,7 +181,7 @@ const Ordenes: React.FC = () => {
                   >
                     <option value="">Pendiente</option>
                     <option value="VERDE">Verde</option>
-                    <option value="AMARILLO">Amarillo</option>
+                    <option value="AMARILLO">Naranja</option>
                     <option value="ROJO">Rojo</option>
                     <option value="SIN_CANAL">Sin Canal</option>
                   </select>
@@ -205,13 +216,57 @@ const Ordenes: React.FC = () => {
                     onChange={(e) => setSelectedOrden({...selectedOrden, fechaETA: e.target.value})}
                   />
                 </div>
+                <div className="form-group">
+                  <label>Proveedor</label>
+                  <input 
+                    type="text" 
+                    placeholder="Proveedor Extranjero"
+                    value={selectedOrden.proveedorExtranjero || ''} 
+                    onChange={(e) => setSelectedOrden({...selectedOrden, proveedorExtranjero: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Invoice / Factura</label>
+                  <input 
+                    type="text" 
+                    placeholder="Nro Factura Comercial"
+                    value={selectedOrden.nroFacturaComercial || ''} 
+                    onChange={(e) => setSelectedOrden({...selectedOrden, nroFacturaComercial: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Tipo de Carga</label>
+                  <select 
+                    value={selectedOrden.tipoCarga || ''}
+                    onChange={(e) => setSelectedOrden({...selectedOrden, tipoCarga: e.target.value})}
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="FCL">FCL</option>
+                    <option value="LCL">LCL</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Nro. de Contenedor</label>
+                  <input 
+                    type="text" 
+                    placeholder="Contenedor"
+                    value={selectedOrden.nroContenedor || ''} 
+                    onChange={(e) => setSelectedOrden({...selectedOrden, nroContenedor: e.target.value})}
+                  />
+                </div>
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn-outline" onClick={() => setSelectedOrden(null)}>Cancelar</button>
               <button className="primary" onClick={() => {
-                const { nroBL, nroDAM, canal, estado, fechaETD, fechaETA } = selectedOrden;
-                handleUpdateOrden(selectedOrden.id, { nroBL, nroDAM, canal, estado, fechaETD, fechaETA });
+                const { 
+                  nroBL, nroDAM, canal, estado, fechaETD, fechaETA,
+                  proveedorExtranjero, nroFacturaComercial, tipoCarga, nroContenedor
+                } = selectedOrden;
+                handleUpdateOrden(selectedOrden.id, { 
+                  nroBL, nroDAM, canal, estado, fechaETD, fechaETA,
+                  proveedorExtranjero, nroFacturaComercial, tipoCarga, nroContenedor
+                });
               }}>Guardar Cambios</button>
             </div>
           </div>
@@ -250,7 +305,7 @@ const Ordenes: React.FC = () => {
           margin-right: 0.5rem;
         }
         .badge-green { background: #10b981; }
-        .badge-yellow { background: #fbbf24; }
+        .badge-orange { background: #f97316; }
         .badge-red { background: #ef4444; }
         .badge-gray { background: #94a3b8; }
         .status-pill {

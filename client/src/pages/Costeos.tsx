@@ -262,9 +262,9 @@ const Costeos = () => {
               </div>
               <div className={`text-[10px] font-black px-4 py-1.5 rounded-full ${
                 c.canal === 'VERDE' ? 'bg-emerald-50 text-emerald-600' :
-                c.canal === 'AMARILLO' ? 'bg-yellow-50 text-yellow-600' :
+                c.canal === 'AMARILLO' ? 'bg-orange-50 text-orange-600' :
                 c.canal === 'ROJO' ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-400'
-              }`}>{c.canal || 'S/C'}</div>
+              }`}>{c.canal === 'AMARILLO' ? 'NARANJA' : (c.canal || 'S/C')}</div>
             </div>
           </div>
         ))}
@@ -675,13 +675,13 @@ const Costeos = () => {
                               disabled={isViewing}
                             >
                               <option value="VERDE">VERDE</option>
-                              <option value="AMARILLO">AMARILLO</option>
+                              <option value="AMARILLO">NARANJA</option>
                               <option value="ROJO">ROJO</option>
                               <option value="SIN_CANAL">SIN CANAL</option>
                             </select>
                             <span className={`w-10 h-10 rounded-full shrink-0 ${
                               formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-xl shadow-emerald-200' : 
-                              formData.canal === 'AMARILLO' ? 'bg-yellow-400 shadow-xl shadow-yellow-100' : 
+                              formData.canal === 'AMARILLO' ? 'bg-orange-500 shadow-xl shadow-orange-200' : 
                               formData.canal === 'ROJO' ? 'bg-rose-500 shadow-xl shadow-rose-200' : 
                               'bg-slate-200 shadow-xl shadow-slate-100'
                             }`}></span>
