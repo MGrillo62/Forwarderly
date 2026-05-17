@@ -70,15 +70,30 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion, estado
   } = req.body;
 
+  // Normalizar canal: SIN_CANAL -> null, y validar enum
+  const validCanales = ['VERDE', 'AMARILLO', 'ROJO'];
+  const canalNormalizado = canal && validCanales.includes(canal) ? canal : null;
+
+  // Normalizar modalidad
+  const validModalidades = ['AEREO', 'MARITIMO', 'MULTIMODAL'];
+  const modalidadNormalizada = modalidad && validModalidades.includes(modalidad) ? modalidad : 'AEREO';
+
+  // Normalizar incoterm
+  const validIncoterms = ['FOB', 'EXW', 'FCA'];
+  const incotermNormalizado = incoterm && validIncoterms.includes(incoterm) ? incoterm : 'FOB';
+
+  // Normalizar moneda
+  const validMonedas = ['USD', 'EUR'];
+  const monedaNormalizada = moneda && validMonedas.includes(moneda) ? moneda : 'USD';
+
+  const safeFloat = (v: any, def = 0) => { const n = parseFloat(v); return isNaN(n) ? def : n; };
+
   try {
     const year = new Date().getFullYear();
     const count = await prisma.costeoImportacion.count({
       where: {
         empresaId,
-        createdAt: {
-          gte: new Date(year, 0, 1),
-          lt: new Date(year + 1, 0, 1)
-        }
+        createdAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) }
       }
     });
     const codigo = `${year}-${(count + 1).toString().padStart(5, '0')}`;
@@ -88,66 +103,66 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         codigo,
         empresaId,
         clienteId: clienteId || null,
-        clienteNombre,
-        clienteDocumento,
+        clienteNombre: clienteNombre || '',
+        clienteDocumento: clienteDocumento || null,
         ordenId: ordenId || null,
-        nroFacturaComercial,
-        proveedorExtranjero,
-        incoterm,
-        moneda,
-        tipoCambio: parseFloat(tipoCambio),
-        observaciones,
-        totalFacturaComercial: parseFloat(totalFacturaComercial),
-        gastosOrigen: parseFloat(gastosOrigen || 0),
-        fleteInternacional: parseFloat(fleteInternacional || 0),
-        seguro: parseFloat(seguro || 0),
-        gastosLocales: parseFloat(gastosLocales || 0),
-        adValoremGlobal: parseFloat(adValoremGlobal || 0),
-        percepcionPorcentaje: parseFloat(percepcionPorcentaje || 0),
+        nroFacturaComercial: nroFacturaComercial || null,
+        proveedorExtranjero: proveedorExtranjero || null,
+        incoterm: incotermNormalizado as any,
+        moneda: monedaNormalizada as any,
+        tipoCambio: safeFloat(tipoCambio, 1),
+        observaciones: observaciones || null,
+        totalFacturaComercial: safeFloat(totalFacturaComercial),
+        gastosOrigen: safeFloat(gastosOrigen),
+        fleteInternacional: safeFloat(fleteInternacional),
+        seguro: safeFloat(seguro),
+        gastosLocales: safeFloat(gastosLocales),
+        adValoremGlobal: safeFloat(adValoremGlobal),
+        percepcionPorcentaje: safeFloat(percepcionPorcentaje),
         fechaEmbarque: fechaEmbarque ? new Date(fechaEmbarque) : null,
         fechaLlegada: fechaLlegada ? new Date(fechaLlegada) : null,
-        canal: canal || null,
-        modalidad: modalidad || 'AEREO',
+        canal: canalNormalizado as any,
+        modalidad: modalidadNormalizada as any,
         nroDAM: nroDAM || null,
-        estado: estado || 'BORRADOR',
-        cifGlobal: parseFloat(cifGlobal || 0),
-        baseImponible: parseFloat(baseImponible),
-        igv: parseFloat(igv),
-        ipm: parseFloat(ipm),
-        percepcionMonto: parseFloat(percepcionMonto),
-        costoTotalImportacion: parseFloat(costoTotalImportacion),
-        ratioImportacion: parseFloat(ratioImportacion || 0),
+        estado: (estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR') as any,
+        cifGlobal: safeFloat(cifGlobal),
+        baseImponible: safeFloat(baseImponible),
+        igv: safeFloat(igv),
+        ipm: safeFloat(ipm),
+        percepcionMonto: safeFloat(percepcionMonto),
+        costoTotalImportacion: safeFloat(costoTotalImportacion),
+        ratioImportacion: safeFloat(ratioImportacion),
         items: {
-          create: items.map((item: any) => ({
+          create: (items || []).map((item: any) => ({
             sku: item.sku || '',
             producto: item.producto || '',
-            cantidad: parseFloat(item.cantidad || 0),
-            valorUnitario: parseFloat(item.valorUnitario || 0),
-            valorTotal: parseFloat(item.valorTotal || 0),
-            adValoremPorcentaje: item.adValoremPorcentaje !== '' && item.adValoremPorcentaje !== null && item.adValoremPorcentaje !== undefined ? parseFloat(item.adValoremPorcentaje) : null,
-            participacionPorcentual: parseFloat(item.participacionPorcentual || 0),
-            cifOculto: parseFloat(item.cifOculto || 0),
-            adValoremMonto: parseFloat(item.adValoremMonto || 0),
-            fleteUnitario: parseFloat(item.fleteUnitario || 0),
-            seguroUnitario: parseFloat(item.seguroUnitario || 0),
-            gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario || 0),
-            gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario || 0),
-            costoTotalUnitario: parseFloat(item.costoTotalUnitario || 0),
-            costoTotalSoles: parseFloat(item.costoTotalSoles || 0),
-            precioVentaPEN: parseFloat(item.precioVentaPEN || 0),
-            descuentoPorcentaje: parseFloat(item.descuentoPorcentaje || 0),
-            utilidadUnitarioPEN: parseFloat(item.utilidadUnitarioPEN || 0),
-            utilidadTotalPEN: parseFloat(item.utilidadTotalPEN || 0),
-            margenPorcentaje: parseFloat(item.margenPorcentaje || 0)
+            cantidad: safeFloat(item.cantidad),
+            valorUnitario: safeFloat(item.valorUnitario),
+            valorTotal: safeFloat(item.valorTotal),
+            adValoremPorcentaje: (item.adValoremPorcentaje !== '' && item.adValoremPorcentaje != null) ? safeFloat(item.adValoremPorcentaje) : null,
+            participacionPorcentual: safeFloat(item.participacionPorcentual),
+            cifOculto: safeFloat(item.cifOculto),
+            adValoremMonto: safeFloat(item.adValoremMonto),
+            fleteUnitario: safeFloat(item.fleteUnitario),
+            seguroUnitario: safeFloat(item.seguroUnitario),
+            gastosOrigenUnitario: safeFloat(item.gastosOrigenUnitario),
+            gastosLocalesUnitario: safeFloat(item.gastosLocalesUnitario),
+            costoTotalUnitario: safeFloat(item.costoTotalUnitario),
+            costoTotalSoles: safeFloat(item.costoTotalSoles),
+            precioVentaPEN: safeFloat(item.precioVentaPEN),
+            descuentoPorcentaje: safeFloat(item.descuentoPorcentaje),
+            utilidadUnitarioPEN: safeFloat(item.utilidadUnitarioPEN),
+            utilidadTotalPEN: safeFloat(item.utilidadTotalPEN),
+            margenPorcentaje: safeFloat(item.margenPorcentaje)
           }))
         }
       }
     });
 
     res.json(costeo);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error al crear costeo' });
+  } catch (error: any) {
+    console.error('ERROR CREAR COSTEO:', JSON.stringify(error?.message || error, null, 2));
+    res.status(500).json({ message: error?.message || 'Error al crear costeo' });
   }
 });
 
@@ -164,6 +179,16 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion, estado
   } = req.body;
 
+  const validCanales = ['VERDE', 'AMARILLO', 'ROJO'];
+  const canalNormalizado = canal && validCanales.includes(canal) ? canal : null;
+  const validModalidades = ['AEREO', 'MARITIMO', 'MULTIMODAL'];
+  const modalidadNormalizada = modalidad && validModalidades.includes(modalidad) ? modalidad : 'AEREO';
+  const validIncoterms = ['FOB', 'EXW', 'FCA'];
+  const incotermNormalizado = incoterm && validIncoterms.includes(incoterm) ? incoterm : 'FOB';
+  const validMonedas = ['USD', 'EUR'];
+  const monedaNormalizada = moneda && validMonedas.includes(moneda) ? moneda : 'USD';
+  const safeFloat = (v: any, def = 0) => { const n = parseFloat(v); return isNaN(n) ? def : n; };
+
   try {
     await prisma.costeoImportacionItem.deleteMany({ where: { costeoId: id } });
 
@@ -171,66 +196,66 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       where: { id },
       data: {
         clienteId: clienteId || null,
-        clienteNombre,
-        clienteDocumento,
+        clienteNombre: clienteNombre || '',
+        clienteDocumento: clienteDocumento || null,
         ordenId: ordenId || null,
-        nroFacturaComercial,
-        proveedorExtranjero,
-        incoterm,
-        moneda,
-        tipoCambio: parseFloat(tipoCambio),
-        observaciones,
-        totalFacturaComercial: parseFloat(totalFacturaComercial || 0),
-        gastosOrigen: parseFloat(gastosOrigen || 0),
-        fleteInternacional: parseFloat(fleteInternacional || 0),
-        seguro: parseFloat(seguro || 0),
-        gastosLocales: parseFloat(gastosLocales || 0),
-        adValoremGlobal: parseFloat(adValoremGlobal || 0),
-        percepcionPorcentaje: parseFloat(percepcionPorcentaje || 0),
+        nroFacturaComercial: nroFacturaComercial || null,
+        proveedorExtranjero: proveedorExtranjero || null,
+        incoterm: incotermNormalizado as any,
+        moneda: monedaNormalizada as any,
+        tipoCambio: safeFloat(tipoCambio, 1),
+        observaciones: observaciones || null,
+        totalFacturaComercial: safeFloat(totalFacturaComercial),
+        gastosOrigen: safeFloat(gastosOrigen),
+        fleteInternacional: safeFloat(fleteInternacional),
+        seguro: safeFloat(seguro),
+        gastosLocales: safeFloat(gastosLocales),
+        adValoremGlobal: safeFloat(adValoremGlobal),
+        percepcionPorcentaje: safeFloat(percepcionPorcentaje),
         fechaEmbarque: fechaEmbarque ? new Date(fechaEmbarque) : null,
         fechaLlegada: fechaLlegada ? new Date(fechaLlegada) : null,
-        canal: canal || null,
-        modalidad: modalidad || 'AEREO',
+        canal: canalNormalizado as any,
+        modalidad: modalidadNormalizada as any,
         nroDAM: nroDAM || null,
-        estado: estado || 'BORRADOR',
-        cifGlobal: parseFloat(cifGlobal || 0),
-        baseImponible: parseFloat(baseImponible || 0),
-        igv: parseFloat(igv || 0),
-        ipm: parseFloat(ipm || 0),
-        percepcionMonto: parseFloat(percepcionMonto || 0),
-        costoTotalImportacion: parseFloat(costoTotalImportacion || 0),
-        ratioImportacion: parseFloat(ratioImportacion || 0),
+        estado: (estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR') as any,
+        cifGlobal: safeFloat(cifGlobal),
+        baseImponible: safeFloat(baseImponible),
+        igv: safeFloat(igv),
+        ipm: safeFloat(ipm),
+        percepcionMonto: safeFloat(percepcionMonto),
+        costoTotalImportacion: safeFloat(costoTotalImportacion),
+        ratioImportacion: safeFloat(ratioImportacion),
         items: {
-          create: items.map((item: any) => ({
+          create: (items || []).map((item: any) => ({
             sku: item.sku || '',
             producto: item.producto || '',
-            cantidad: parseFloat(item.cantidad || 0),
-            valorUnitario: parseFloat(item.valorUnitario || 0),
-            valorTotal: parseFloat(item.valorTotal || 0),
-            adValoremPorcentaje: item.adValoremPorcentaje !== '' && item.adValoremPorcentaje !== null && item.adValoremPorcentaje !== undefined ? parseFloat(item.adValoremPorcentaje) : null,
-            participacionPorcentual: parseFloat(item.participacionPorcentual || 0),
-            cifOculto: parseFloat(item.cifOculto || 0),
-            adValoremMonto: parseFloat(item.adValoremMonto || 0),
-            fleteUnitario: parseFloat(item.fleteUnitario || 0),
-            seguroUnitario: parseFloat(item.seguroUnitario || 0),
-            gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario || 0),
-            gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario || 0),
-            costoTotalUnitario: parseFloat(item.costoTotalUnitario || 0),
-            costoTotalSoles: parseFloat(item.costoTotalSoles || 0),
-            precioVentaPEN: parseFloat(item.precioVentaPEN || 0),
-            descuentoPorcentaje: parseFloat(item.descuentoPorcentaje || 0),
-            utilidadUnitarioPEN: parseFloat(item.utilidadUnitarioPEN || 0),
-            utilidadTotalPEN: parseFloat(item.utilidadTotalPEN || 0),
-            margenPorcentaje: parseFloat(item.margenPorcentaje || 0)
+            cantidad: safeFloat(item.cantidad),
+            valorUnitario: safeFloat(item.valorUnitario),
+            valorTotal: safeFloat(item.valorTotal),
+            adValoremPorcentaje: (item.adValoremPorcentaje !== '' && item.adValoremPorcentaje != null) ? safeFloat(item.adValoremPorcentaje) : null,
+            participacionPorcentual: safeFloat(item.participacionPorcentual),
+            cifOculto: safeFloat(item.cifOculto),
+            adValoremMonto: safeFloat(item.adValoremMonto),
+            fleteUnitario: safeFloat(item.fleteUnitario),
+            seguroUnitario: safeFloat(item.seguroUnitario),
+            gastosOrigenUnitario: safeFloat(item.gastosOrigenUnitario),
+            gastosLocalesUnitario: safeFloat(item.gastosLocalesUnitario),
+            costoTotalUnitario: safeFloat(item.costoTotalUnitario),
+            costoTotalSoles: safeFloat(item.costoTotalSoles),
+            precioVentaPEN: safeFloat(item.precioVentaPEN),
+            descuentoPorcentaje: safeFloat(item.descuentoPorcentaje),
+            utilidadUnitarioPEN: safeFloat(item.utilidadUnitarioPEN),
+            utilidadTotalPEN: safeFloat(item.utilidadTotalPEN),
+            margenPorcentaje: safeFloat(item.margenPorcentaje)
           }))
         }
       }
     });
 
     res.json(costeo);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error al actualizar costeo' });
+  } catch (error: any) {
+    console.error('ERROR ACTUALIZAR COSTEO:', JSON.stringify(error?.message || error, null, 2));
+    res.status(500).json({ message: error?.message || 'Error al actualizar costeo' });
   }
 });
 
