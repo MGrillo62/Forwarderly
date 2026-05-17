@@ -284,8 +284,8 @@ export const generateCosteoReportPDF = (costeo: any) => {
     body: table2Rows,
     theme: 'plain',
     headStyles: {
-      fillColor: [15, 23, 42],
-      textColor: [255, 255, 255],
+      fillColor: [226, 232, 240], // Silver grey
+      textColor: [15, 23, 42], // Slate black
       fontStyle: 'bold',
       fontSize: 8,
       halign: 'left'
@@ -313,36 +313,37 @@ export const generateCosteoReportPDF = (costeo: any) => {
     currentY += 4;
   }
 
-  // Dark Blue Estimada Panel
+  // Silver Grey Estimada Panel
   const panelH = 26;
-  doc.setFillColor(15, 23, 42); // slate-900
+  doc.setFillColor(226, 232, 240); // Silver grey
   doc.roundedRect(15, currentY, 180, panelH, 5, 5, 'F');
 
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(148, 163, 184); // slate-400
+  doc.setTextColor(71, 85, 105); // slate-600
   doc.text('RENTABILIDAD ESTIMADA DEL PROYECTO', 20, currentY + 6);
 
   doc.setFontSize(14);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(15, 23, 42); // slate-900 (black)
   doc.text(`S/ ${formatNum(calculations.ingTotalPEN)}`, 20, currentY + 14);
 
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
   doc.text('Precio Venta Objetivo (PEN)', 20, currentY + 20);
 
   // Net Profit & Margen Real
   doc.setFont('helvetica', 'bold');
   doc.text('UTILIDAD NETA', 105, currentY + 6);
   doc.setFontSize(12);
-  doc.setTextColor(52, 211, 153); // emerald-400
+  doc.setTextColor(16, 124, 65); // green-700
   doc.text(`S/ ${formatNum(calculations.uTotalPEN)}`, 105, currentY + 13);
 
   doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
+  doc.setTextColor(71, 85, 105);
   doc.text('MARGEN REAL', 150, currentY + 6);
   doc.setFontSize(12);
-  doc.setTextColor(129, 140, 248); // indigo-300
+  doc.setTextColor(79, 70, 229); // indigo-600
   doc.text(`${formatNum(calculations.margProm)}%`, 150, currentY + 13);
 
   // Footer page 1
@@ -442,8 +443,8 @@ export const generateCosteoReportPDF = (costeo: any) => {
       body: table2Page2Rows,
       theme: 'plain',
       headStyles: {
-        fillColor: [15, 23, 42],
-        textColor: [255, 255, 255],
+        fillColor: [226, 232, 240], // Silver grey
+        textColor: [15, 23, 42], // Slate black
         fontStyle: 'bold',
         fontSize: 8,
         halign: 'left'
