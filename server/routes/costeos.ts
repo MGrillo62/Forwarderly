@@ -67,7 +67,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     totalFacturaComercial, gastosOrigen, fleteInternacional, seguro, gastosLocales,
     adValoremGlobal, percepcionPorcentaje,
     fechaEmbarque, fechaLlegada, canal, modalidad, nroDAM,
-    cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion
+    cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion, estado
   } = req.body;
 
   try {
@@ -109,7 +109,8 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         canal: canal || null,
         modalidad: modalidad || 'AEREO',
         nroDAM: nroDAM || null,
-        cifGlobal: parseFloat(cifGlobal),
+        estado: estado || 'BORRADOR',
+        cifGlobal: parseFloat(cifGlobal || 0),
         baseImponible: parseFloat(baseImponible),
         igv: parseFloat(igv),
         ipm: parseFloat(ipm),
@@ -118,21 +119,21 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ratioImportacion: parseFloat(ratioImportacion || 0),
         items: {
           create: items.map((item: any) => ({
-            sku: item.sku,
-            producto: item.producto,
-            cantidad: parseFloat(item.cantidad),
-            valorUnitario: parseFloat(item.valorUnitario),
-            valorTotal: parseFloat(item.valorTotal),
-            adValoremPorcentaje: item.adValoremPorcentaje ? parseFloat(item.adValoremPorcentaje) : null,
-            participacionPorcentual: parseFloat(item.participacionPorcentual),
-            cifOculto: parseFloat(item.cifOculto),
-            adValoremMonto: parseFloat(item.adValoremMonto),
-            fleteUnitario: parseFloat(item.fleteUnitario),
-            seguroUnitario: parseFloat(item.seguroUnitario),
-            gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario),
-            gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario),
-            costoTotalUnitario: parseFloat(item.costoTotalUnitario),
-            costoTotalSoles: parseFloat(item.costoTotalSoles),
+            sku: item.sku || '',
+            producto: item.producto || '',
+            cantidad: parseFloat(item.cantidad || 0),
+            valorUnitario: parseFloat(item.valorUnitario || 0),
+            valorTotal: parseFloat(item.valorTotal || 0),
+            adValoremPorcentaje: item.adValoremPorcentaje !== '' && item.adValoremPorcentaje !== null && item.adValoremPorcentaje !== undefined ? parseFloat(item.adValoremPorcentaje) : null,
+            participacionPorcentual: parseFloat(item.participacionPorcentual || 0),
+            cifOculto: parseFloat(item.cifOculto || 0),
+            adValoremMonto: parseFloat(item.adValoremMonto || 0),
+            fleteUnitario: parseFloat(item.fleteUnitario || 0),
+            seguroUnitario: parseFloat(item.seguroUnitario || 0),
+            gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario || 0),
+            gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario || 0),
+            costoTotalUnitario: parseFloat(item.costoTotalUnitario || 0),
+            costoTotalSoles: parseFloat(item.costoTotalSoles || 0),
             precioVentaPEN: parseFloat(item.precioVentaPEN || 0),
             descuentoPorcentaje: parseFloat(item.descuentoPorcentaje || 0),
             utilidadUnitarioPEN: parseFloat(item.utilidadUnitarioPEN || 0),
@@ -159,12 +160,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     tipoCambio, observaciones, items, 
     totalFacturaComercial, gastosOrigen, fleteInternacional, seguro, gastosLocales,
     adValoremGlobal, percepcionPorcentaje,
-    fechaEmbarque, fechaLlegada, canal, nroDAM,
-    cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion
+    fechaEmbarque, fechaLlegada, canal, modalidad, nroDAM,
+    cifGlobal, baseImponible, igv, ipm, percepcionMonto, costoTotalImportacion, ratioImportacion, estado
   } = req.body;
 
   try {
-    // Delete existing items and recreate
     await prisma.costeoImportacionItem.deleteMany({ where: { costeoId: id } });
 
     const costeo = await prisma.costeoImportacion.update({
@@ -180,7 +180,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         moneda,
         tipoCambio: parseFloat(tipoCambio),
         observaciones,
-        totalFacturaComercial: parseFloat(totalFacturaComercial),
+        totalFacturaComercial: parseFloat(totalFacturaComercial || 0),
         gastosOrigen: parseFloat(gastosOrigen || 0),
         fleteInternacional: parseFloat(fleteInternacional || 0),
         seguro: parseFloat(seguro || 0),
@@ -192,30 +192,31 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         canal: canal || null,
         modalidad: modalidad || 'AEREO',
         nroDAM: nroDAM || null,
-        cifGlobal: parseFloat(cifGlobal),
-        baseImponible: parseFloat(baseImponible),
-        igv: parseFloat(igv),
-        ipm: parseFloat(ipm),
-        percepcionMonto: parseFloat(percepcionMonto),
-        costoTotalImportacion: parseFloat(costoTotalImportacion),
+        estado: estado || 'BORRADOR',
+        cifGlobal: parseFloat(cifGlobal || 0),
+        baseImponible: parseFloat(baseImponible || 0),
+        igv: parseFloat(igv || 0),
+        ipm: parseFloat(ipm || 0),
+        percepcionMonto: parseFloat(percepcionMonto || 0),
+        costoTotalImportacion: parseFloat(costoTotalImportacion || 0),
         ratioImportacion: parseFloat(ratioImportacion || 0),
         items: {
           create: items.map((item: any) => ({
-            sku: item.sku,
-            producto: item.producto,
-            cantidad: parseFloat(item.cantidad),
-            valorUnitario: parseFloat(item.valorUnitario),
-            valorTotal: parseFloat(item.valorTotal),
-            adValoremPorcentaje: item.adValoremPorcentaje ? parseFloat(item.adValoremPorcentaje) : null,
-            participacionPorcentual: parseFloat(item.participacionPorcentual),
-            cifOculto: parseFloat(item.cifOculto),
-            adValoremMonto: parseFloat(item.adValoremMonto),
-            fleteUnitario: parseFloat(item.fleteUnitario),
-            seguroUnitario: parseFloat(item.seguroUnitario),
-            gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario),
-            gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario),
-            costoTotalUnitario: parseFloat(item.costoTotalUnitario),
-            costoTotalSoles: parseFloat(item.costoTotalSoles),
+            sku: item.sku || '',
+            producto: item.producto || '',
+            cantidad: parseFloat(item.cantidad || 0),
+            valorUnitario: parseFloat(item.valorUnitario || 0),
+            valorTotal: parseFloat(item.valorTotal || 0),
+            adValoremPorcentaje: item.adValoremPorcentaje !== '' && item.adValoremPorcentaje !== null && item.adValoremPorcentaje !== undefined ? parseFloat(item.adValoremPorcentaje) : null,
+            participacionPorcentual: parseFloat(item.participacionPorcentual || 0),
+            cifOculto: parseFloat(item.cifOculto || 0),
+            adValoremMonto: parseFloat(item.adValoremMonto || 0),
+            fleteUnitario: parseFloat(item.fleteUnitario || 0),
+            seguroUnitario: parseFloat(item.seguroUnitario || 0),
+            gastosOrigenUnitario: parseFloat(item.gastosOrigenUnitario || 0),
+            gastosLocalesUnitario: parseFloat(item.gastosLocalesUnitario || 0),
+            costoTotalUnitario: parseFloat(item.costoTotalUnitario || 0),
+            costoTotalSoles: parseFloat(item.costoTotalSoles || 0),
             precioVentaPEN: parseFloat(item.precioVentaPEN || 0),
             descuentoPorcentaje: parseFloat(item.descuentoPorcentaje || 0),
             utilidadUnitarioPEN: parseFloat(item.utilidadUnitarioPEN || 0),
@@ -230,6 +231,21 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error al actualizar costeo' });
+  }
+});
+
+// Change estado only
+router.patch('/:id/estado', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+  try {
+    const costeo = await prisma.costeoImportacion.update({
+      where: { id },
+      data: { estado }
+    });
+    res.json(costeo);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al cambiar estado' });
   }
 });
 

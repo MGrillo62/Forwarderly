@@ -36,7 +36,7 @@ const Costeos = () => {
   const [formData, setFormData] = useState({
     clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '',
     incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0,
-    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: ''
+    gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '', estado: 'BORRADOR'
   });
 
   const [items, setItems] = useState<Item[]>([]);
@@ -126,15 +126,57 @@ const Costeos = () => {
   }, [items, formData]);
 
   const handleSave = async () => {
-    if (items.length === 0 || !formData.tipoCambio) return alert('Complete los datos');
+    if (items.length === 0 || !formData.tipoCambio) return alert('Complete los datos: tipo de cambio y al menos un producto');
     try {
-      const p = { ...formData, items: totals.finalItems, totalFacturaComercial: totals.totalFC, adValoremGlobal: totals.adValoremG, cifGlobal: totals.cifG, baseImponible: totals.cifG + totals.adValoremG, igv: totals.igv, ipm: totals.ipm, percepcionMonto: totals.perc, costoTotalImportacion: totals.cTotalImp, ratioImportacion: totals.ratio };
-      if (isEditing) await api.put(`/costeos/${selectedCosteo.id}`, p); else await api.post('/costeos', p);
+      const seguroFinal = totals.seguroVal;
+      const gOrigenFinal = formData.incoterm === 'FOB' ? 0 : Number(formData.gastosOrigen || 0);
+      const mappedItems = totals.finalItems.map((item: any) => {
+        const part = totals.totalFC > 0 ? (item.valorTotal || 0) / totals.totalFC : 0;
+        const tc = Number(formData.tipoCambio || 1);
+        return {
+          ...item,
+          participacionPorcentual: part * 100,
+          cifOculto: totals.cifG * part,
+          fleteUnitario: Number(formData.fleteInternacional || 0) * part / Math.max(Number(item.cantidad) || 1, 1),
+          seguroUnitario: seguroFinal * part / Math.max(Number(item.cantidad) || 1, 1),
+          gastosOrigenUnitario: gOrigenFinal * part / Math.max(Number(item.cantidad) || 1, 1),
+          gastosLocalesUnitario: Number(formData.gastosLocales || 0) * part / Math.max(Number(item.cantidad) || 1, 1),
+          costoTotalSoles: (item.costoTotalUnitario || 0) * tc,
+        };
+      });
+      const p = {
+        ...formData,
+        seguro: seguroFinal,
+        gastosOrigen: gOrigenFinal,
+        items: mappedItems,
+        totalFacturaComercial: totals.totalFC,
+        adValoremGlobal: totals.adValoremG,
+        cifGlobal: totals.cifG,
+        baseImponible: totals.cifG + totals.adValoremG,
+        igv: totals.igv,
+        ipm: totals.ipm,
+        percepcionMonto: totals.perc,
+        costoTotalImportacion: totals.cTotalImp,
+        ratioImportacion: totals.ratio
+      };
+      if (isEditing) await api.put(`/costeos/${selectedCosteo.id}`, p);
+      else await api.post('/costeos', p);
       setShowModal(false); fetchCosteos(); resetForm();
-    } catch (err) { alert('Error'); }
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al guardar: ' + (err.response?.data?.message || err.message || 'Error desconocido'));
+    }
   };
 
-  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
+  const resetForm = () => { setFormData({ clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '', incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0, gastosLocales: 0, adValoremGlobal: 0, percepcionPorcentaje: 0, fechaEmbarque: '', fechaLlegada: '', canal: 'VERDE', modalidad: 'AEREO', nroDAM: '', estado: 'BORRADOR' }); setItems([]); setIsViewing(false); setIsEditing(false); setSelectedCosteo(null); };
+
+  const handleCambiarEstado = async (id: string, nuevoEstado: string) => {
+    try {
+      await api.patch(`/costeos/${id}/estado`, { estado: nuevoEstado });
+      fetchCosteos();
+      if (selectedCosteo?.id === id) setSelectedCosteo({ ...selectedCosteo, estado: nuevoEstado });
+    } catch (err) { alert('Error al cambiar estado'); }
+  };
 
   const viewCosteo = (c: any) => { setSelectedCosteo(c); setIsViewing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
   const editCosteo = (c: any) => { setSelectedCosteo(c); setIsEditing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
@@ -142,10 +184,24 @@ const Costeos = () => {
   const handleFileUpload = (e: any) => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader(); r.onload = (evt) => {
-      const b = evt.target?.result; const wb = XLSX.read(b, { type: 'binary' }); const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const ni = data.map((row: any) => ({ sku: row.SKU || '', producto: row.Producto, cantidad: row.Cantidad || 0, valorUnitario: row['Valor Unitario'] || 0, valorTotal: (row.Cantidad || 0) * (row['Valor Unitario'] || 0), adValoremPorcentaje: row['% AdValorem'] || '', precioVentaPEN: 0, descuentoPorcentaje: 0 }));
+      const b = evt.target?.result;
+      const wb = XLSX.read(b, { type: 'binary' });
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      const globalAVActive = Number(formData.adValoremGlobal) > 0;
+      const ni = data.map((row: any) => ({
+        sku: row.SKU || '',
+        producto: row.Producto || '',
+        cantidad: row.Cantidad || 0,
+        valorUnitario: row['Valor Unitario'] || 0,
+        valorTotal: (row.Cantidad || 0) * (row['Valor Unitario'] || 0),
+        // If global AV active, ignore per-line AV from Excel
+        adValoremPorcentaje: globalAVActive ? '' : (row['% AdValorem'] !== undefined && row['% AdValorem'] !== '' ? row['% AdValorem'] : ''),
+        precioVentaPEN: 0,
+        descuentoPorcentaje: 0
+      }));
       setItems([...items, ...ni]);
     }; r.readAsBinaryString(f);
+    if (e.target) e.target.value = '';
   };
 
   const downloadTemplate = () => {
@@ -186,13 +242,29 @@ const Costeos = () => {
                 <button onClick={() => { if(window.confirm('Eliminar?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} className="p-2 text-slate-300 hover:text-rose-600"><Trash2 size={18} /></button>
               </div>
             </div>
-            <h3 className="font-black text-slate-800 mb-6 truncate text-base uppercase tracking-tight">{c.clienteNombre || c.cliente?.razonSocial}</h3>
-            <div className="pt-6 border-t border-slate-50 flex justify-between items-end">
+            <h3 className="font-black text-slate-800 mb-4 truncate text-base uppercase tracking-tight">{c.clienteNombre || c.cliente?.razonSocial}</h3>
+            <div className="mb-4">
+              <button
+                onClick={() => handleCambiarEstado(c.id, c.estado === 'BORRADOR' ? 'TERMINADO' : 'BORRADOR')}
+                className={`text-[10px] font-black px-4 py-1.5 rounded-full transition-all hover:scale-105 ${
+                  c.estado === 'TERMINADO'
+                    ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                    : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'
+                }`}
+              >
+                {c.estado === 'TERMINADO' ? '✓ TERMINADO' : '⏳ BORRADOR'}
+              </button>
+            </div>
+            <div className="pt-4 border-t border-slate-50 flex justify-between items-end">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Inversión Soles</p>
                 <p className="text-2xl font-black text-[#0F172A] leading-none">S/ {formatNum(c.costoTotalImportacion * (c.tipoCambio || 1))}</p>
               </div>
-              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full ${c.canal === 'VERDE' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>{c.canal || 'VERDE'}</div>
+              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full ${
+                c.canal === 'VERDE' ? 'bg-emerald-50 text-emerald-600' :
+                c.canal === 'AMARILLO' ? 'bg-yellow-50 text-yellow-600' :
+                c.canal === 'ROJO' ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-400'
+              }`}>{c.canal || 'S/C'}</div>
             </div>
           </div>
         ))}
@@ -206,8 +278,22 @@ const Costeos = () => {
             {/* Header */}
             <div className="bg-white px-10 py-6 flex justify-between items-center shrink-0 border-b border-slate-100 shadow-sm z-10">
               <div className="flex items-center gap-8">
-                <h2 className="text-3xl font-black text-[#1E293B] tracking-tighter">NUEVO COSTEO ESTRATÉGICO</h2>
-                <span className="bg-[#FEF3C7] text-[#D97706] text-[11px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest">DRAFTING</span>
+                <h2 className="text-3xl font-black text-[#1E293B] tracking-tighter">{isEditing ? 'EDITAR COSTEO' : isViewing ? 'DETALLE COSTEO' : 'NUEVO COSTEO ESTRATÉGICO'}</h2>
+                <button
+                  onClick={() => {
+                    const nuevoEstado = formData.estado === 'BORRADOR' ? 'TERMINADO' : 'BORRADOR';
+                    setFormData({...formData, estado: nuevoEstado});
+                    if (isEditing && selectedCosteo) handleCambiarEstado(selectedCosteo.id, nuevoEstado);
+                  }}
+                  className={`text-[11px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest transition-all hover:scale-105 ${
+                    formData.estado === 'TERMINADO'
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-700 hover:text-white'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-700 hover:text-white'
+                  }`}
+                  disabled={isViewing}
+                >
+                  {formData.estado === 'TERMINADO' ? '✓ TERMINADO' : '⏳ BORRADOR'}
+                </button>
               </div>
               <div className="flex items-center gap-5">
                 <button onClick={exportPDF} className="flex items-center gap-2 px-6 py-3.5 border-2 border-slate-100 rounded-2xl text-[#4F46E5] font-black text-xs hover:bg-slate-50 transition-all uppercase tracking-[0.2em]"><FileDown size={18} /> PDF</button>
@@ -260,12 +346,13 @@ const Costeos = () => {
                         <table className="w-full text-sm">
                           <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[11px] border-b border-slate-100">
                             <tr>
-                              <th className="px-10 py-6 text-left">SKU</th>
+                              <th className="px-4 py-6 text-left">SKU</th>
                               <th className="px-10 py-6 text-left">DESCRIPTION</th>
-                              <th className="px-10 py-6 text-center">QTY</th>
-                              <th className="px-10 py-6 text-right">PRICE ({formData.moneda})</th>
-                              <th className="px-10 py-6 text-center">ADVALOREM (%)</th>
-                              <th className="px-10 py-6 text-right">TOTAL ({formData.moneda})</th>
+                              <th className="px-6 py-6 text-center">QTY</th>
+                              <th className="px-6 py-6 text-right">PRICE ({formData.moneda})</th>
+                              <th className="px-6 py-6 text-center">ADVALOREM (%)</th>
+                              <th className="px-6 py-6 text-right">TOTAL ({formData.moneda})</th>
+                              <th className="px-4 py-6 text-center"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
@@ -274,16 +361,16 @@ const Costeos = () => {
                               const isGlobalAVActive = Number(formData.adValoremGlobal) > 0;
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-10 py-7"><input type="text" value={it.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 font-bold w-24 text-[#1E293B] focus:ring-0" placeholder="SKU" disabled={isViewing} /></td>
-                                  <td className="px-10 py-7"><input type="text" value={it.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 font-black text-slate-700 w-full focus:ring-0" placeholder="Descripción del producto..." disabled={isViewing} /></td>
-                                  <td className="px-10 py-7 text-center"><input type="number" value={it.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-16 text-center" disabled={isViewing} /></td>
-                                  <td className="px-10 py-7 text-right">
+                                  <td className="px-4 py-7"><input type="text" value={it.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 font-bold w-20 text-[#1E293B] focus:ring-0" placeholder="SKU" disabled={isViewing} /></td>
+                                  <td className="px-6 py-7"><input type="text" value={it.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 font-black text-slate-700 w-full focus:ring-0" placeholder="Descripción del producto..." disabled={isViewing} /></td>
+                                  <td className="px-6 py-7 text-center"><input type="number" value={it.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-16 text-center" disabled={isViewing} /></td>
+                                  <td className="px-6 py-7 text-right">
                                     <div className="flex items-center justify-end gap-2">
-                                      <span className="text-slate-400 font-black">$</span>
+                                      <span className="text-slate-400 font-black">{formData.moneda === 'EUR' ? '€' : '$'}</span>
                                       <input type="number" value={it.valorUnitario || ''} onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-24 text-right" disabled={isViewing} />
                                     </div>
                                   </td>
-                                  <td className="px-10 py-7 text-center">
+                                  <td className="px-6 py-7 text-center">
                                     <input 
                                       type="number" 
                                       value={it.adValoremPorcentaje ?? ''} 
@@ -293,9 +380,16 @@ const Costeos = () => {
                                       disabled={isViewing || isGlobalAVActive} 
                                     />
                                   </td>
-                                  <td className="px-10 py-7 text-right">
+                                  <td className="px-6 py-7 text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formData.moneda === 'EUR' ? '€' : '$'}</p>
                                     <p className="font-black text-[#1E293B] text-base leading-tight tracking-tight">{formatNum(Number(it.valorTotal) || 0)}</p>
+                                  </td>
+                                  <td className="px-4 py-7 text-center">
+                                    {!isViewing && (
+                                      <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -601,26 +695,32 @@ const Costeos = () => {
                       <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12">LOGÍSTICA OPERATIVA</h3>
                       <div className="space-y-8">
                         {[
-                          { l: 'Gastos de Origen', f: 'gastosOrigen' },
+                          { l: 'Gastos de Origen', f: 'gastosOrigen', fobLocked: true },
                           { l: 'Flete Internacional', f: 'fleteInternacional' },
                           { l: 'Seguro (Auto: 2%)', f: 'seguro', placeholder: `${formatNum(totals.seguroVal)}` },
                           { l: 'Gastos Locales', f: 'gastosLocales' }
-                        ].map((lo, i) => (
+                        ].map((lo, i) => {
+                          const isFobLocked = lo.fobLocked && formData.incoterm === 'FOB';
+                          return (
                           <div key={i} className="flex justify-between items-center font-bold text-slate-600">
-                            <span className="text-base">{lo.l}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-base ${isFobLocked ? 'opacity-40' : ''}`}>{lo.l}</span>
+                              {isFobLocked && <span className="text-[9px] font-black bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full uppercase">FOB</span>}
+                            </div>
                             <div className="flex items-center gap-3 font-black text-[#1E293B]">
-                              <span className="text-slate-300 text-sm">{formData.moneda === 'EUR' ? '€' : '$'}</span>
+                              <span className={`text-sm ${isFobLocked ? 'text-slate-200' : 'text-slate-300'}`}>{formData.moneda === 'EUR' ? '€' : '$'}</span>
                               <input 
                                 type="number" 
-                                value={(formData as any)[lo.f] || ''} 
+                                value={isFobLocked ? '' : ((formData as any)[lo.f] || '')} 
                                 onChange={(e) => setFormData({...formData, [lo.f]: e.target.value === '' ? 0 : parseFloat(e.target.value)})} 
-                                className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 text-right w-24 text-xl focus:ring-0 leading-none" 
-                                placeholder={lo.placeholder}
-                                disabled={isViewing} 
+                                className={`rounded-lg px-2 py-1 border-0 text-right w-24 text-xl focus:ring-0 leading-none ${isFobLocked ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-50/50'}`} 
+                                placeholder={isFobLocked ? 'N/A (FOB)' : lo.placeholder}
+                                disabled={isViewing || isFobLocked} 
                               />
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                         <div className="pt-10 border-t border-slate-50 flex justify-between items-center">
                           <span className="font-black text-[#1E293B] text-sm uppercase tracking-[0.2em] opacity-60">Total Operativos</span>
                           <span className="font-black text-[#1E293B] text-2xl tracking-tighter">

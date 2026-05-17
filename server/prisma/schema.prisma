@@ -39,6 +39,11 @@ enum Moneda {
   EUR
 }
 
+enum CosteoEstado {
+  BORRADOR
+  TERMINADO
+}
+
 model CosteoImportacion {
   id                    String                @id @default(uuid())
   codigo                String                // AAAA-99999
@@ -82,6 +87,7 @@ model CosteoImportacion {
   percepcionMonto       Float
   costoTotalImportacion Float
   ratioImportacion      Float                 @default(0)
+  estado                CosteoEstado          @default(BORRADOR)
 
   items                 CosteoImportacionItem[]
   
