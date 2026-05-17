@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { authenticate, AuthRequest } from '../middlewares/auth';
 
 const router = Router();
@@ -70,7 +71,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       where: { empresaId, createdAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } }
     });
     const codigo = `${year}-${(count + 1).toString().padStart(5, '0')}`;
-    const id = crypto.randomUUID();
+    const id = randomUUID();
     const now = new Date().toISOString();
 
     // Raw SQL insert - bypasses all Prisma client enum validation
@@ -107,7 +108,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
     // Insert items
     for (const item of items) {
-      const itemId = crypto.randomUUID();
+      const itemId = randomUUID();
       await prisma.$executeRawUnsafe(`
         INSERT INTO "CosteoImportacionItem" (
           id, "costeoId", sku, producto, cantidad, "valorUnitario", "valorTotal",
@@ -195,7 +196,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
     // Insert new items
     for (const item of items) {
-      const itemId = crypto.randomUUID();
+      const itemId = randomUUID();
       await prisma.$executeRawUnsafe(`
         INSERT INTO "CosteoImportacionItem" (
           id, "costeoId", sku, producto, cantidad, "valorUnitario", "valorTotal",
