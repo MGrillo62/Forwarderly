@@ -89,8 +89,8 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, cast($10 as "Incoterm"), cast($11 as "Moneda"), $12, $13,
         $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, cast($23 as "CanalImportacion"), cast($24 as "ModalidadImportacion"), $25, $26, $27, $28, $29, $30,
-        $31, $32, $33, $34
+        cast($21 as timestamp), cast($22 as timestamp), cast($23 as "CanalImportacion"), cast($24 as "ModalidadImportacion"), $25, $26, $27, $28, $29, $30,
+        $31, $32, NOW(), NOW()
       )`,
       id, codigo, empresaId,
       b.clienteId || null, b.clienteNombre || null, b.clienteDocumento || null,
@@ -104,8 +104,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       canal, modalidad, b.nroDAM || null,
       safeFloat(b.cifGlobal), safeFloat(b.baseImponible),
       safeFloat(b.igv), safeFloat(b.ipm), safeFloat(b.percepcionMonto),
-      safeFloat(b.costoTotalImportacion), safeFloat(b.ratioImportacion),
-      now, now
+      safeFloat(b.costoTotalImportacion), safeFloat(b.ratioImportacion)
     );
 
     // Insert items
@@ -120,7 +119,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
           "precioVentaPEN", "descuentoPorcentaje", "utilidadUnitarioPEN", "utilidadTotalPEN", "margenPorcentaje",
           "createdAt", "updatedAt"
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22, NOW(), NOW()
         )`,
         itemId, id,
         item.sku || '', item.producto || '',
@@ -131,8 +130,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         safeFloat(item.gastosOrigenUnitario), safeFloat(item.gastosLocalesUnitario),
         safeFloat(item.costoTotalUnitario), safeFloat(item.costoTotalSoles),
         safeFloat(item.precioVentaPEN), safeFloat(item.descuentoPorcentaje),
-        safeFloat(item.utilidadUnitarioPEN), safeFloat(item.utilidadTotalPEN), safeFloat(item.margenPorcentaje),
-        now, now
+        safeFloat(item.utilidadUnitarioPEN), safeFloat(item.utilidadTotalPEN), safeFloat(item.margenPorcentaje)
       );
     }
 
@@ -175,12 +173,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         "totalFacturaComercial" = $11, "gastosOrigen" = $12, "fleteInternacional" = $13,
         seguro = $14, "gastosLocales" = $15,
         "adValoremGlobal" = $16, "percepcionPorcentaje" = $17,
-        "fechaEmbarque" = $18, "fechaLlegada" = $19,
+        "fechaEmbarque" = cast($18 as timestamp), "fechaLlegada" = cast($19 as timestamp),
         canal = cast($20 as "CanalImportacion"), modalidad = cast($21 as "ModalidadImportacion"), "nroDAM" = $22,
         "cifGlobal" = $23, "baseImponible" = $24, igv = $25, ipm = $26,
         "percepcionMonto" = $27, "costoTotalImportacion" = $28, "ratioImportacion" = $29,
-        "updatedAt" = $30
-      WHERE id = $31`,
+        "updatedAt" = NOW()
+      WHERE id = $30`,
       b.clienteId || null, b.clienteNombre || null, b.clienteDocumento || null,
       b.ordenId || null, b.nroFacturaComercial || null, b.proveedorExtranjero || null,
       incoterm, moneda, safeFloat(b.tipoCambio, 1), b.observaciones || null,
@@ -193,7 +191,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       safeFloat(b.cifGlobal), safeFloat(b.baseImponible),
       safeFloat(b.igv), safeFloat(b.ipm), safeFloat(b.percepcionMonto),
       safeFloat(b.costoTotalImportacion), safeFloat(b.ratioImportacion),
-      now, id
+      id
     );
 
     // Insert new items
@@ -208,7 +206,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           "precioVentaPEN", "descuentoPorcentaje", "utilidadUnitarioPEN", "utilidadTotalPEN", "margenPorcentaje",
           "createdAt", "updatedAt"
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22, NOW(), NOW()
         )`,
         itemId, id,
         item.sku || '', item.producto || '',
@@ -219,8 +217,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         safeFloat(item.gastosOrigenUnitario), safeFloat(item.gastosLocalesUnitario),
         safeFloat(item.costoTotalUnitario), safeFloat(item.costoTotalSoles),
         safeFloat(item.precioVentaPEN), safeFloat(item.descuentoPorcentaje),
-        safeFloat(item.utilidadUnitarioPEN), safeFloat(item.utilidadTotalPEN), safeFloat(item.margenPorcentaje),
-        now, now
+        safeFloat(item.utilidadUnitarioPEN), safeFloat(item.utilidadTotalPEN), safeFloat(item.margenPorcentaje)
       );
     }
 
