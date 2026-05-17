@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { generateCosteoReportPDF } from '../utils/costeoPdfGenerator';
 
 interface Item {
   sku: string; producto: string; cantidad: number | ''; valorUnitario: number | ''; valorTotal: number;
@@ -215,9 +216,10 @@ const Costeos = () => {
   };
 
   const exportPDF = () => {
-    const doc = new jsPDF(); doc.text("COSTEO DE IMPORTACIÓN", 15, 15);
-    autoTable(doc, { startY: 25, head: [['SKU', 'Producto', 'Cant', 'Costo PEN']], body: (isViewing ? items : totals.finalItems).map((i: any) => [i.sku, i.producto, i.cantidad, formatNum(i.costoUnitarioSoles)]) });
-    doc.save("Costeo.pdf");
+    generateCosteoReportPDF({
+      ...formData,
+      items: items
+    });
   };
 
   return (
@@ -242,9 +244,10 @@ const Costeos = () => {
             <div className="flex justify-between items-start mb-6">
               <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-4 py-1.5 rounded-full uppercase tracking-widest">{c.codigo}</span>
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => viewCosteo(c)} className="p-2 text-slate-300 hover:text-indigo-600"><Eye size={18} /></button>
-                <button onClick={() => editCosteo(c)} className="p-2 text-slate-300 hover:text-emerald-600"><Edit2 size={18} /></button>
-                <button onClick={() => { if(window.confirm('Eliminar?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} className="p-2 text-slate-300 hover:text-rose-600"><Trash2 size={18} /></button>
+                <button onClick={() => viewCosteo(c)} className="p-2 text-slate-300 hover:text-indigo-600" title="Ver"><Eye size={18} /></button>
+                <button onClick={() => editCosteo(c)} className="p-2 text-slate-300 hover:text-emerald-600" title="Editar"><Edit2 size={18} /></button>
+                <button onClick={() => generateCosteoReportPDF(c)} className="p-2 text-slate-300 hover:text-indigo-500" title="Exportar PDF"><FileDown size={18} /></button>
+                <button onClick={() => { if(window.confirm('Eliminar?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} className="p-2 text-slate-300 hover:text-rose-600" title="Eliminar"><Trash2 size={18} /></button>
               </div>
             </div>
             <h3 className="font-black text-slate-800 mb-4 truncate text-base uppercase tracking-tight">{c.clienteNombre || c.cliente?.razonSocial}</h3>
