@@ -124,7 +124,6 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         canal: canalNormalizado as any,
         modalidad: modalidadNormalizada as any,
         nroDAM: nroDAM || null,
-        ...(estado ? { estado: (estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR') } : {}),
         cifGlobal: safeFloat(cifGlobal),
         baseImponible: safeFloat(baseImponible),
         igv: safeFloat(igv),
@@ -217,7 +216,6 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         canal: canalNormalizado as any,
         modalidad: modalidadNormalizada as any,
         nroDAM: nroDAM || null,
-        estado: (estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR') as any,
         cifGlobal: safeFloat(cifGlobal),
         baseImponible: safeFloat(baseImponible),
         igv: safeFloat(igv),
@@ -259,18 +257,30 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Change estado only
+// Change estado only - uses raw SQL to bypass Prisma client version issues
 router.patch('/:id/estado', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { estado } = req.body;
+  const estadoValido = estado === 'TERMINADO' ? 'TERMINADO' : 'BORRADOR';
   try {
-    const costeo = await prisma.costeoImportacion.update({
-      where: { id },
-      data: { estado }
-    });
-    res.json(costeo);
-  } catch (error) {
-    res.status(500).json({ message: 'Error al cambiar estado' });
+    // Try Prisma update first
+    try {
+      const costeo = await (prisma as any).costeoImportacion.update({
+        where: { id },
+        data: { estado: estadoValido }
+      });
+      return res.json(costeo);
+    } catch {
+      // Fallback: raw SQL if Prisma client doesn't know about estado field
+      await prisma.$executeRawUnsafe(
+        `UPDATE "CosteoImportacion" SET "estado" = $1, "updatedAt" = NOW() WHERE id = $2`,
+        estadoValido, id
+      );
+      const costeo = await prisma.costeoImportacion.findUnique({ where: { id } });
+      return res.json(costeo);
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: error?.message || 'Error al cambiar estado' });
   }
 });
 

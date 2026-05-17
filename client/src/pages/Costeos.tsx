@@ -687,6 +687,83 @@ const Costeos = () => {
                             }`}></span>
                           </div>
                         </div>
+
+                        {/* Dates row */}
+                        <div className="grid grid-cols-2 gap-10">
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">FECHA DE SALIDA</p>
+                            <input 
+                              type="date" 
+                              value={formData.fechaEmbarque} 
+                              onChange={(e) => setFormData({...formData, fechaEmbarque: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">FECHA DE LLEGADA</p>
+                            <input 
+                              type="date" 
+                              value={formData.fechaLlegada} 
+                              onChange={(e) => setFormData({...formData, fechaLlegada: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                        </div>
+
+                        {/* Proveedor / Invoice */}
+                        <div className="grid grid-cols-2 gap-10">
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">PROVEEDOR</p>
+                            <input 
+                              type="text" 
+                              value={formData.proveedorExtranjero} 
+                              onChange={(e) => setFormData({...formData, proveedorExtranjero: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500 uppercase" 
+                              placeholder="NOMBRE DEL PROVEEDOR..." 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">INVOICE / FACTURA</p>
+                            <input 
+                              type="text" 
+                              value={formData.nroFacturaComercial} 
+                              onChange={(e) => setFormData({...formData, nroFacturaComercial: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              placeholder="NRO. INVOICE..." 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                        </div>
+
+                        {/* NRO DAM / Observaciones */}
+                        <div className="grid grid-cols-2 gap-10">
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">NRO. DAM</p>
+                            <input 
+                              type="text" 
+                              value={formData.nroDAM} 
+                              onChange={(e) => setFormData({...formData, nroDAM: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              placeholder="NRO. DAM..." 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">OBSERVACIONES</p>
+                            <input 
+                              type="text" 
+                              value={formData.observaciones} 
+                              onChange={(e) => setFormData({...formData, observaciones: e.target.value})} 
+                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-bold text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              placeholder="Observaciones..." 
+                              disabled={isViewing} 
+                            />
+                          </div>
+                        </div>
+
                       </div>
                     </div>
 
