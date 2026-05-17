@@ -198,8 +198,8 @@ export const generateCosteoReportPDF = (costeo: any) => {
   const boxH = 38;
 
   // Box Left: Tributos Aduaneros
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(241, 245, 249);
+  doc.setFillColor(226, 232, 240); // Silver grey
+  doc.setDrawColor(203, 213, 225); // slate-300
   doc.roundedRect(15, currentY, boxW, boxH, 4, 4, 'FD');
 
   doc.setFontSize(9.5);
@@ -220,6 +220,7 @@ export const generateCosteoReportPDF = (costeo: any) => {
   doc.text(`Percepción (${Number(costeo.percepcionPorcentaje || 0)}%)`, 20, currentY + 28);
 
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42); // Black values
   doc.text(`S/ ${formatNum(calculations.adValoremG * (costeo.tipoCambio || 1))}`, 95, currentY + 13, { align: 'right' });
   doc.text(`S/ ${formatNum(calculations.igv * (costeo.tipoCambio || 1))}`, 95, currentY + 18, { align: 'right' });
   doc.text(`S/ ${formatNum(calculations.ipm * (costeo.tipoCambio || 1))}`, 95, currentY + 23, { align: 'right' });
@@ -232,10 +233,13 @@ export const generateCosteoReportPDF = (costeo: any) => {
   doc.text(`S/ ${formatNum(totalTributosPEN)}`, 95, currentY + 34, { align: 'right' });
 
   // Box Right: Logística Operativa
+  doc.setFillColor(226, 232, 240); // Silver grey
+  doc.setDrawColor(203, 213, 225); // slate-300
   doc.roundedRect(108, currentY, boxW, boxH, 4, 4, 'FD');
 
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
   doc.text('Logística Operativa', 113, currentY + 6);
 
   doc.setFontSize(8);
@@ -248,6 +252,7 @@ export const generateCosteoReportPDF = (costeo: any) => {
   doc.text('Gastos Locales', 113, currentY + 28);
 
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42); // Black values
   doc.text(isFob ? 'N/A (FOB)' : `$ ${formatNum(Number(costeo.gastosOrigen) || 0)}`, 188, currentY + 13, { align: 'right' });
   doc.text(`$ ${formatNum(Number(costeo.fleteInternacional) || 0)}`, 188, currentY + 18, { align: 'right' });
   doc.text(`$ ${formatNum(calculations.seguroVal)}`, 188, currentY + 23, { align: 'right' });
