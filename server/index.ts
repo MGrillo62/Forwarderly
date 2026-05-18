@@ -11,6 +11,8 @@ import cotizacionRoutes from './routes/cotizaciones';
 import ordenRoutes from './routes/ordenes';
 import usuarioRoutes from './routes/usuarios';
 import costeoRoutes from './routes/costeos';
+import leadsRoutes from './routes/leads';
+import dashboardRoutes from './routes/dashboards';
 
 dotenv.config();
 
@@ -41,6 +43,8 @@ app.use('/api/cotizaciones', cotizacionRoutes);
 app.use('/api/ordenes', ordenRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/costeos', costeoRoutes);
+app.use('/api/leads', leadsRoutes);
+app.use('/api/dashboards', dashboardRoutes);
 
 const PORT = process.env.PORT || 5000;
 

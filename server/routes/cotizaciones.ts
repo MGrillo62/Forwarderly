@@ -8,7 +8,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
-  const { clienteId, lineas } = req.body;
+  const { clienteId, leadId, lineas } = req.body;
   const { empresaId, id: vendedorId } = req.user!;
 
   try {
@@ -23,7 +23,8 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
     const cotizacion = await prisma.cotizacion.create({
       data: {
-        clienteId,
+        clienteId: clienteId || null,
+        leadId: leadId || null,
         vendedorId,
         empresaId,
         ...totals,
@@ -46,7 +47,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
           }
         }
       },
-      include: { lineas: true, cliente: true, historial: true }
+      include: { lineas: true, cliente: true, lead: true, historial: true }
     });
 
     res.json(cotizacion);
@@ -58,14 +59,63 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { clienteId, lineas, estado } = req.body;
+  const { clienteId, leadId, lineas, estado, clientConversion } = req.body;
+  const { empresaId } = req.user!;
 
   try {
-    const existing = await prisma.cotizacion.findUnique({ where: { id } });
+    const existing = await prisma.cotizacion.findUnique({ 
+      where: { id },
+      include: { lead: true }
+    });
     if (!existing) return res.status(404).json({ message: 'Cotización no encontrada' });
 
     if (existing.estado === 'APROBADA' || existing.estado === 'RECHAZADA') {
       return res.status(400).json({ message: 'No se puede modificar una cotización aprobada o rechazada' });
+    }
+
+    let finalClienteId = clienteId || existing.clienteId;
+    let finalLeadId = leadId !== undefined ? leadId : existing.leadId;
+
+    // Lógica de Conversión de Lead a Cliente si el estado cambia a APROBADA y está vinculada a un Lead
+    if (estado === 'APROBADA' && (finalLeadId || existing.leadId)) {
+      const activeLeadId = finalLeadId || existing.leadId;
+      if (clientConversion) {
+        const { ruc, razonSocial, direccion, contacto, correo, celular } = clientConversion;
+        if (!ruc || !razonSocial || !direccion || !contacto) {
+          return res.status(400).json({ message: 'Datos obligatorios del cliente faltantes (RUC, Razón Social, Dirección, Contacto).' });
+        }
+
+        // Crear el Cliente
+        const newCliente = await prisma.cliente.create({
+          data: {
+            ruc,
+            razonSocial,
+            direccion,
+            contacto,
+            correo: correo || null,
+            celular: celular || null,
+            empresaId
+          }
+        });
+
+        finalClienteId = newCliente.id;
+        
+        // Actualizar el Lead a CERRADO_GANADO
+        await prisma.lead.update({
+          where: { id: activeLeadId },
+          data: { estado: 'CERRADO_GANADO' }
+        });
+      } else {
+        if (!finalClienteId) {
+          return res.status(400).json({ message: 'Se requiere la conversión del Lead a Cliente para aprobar la cotización.' });
+        }
+      }
+    } else if (estado === 'RECHAZADA' && (finalLeadId || existing.leadId)) {
+      const activeLeadId = finalLeadId || existing.leadId;
+      await prisma.lead.update({
+        where: { id: activeLeadId },
+        data: { estado: 'CERRADO_PERDIDO' }
+      });
     }
 
     let updated;
@@ -82,7 +132,8 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       updated = await prisma.cotizacion.update({
         where: { id },
         data: {
-          clienteId,
+          clienteId: finalClienteId,
+          leadId: finalLeadId,
           estado,
           ...totals,
           lineas: {
@@ -106,12 +157,14 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
             }
           })
         },
-        include: { lineas: true, historial: { include: { usuario: true } } }
+        include: { lineas: true, lead: true, cliente: true, historial: { include: { usuario: true } } }
       });
     } else {
       updated = await prisma.cotizacion.update({
         where: { id },
         data: {
+          clienteId: finalClienteId,
+          leadId: finalLeadId,
           estado,
           ...(estado !== existing.estado && {
             historial: {
@@ -122,7 +175,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
             }
           })
         },
-        include: { lineas: true, historial: { include: { usuario: true } } }
+        include: { lineas: true, lead: true, cliente: true, historial: { include: { usuario: true } } }
       });
     }
 
@@ -167,6 +220,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       where,
       include: { 
         cliente: true, 
+        lead: true,
         vendedor: true, 
         historial: { 
           include: { usuario: true },

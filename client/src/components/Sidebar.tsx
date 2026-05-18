@@ -11,7 +11,9 @@ import {
   Tags,
   Truck,
   LogOut,
-  Calculator
+  Calculator,
+  TrendingUp,
+  UserCheck
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -26,16 +28,25 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
   const location = useLocation();
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'] },
-    { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'] },
-    { name: 'Clientes', icon: Users, path: '/clientes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
-    { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
-    { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
-    { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'] },
-    { name: 'Costeos', icon: Calculator, path: '/costeos', roles: ['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR'] },
-    { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'] },
+    // Dashboards
+    { name: 'Dashboard Comercial', icon: TrendingUp, path: '/dashboard-comercial', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Dashboards' },
+    { name: 'Dashboard Operativo', icon: LayoutDashboard, path: '/dashboard-operativo', roles: ['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR'], group: 'Dashboards' },
+    
+    // Módulo Comercial
+    { name: 'Leads o Prospectos', icon: Users, path: '/leads', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Módulo Comercial' },
+    { name: 'Clientes', icon: UserCheck, path: '/clientes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Módulo Comercial' },
+    
+    // Módulo Operativo
+    { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Módulo Operativo' },
+    { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Módulo Operativo' },
+    { name: 'Costeos', icon: Calculator, path: '/costeos', roles: ['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR'], group: 'Módulo Operativo' },
+    
+    // Configuración
+    { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'], group: 'Configuración' },
+    { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Configuración' },
+    { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
+    { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
+    { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'], group: 'Configuración' },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(rol));
@@ -43,31 +54,44 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
   return (
     <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
-        {!collapsed && <span className="brand-name">IMPORT PERÚ</span>}
+        {!collapsed && <span className="brand-name">FORWARDERLY</span>}
         <button onClick={() => setCollapsed(!collapsed)} className="toggle-btn">
           {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
       </div>
       
       <nav className="sidebar-nav">
-        {filteredMenu.map((item) => (
-          <div 
-            key={item.name}
-            className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-            onClick={() => navigate(item.path)}
-          >
-            <item.icon size={22} />
-            {!collapsed && <span>{item.name}</span>}
-          </div>
-        ))}
+        {filteredMenu.map((item, index) => {
+          const showGroupHeader = index === 0 || filteredMenu[index - 1].group !== item.group;
+          return (
+            <React.Fragment key={item.name}>
+              {showGroupHeader && !collapsed && (
+                <div className="group-header">
+                  {item.group}
+                </div>
+              )}
+              {showGroupHeader && collapsed && (
+                <div className="group-divider" />
+              )}
+              <div 
+                className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
+                onClick={() => navigate(item.path)}
+              >
+                <item.icon size={20} />
+                {!collapsed && <span>{item.name}</span>}
+              </div>
+            </React.Fragment>
+          );
+        })}
       </nav>
 
       <div className="sidebar-footer">
         <div className="nav-item logout" onClick={() => {
           localStorage.removeItem('token');
+          localStorage.removeItem('selectedEmpresaId');
           navigate('/login');
         }}>
-          <LogOut size={22} />
+          <LogOut size={20} />
           {!collapsed && <span>Cerrar Sesión</span>}
         </div>
       </div>
@@ -110,11 +134,25 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
         .sidebar-nav {
           flex: 1;
           padding: 1rem 0;
+          overflow-y: auto;
+        }
+        .group-header {
+          font-size: 0.65rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 1.5px;
+          color: rgba(255, 255, 255, 0.4);
+          padding: 1.25rem 1.5rem 0.5rem 1.5rem;
+        }
+        .group-divider {
+          height: 1px;
+          background: rgba(255, 255, 255, 0.1);
+          margin: 0.75rem 0.5rem;
         }
         .nav-item {
           display: flex;
           align-items: center;
-          padding: 0.75rem 1.5rem;
+          padding: 0.65rem 1.5rem;
           cursor: pointer;
           transition: background 0.2s;
           gap: 1rem;

@@ -173,12 +173,38 @@ model Empresa {
   estado        EmpresaEstado @default(ACTIVO)
   usuarios      Usuario[]
   clientes      Cliente[]
+  leads         Lead[]
   proveedores   Proveedor[]
   categorias    Categoria[]
   cotizaciones  Cotizacion[]
   costeos       CosteoImportacion[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+model Lead {
+  id           String       @id @default(uuid())
+  nombre       String?      
+  ruc          String?      
+  razonSocial  String?      
+  direccion    String?      
+  contacto     String       
+  correo       String?      
+  celular      String?      
+  estado       LeadEstado   @default(NUEVO_CONTACTO)
+  empresaId    String
+  empresa      Empresa      @relation(fields: [empresaId], references: [id])
+  cotizaciones Cotizacion[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+enum LeadEstado {
+  NUEVO_CONTACTO
+  CONTACTADO
+  COTIZANDO
+  CERRADO_GANADO
+  CERRADO_PERDIDO
 }
 
 model Usuario {
@@ -258,8 +284,10 @@ model Cotizacion {
   id                String           @id @default(uuid())
   numero            Int              @default(autoincrement())
   estado            CotizacionEstado @default(BORRADOR)
-  clienteId         String
-  cliente           Cliente          @relation(fields: [clienteId], references: [id])
+  clienteId         String?
+  cliente           Cliente?         @relation(fields: [clienteId], references: [id])
+  leadId            String?
+  lead              Lead?            @relation(fields: [leadId], references: [id])
   vendedorId        String
   vendedor          Usuario          @relation(fields: [vendedorId], references: [id])
   empresaId         String

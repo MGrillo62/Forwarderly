@@ -13,6 +13,9 @@ import Usuarios from './pages/Usuarios';
 import Perfil from './pages/Perfil';
 import Empresas from './pages/Empresas';
 import Costeos from './pages/Costeos';
+import Leads from './pages/Leads';
+import DashboardComercial from './pages/DashboardComercial';
+import DashboardOperativo from './pages/DashboardOperativo';
 
 const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles: string[] }) => {
   const { token, user, loading } = useAuth();
@@ -124,6 +127,14 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+const DashboardRedirect = () => {
+  const { user } = useAuth();
+  if (user?.rol === 'IMPORTADOR') {
+    return <Navigate to="/dashboard-operativo" replace />;
+  }
+  return <Navigate to="/dashboard-comercial" replace />;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -133,7 +144,25 @@ function App() {
           
           <Route path="/" element={
             <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR']}>
-              <Layout><Dashboard /></Layout>
+              <Layout><DashboardRedirect /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard-comercial" element={
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
+              <Layout><DashboardComercial /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/dashboard-operativo" element={
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR']}>
+              <Layout><DashboardOperativo /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/leads" element={
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'VENDEDOR']}>
+              <Layout><Leads /></Layout>
             </ProtectedRoute>
           } />
 

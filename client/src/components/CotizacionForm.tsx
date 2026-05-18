@@ -11,10 +11,17 @@ interface CotizacionFormProps {
 
 const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initialData, viewOnly }) => {
   const [clientes, setClientes] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
   
   const [clienteId, setClienteId] = useState(initialData?.clienteId || '');
+  const [leadId, setLeadId] = useState(initialData?.leadId || '');
+  const [selectedTarget, setSelectedTarget] = useState(() => {
+    if (initialData?.clienteId) return `client:${initialData.clienteId}`;
+    if (initialData?.leadId) return `lead:${initialData.leadId}`;
+    return '';
+  });
   const [lineas, setLineas] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -27,12 +34,14 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
 
   const fetchData = async () => {
     try {
-      const [cRes, pRes, catRes] = await Promise.all([
+      const [cRes, pRes, catRes, lRes] = await Promise.all([
         api.get('/clientes'),
         api.get('/proveedores'),
-        api.get('/categorias')
+        api.get('/categorias'),
+        api.get('/leads')
       ]);
       setClientes(cRes.data);
+      setLeads(lRes.data);
       setProveedores(pRes.data);
       setCategorias(catRes.data);
 
@@ -162,10 +171,28 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
 
   const porcentajeUtilidad = totals.totalVenta > 0 ? (totals.utilidad / totals.totalVenta) * 100 : 0;
 
+  const handleTargetChange = (val: string) => {
+    setSelectedTarget(val);
+    if (val.startsWith('client:')) {
+      setClienteId(val.replace('client:', ''));
+      setLeadId('');
+    } else if (val.startsWith('lead:')) {
+      setLeadId(val.replace('lead:', ''));
+      setClienteId('');
+    } else {
+      setClienteId('');
+      setLeadId('');
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!clienteId) return alert('Seleccione un cliente');
+    if (!clienteId && !leadId) return alert('Seleccione un cliente o prospecto');
     try {
-      const data = { clienteId, lineas };
+      const data = { 
+        clienteId: clienteId || null, 
+        leadId: leadId || null, 
+        lineas 
+      };
       if (initialData) {
         await api.put(`/cotizaciones/${initialData.id}`, data);
       } else {
@@ -188,13 +215,29 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         </div>
 
         <div className="modal-body">
-          <div className="form-section">
-            <label>Cliente</label>
-            <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} disabled={viewOnly}>
-              <option value="">Seleccione un cliente</option>
-              {clientes.map(c => (
-                <option key={c.id} value={c.id}>{c.razonSocial} ({c.ruc})</option>
-              ))}
+          <div className="form-section" style={{ minWidth: '350px' }}>
+            <label>Cliente / Prospecto *</label>
+            <select 
+              value={selectedTarget} 
+              onChange={(e) => handleTargetChange(e.target.value)} 
+              disabled={viewOnly}
+              required
+            >
+              <option value="">-- Seleccione Cliente o Lead --</option>
+              <optgroup label="Clientes Oficiales">
+                {clientes.map(c => (
+                  <option key={`client:${c.id}`} value={`client:${c.id}`}>
+                    🏢 {c.razonSocial} (RUC: {c.ruc})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Leads / Prospectos">
+                {leads.map(l => (
+                  <option key={`lead:${l.id}`} value={`lead:${l.id}`}>
+                    👤 {l.nombre || l.contacto} ({l.contacto} - {l.estado})
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
 

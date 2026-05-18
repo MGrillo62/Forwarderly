@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText } from 'lucide-react';
+import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText, X } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import CotizacionForm from '../components/CotizacionForm';
 
@@ -13,6 +13,14 @@ const Cotizaciones: React.FC = () => {
   const [viewOnly, setViewOnly] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // States for lead-to-client conversion
+  const [showConversionModal, setShowConversionModal] = useState(false);
+  const [conversionLead, setConversionLead] = useState<any>(null);
+  const [conversionCotId, setConversionCotId] = useState<string | null>(null);
+  const [conversionForm, setConversionForm] = useState({
+    ruc: '', razonSocial: '', direccion: '', contacto: '', correo: '', celular: ''
+  });
 
   useEffect(() => {
     fetchCotizaciones();
@@ -29,12 +37,51 @@ const Cotizaciones: React.FC = () => {
   };
 
   const handleUpdateStatus = async (id: string, estado: string) => {
+    const cot = cotizaciones.find(c => c.id === id);
+    
+    // Intercept with conversion modal if approving a lead quote
+    if (estado === 'APROBADA' && cot && cot.leadId && !cot.clienteId) {
+      setConversionLead(cot.lead);
+      setConversionCotId(id);
+      setConversionForm({
+        ruc: cot.lead.ruc || '',
+        razonSocial: cot.lead.razonSocial || cot.lead.nombre || '',
+        direccion: cot.lead.direccion || '',
+        contacto: cot.lead.contacto || '',
+        correo: cot.lead.correo || '',
+        celular: cot.lead.celular || ''
+      });
+      setShowConversionModal(true);
+      return;
+    }
+
     if (!window.confirm(`¿Seguro que desea cambiar el estado a ${estado}?`)) return;
     try {
       await api.put(`/cotizaciones/${id}`, { estado });
       fetchCotizaciones();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al actualizar estado');
+    }
+  };
+
+  const handleConversionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!conversionForm.ruc || !conversionForm.razonSocial || !conversionForm.direccion || !conversionForm.contacto) {
+      return alert('Por favor llene todos los campos obligatorios.');
+    }
+
+    try {
+      await api.put(`/cotizaciones/${conversionCotId}`, {
+        estado: 'APROBADA',
+        clientConversion: conversionForm
+      });
+      setShowConversionModal(false);
+      setConversionLead(null);
+      setConversionCotId(null);
+      fetchCotizaciones();
+      alert('Cotización aprobada. El Prospecto se ha convertido en Cliente Oficial con éxito.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al realizar conversión de Lead a Cliente');
     }
   };
 
@@ -154,7 +201,14 @@ const Cotizaciones: React.FC = () => {
                 <React.Fragment key={cot.id}>
                   <tr>
                     <td><strong>{String(cot.numero).padStart(5, '0')}</strong></td>
-                    <td>{cot.cliente?.razonSocial}</td>
+                    <td>
+                      {cot.cliente?.razonSocial || (
+                        <span className="flex items-center gap-1.5 font-semibold text-amber-700">
+                          👤 {cot.lead?.nombre || cot.lead?.contacto}
+                          <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-xxs font-extrabold uppercase shadow-sm">PROSPECTO</span>
+                        </span>
+                      )}
+                    </td>
                     <td>{new Date(cot.createdAt).toLocaleDateString()}</td>
                     <td>{cot.vendedor?.nombres}</td>
                     <td>S/ {cot.precioTotal.toFixed(2)}</td>
@@ -222,6 +276,92 @@ const Cotizaciones: React.FC = () => {
           onClose={() => setShowForm(false)} 
           onSave={() => { setShowForm(false); fetchCotizaciones(); }} 
         />
+      )}
+
+      {showConversionModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                🌟 Conversión Inteligente: De Prospecto a Cliente
+              </h3>
+              <button className="icon-btn" onClick={() => setShowConversionModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConversionSubmit}>
+              <div className="modal-body">
+                <p className="text-xs text-slate-500 mb-4 bg-blue-50 text-blue-700 p-2.5 rounded border border-blue-200">
+                  La cotización está vinculada a un <strong>Prospecto</strong>. Para poder aprobar la cotización y generar su orden de importación, el sistema exige la conversión del Prospecto a <strong>Cliente Oficial</strong> con todos sus datos fiscales validados.
+                </p>
+                <div className="grid-2">
+                  <div className="form-group">
+                    <label>RUC / Tax ID *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Ej. 20123456789"
+                      value={conversionForm.ruc}
+                      onChange={(e) => setConversionForm({ ...conversionForm, ruc: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Razón Social *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Ej. Importaciones Peru SAC"
+                      value={conversionForm.razonSocial}
+                      onChange={(e) => setConversionForm({ ...conversionForm, razonSocial: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Nombre de Contacto *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Ej. Juan Pérez"
+                      value={conversionForm.contacto}
+                      onChange={(e) => setConversionForm({ ...conversionForm, contacto: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Celular</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej. 987654321"
+                      value={conversionForm.celular}
+                      onChange={(e) => setConversionForm({ ...conversionForm, celular: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label>Correo Electrónico</label>
+                    <input 
+                      type="email" 
+                      placeholder="contacto@empresa.com"
+                      value={conversionForm.correo}
+                      onChange={(e) => setConversionForm({ ...conversionForm, correo: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label>Dirección Fiscal *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Av. Las Magnolias 123, Lima"
+                      value={conversionForm.direccion}
+                      onChange={(e) => setConversionForm({ ...conversionForm, direccion: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-outline" onClick={() => setShowConversionModal(false)}>Cancelar</button>
+                <button type="submit" className="primary">Convertir y Aprobar</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       <style>{`
