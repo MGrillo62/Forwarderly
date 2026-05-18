@@ -238,44 +238,110 @@ const Costeos = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-        {costeos.map((c) => (
-          <div key={c.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-xl transition-all group">
-            <div className="flex justify-between items-start mb-6">
-              <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-4 py-1.5 rounded-full uppercase tracking-widest">{c.codigo}</span>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => viewCosteo(c)} className="p-2 text-slate-300 hover:text-indigo-600" title="Ver"><Eye size={18} /></button>
-                <button onClick={() => editCosteo(c)} className="p-2 text-slate-300 hover:text-emerald-600" title="Editar"><Edit2 size={18} /></button>
-                <button onClick={() => generateCosteoReportPDF(c)} className="p-2 text-slate-300 hover:text-indigo-500" title="Exportar PDF"><FileDown size={18} /></button>
-                <button onClick={() => { if(window.confirm('Eliminar?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} className="p-2 text-slate-300 hover:text-rose-600" title="Eliminar"><Trash2 size={18} /></button>
-              </div>
-            </div>
-            <h3 className="font-black text-slate-800 mb-4 truncate text-base uppercase tracking-tight">{c.clienteNombre || c.cliente?.razonSocial}</h3>
-            <div className="mb-4">
-              <button
-                onClick={() => handleCambiarEstado(c.id, c.estado === 'BORRADOR' ? 'TERMINADO' : 'BORRADOR')}
-                className={`text-[10px] font-black px-4 py-1.5 rounded-full transition-all hover:scale-105 ${
-                  c.estado === 'TERMINADO'
-                    ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
-                    : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'
-                }`}
-              >
-                {c.estado === 'TERMINADO' ? '✓ TERMINADO' : '⏳ BORRADOR'}
-              </button>
-            </div>
-            <div className="pt-4 border-t border-slate-50 flex justify-between items-end">
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Inversión Soles</p>
-                <p className="text-2xl font-black text-[#0F172A] leading-none">S/ {formatNum(c.costoTotalImportacion * (c.tipoCambio || 1))}</p>
-              </div>
-              <div className={`text-[10px] font-black px-4 py-1.5 rounded-full ${
-                c.canal === 'VERDE' ? 'bg-emerald-50 text-emerald-600' :
-                c.canal === 'AMARILLO' ? 'bg-orange-50 text-orange-600' :
-                c.canal === 'ROJO' ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-400'
-              }`}>{c.canal === 'AMARILLO' ? 'NARANJA' : (c.canal || 'S/C')}</div>
-            </div>
-          </div>
-        ))}
+      <div className="card animate-fade-in">
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Costeo</th>
+                <th>Cliente</th>
+                <th>Nro BL / DAM</th>
+                <th>Canal</th>
+                <th>ETD / ETA</th>
+                <th>Estado</th>
+                <th className="text-right">Inversión Soles</th>
+                <th style={{ width: '120px' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costeos.map((c) => {
+                const getCanalBadge = (canal: string) => {
+                  switch (canal) {
+                    case 'VERDE': return 'badge-green';
+                    case 'AMARILLO': return 'badge-orange';
+                    case 'ROJO': return 'badge-red';
+                    case 'SIN_CANAL': return 'badge-gray';
+                    default: return 'badge-gray';
+                  }
+                };
+
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      <div className="order-id">
+                        <strong>{c.codigo}</strong>
+                        {c.orden && <small>Ref. Orden: ORD-{c.orden.correlativo}-{c.orden.anio}</small>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="order-id">
+                        <strong className="text-slate-800">{c.clienteNombre || c.cliente?.razonSocial || c.orden?.cotizacion?.cliente?.razonSocial || c.orden?.cotizacion?.lead?.nombre}</strong>
+                        {c.proveedorExtranjero && <small style={{ display: 'block', color: 'var(--text-light, #64748b)', fontSize: '0.7rem', marginTop: '2px' }}>Prov: {c.proveedorExtranjero}</small>}
+                        {c.nroFacturaComercial && <small style={{ display: 'block', color: 'var(--text-light, #64748b)', fontSize: '0.7rem' }}>Fact: {c.nroFacturaComercial}</small>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="tracking-info">
+                        <div>BL: {c.nroBL || c.orden?.nroBL || '-'}</div>
+                        <div>DAM: {c.nroDAM || c.orden?.nroDAM || '-'}</div>
+                        {(c.tipoCarga || c.nroContenedor || c.orden?.tipoCarga || c.orden?.nroContenedor) && (
+                          <div style={{ color: 'var(--primary, #4f46e5)', fontWeight: '600', fontSize: '0.7rem', marginTop: '2px' }}>
+                            {c.tipoCarga || c.orden?.tipoCarga ? `[${c.tipoCarga || c.orden?.tipoCarga}] ` : ''}{c.nroContenedor || c.orden?.nroContenedor || ''}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        {c.canal && <span className={`canal-dot ${getCanalBadge(c.canal)}`}></span>}
+                        <span className="text-slate-700 font-bold" style={{ fontSize: '0.75rem' }}>
+                          {c.canal === 'AMARILLO' ? 'NARANJA' : (c.canal || '-')}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="dates-info">
+                        <small>ETD: {c.fechaEmbarque ? new Date(c.fechaEmbarque).toLocaleDateString() : (c.orden?.fechaETD ? new Date(c.orden?.fechaETD).toLocaleDateString() : '-')}</small>
+                        <small>ETA: {c.fechaLlegada ? new Date(c.fechaLlegada).toLocaleDateString() : (c.orden?.fechaETA ? new Date(c.orden?.fechaETA).toLocaleDateString() : '-')}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleCambiarEstado(c.id, c.estado === 'BORRADOR' ? 'TERMINADO' : 'BORRADOR')}
+                        className={`text-[10px] font-black px-4 py-1.5 rounded-full transition-all hover:scale-105 ${
+                          c.estado === 'TERMINADO'
+                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                            : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'
+                        }`}
+                      >
+                        {c.estado === 'TERMINADO' ? '✓ TERMINADO' : '⏳ BORRADOR'}
+                      </button>
+                    </td>
+                    <td className="text-right font-black text-slate-800 text-sm">
+                      S/ {formatNum(c.costoTotalImportacion * (c.tipoCambio || 1))}
+                    </td>
+                    <td>
+                      <div className="actions-cell" style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                        <button onClick={() => viewCosteo(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Ver">
+                          <Eye size={16} className="text-[#64748b] hover:text-indigo-600" />
+                        </button>
+                        <button onClick={() => editCosteo(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Editar">
+                          <Edit2 size={16} className="text-[#64748b] hover:text-emerald-600" />
+                        </button>
+                        <button onClick={() => generateCosteoReportPDF(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Exportar PDF">
+                          <FileDown size={16} className="text-[#64748b] hover:text-indigo-500" />
+                        </button>
+                        <button onClick={() => { if (window.confirm('¿Eliminar costeo?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Eliminar">
+                          <Trash2 size={16} className="text-[#64748b] hover:text-rose-600" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* FULL SCREEN MODAL - REDESIGNED FOR MAX ROBUSTNESS */}
@@ -894,6 +960,23 @@ const Costeos = () => {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+        .order-id strong { color: var(--primary, #4f46e5); display: block; }
+        .order-id small { color: var(--text-light, #64748b); font-size: 0.7rem; }
+        .tracking-info div { font-size: 0.75rem; }
+        .dates-info { display: flex; flex-direction: column; }
+        .dates-info small { font-size: 0.7rem; color: var(--text-light, #64748b); }
+        .canal-dot {
+          display: inline-block;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          margin-right: 0.5rem;
+        }
+        .badge-green { background: #10b981; }
+        .badge-orange { background: #f97316; }
+        .badge-red { background: #ef4444; }
+        .badge-gray { background: #94a3b8; }
       `}</style>
     </div>
   );
