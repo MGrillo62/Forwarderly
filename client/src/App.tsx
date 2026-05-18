@@ -38,9 +38,17 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     if (user?.rol === 'SUPER_ADMIN') {
       api.get('/empresas').then(res => {
         setEmpresas(res.data);
+        
+        // Si el Super Admin no tiene una empresa seleccionada por defecto,
+        // asignamos automáticamente la primera empresa de la lista para evitar errores.
+        const currentSaved = localStorage.getItem('selectedEmpresaId');
+        if (!currentSaved && res.data.length > 0) {
+          setSelectedEmpresaId(res.data[0].id);
+          window.location.reload();
+        }
       }).catch(err => console.error(err));
     }
-  }, [user]);
+  }, [user, selectedEmpresaId, setSelectedEmpresaId]);
 
   if (!user) return <>{children}</>;
 
