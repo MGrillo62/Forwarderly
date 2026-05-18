@@ -6,6 +6,14 @@ import {
   Filter, 
   DollarSign, 
   Clock, 
+  CheckCircle,
+  XCircle,
+  Plus,
+  Trash2,
+  FileText,
+  X,
+  Layers,
+  Activity
 } from 'lucide-react';
 
 const Ordenes: React.FC = () => {
@@ -13,7 +21,22 @@ const Ordenes: React.FC = () => {
   const [ordenes, setOrdenes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrden, setSelectedOrden] = useState<any>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  // Advanced Cobros Modal States
+  const [showCobrosModal, setShowCobrosModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'registrar' | 'historial'>('registrar');
+  const [checkedLineas, setCheckedLineas] = useState<string[]>([]);
+  const [cobrosList, setCobrosList] = useState<any[]>([]);
+  const [tipoCambioInput, setTipoCambioInput] = useState('3.75');
+  
+  const [cobroForm, setCobroForm] = useState({
+    moneda: 'USD',
+    monto: '',
+    metodo: 'TRANSFERENCIA',
+    tipoDocumento: 'FACTURA',
+    nroDocumento: '',
+    fechaDocumento: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     fetchOrdenes();
@@ -39,6 +62,87 @@ const Ordenes: React.FC = () => {
     }
   };
 
+  const handleOpenCobros = async (orden: any) => {
+    setSelectedOrden(orden);
+    const allIds = orden.cotizacion?.lineas?.map((l: any) => l.id) || [];
+    setCheckedLineas(allIds);
+    
+    // Default form currency to order currency
+    const orderMoneda = orden.cotizacion?.moneda || 'USD';
+    setCobroForm({
+      moneda: orderMoneda === 'PEN' ? 'PEN' : orderMoneda,
+      monto: '',
+      metodo: 'TRANSFERENCIA',
+      tipoDocumento: 'FACTURA',
+      nroDocumento: '',
+      fechaDocumento: new Date().toISOString().split('T')[0]
+    });
+    
+    try {
+      const res = await api.get(`/ordenes/${orden.id}/cobros`);
+      setCobrosList(res.data);
+    } catch (err) {
+      console.error(err);
+      setCobrosList([]);
+    }
+    
+    setActiveTab('registrar');
+    setShowCobrosModal(true);
+  };
+
+  const handleRegisterCobro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cobroForm.monto || parseFloat(cobroForm.monto) <= 0) {
+      return alert('Por favor ingrese un monto de cobro válido.');
+    }
+
+    try {
+      const payload = {
+        moneda: cobroForm.moneda,
+        monto: cobroForm.monto,
+        metodo: cobroForm.metodo,
+        tipoDocumento: cobroForm.tipoDocumento || null,
+        nroDocumento: cobroForm.nroDocumento || null,
+        fechaDocumento: cobroForm.fechaDocumento || null,
+        lineasIds: checkedLineas,
+        tipoCambio: tipoCambioInput
+      };
+      
+      await api.post(`/ordenes/${selectedOrden.id}/cobros`, payload);
+      
+      // Refresh list
+      const res = await api.get(`/ordenes/${selectedOrden.id}/cobros`);
+      setCobrosList(res.data);
+      
+      setCobroForm(prev => ({ ...prev, monto: '', nroDocumento: '' }));
+      fetchOrdenes();
+      alert('Cobro registrado exitosamente.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al registrar cobro');
+    }
+  };
+
+  const handleDeleteCobro = async (cobroId: string) => {
+    if (!window.confirm('¿Seguro que desea eliminar este cobro registrado?')) return;
+    try {
+      await api.delete(`/ordenes/cobros/${cobroId}`);
+      const res = await api.get(`/ordenes/${selectedOrden.id}/cobros`);
+      setCobrosList(res.data);
+      fetchOrdenes();
+      alert('Cobro eliminado exitosamente.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al eliminar cobro');
+    }
+  };
+
+  const toggleLineaCheck = (id: string) => {
+    if (checkedLineas.includes(id)) {
+      setCheckedLineas(checkedLineas.filter(x => x !== id));
+    } else {
+      setCheckedLineas([...checkedLineas, id]);
+    }
+  };
+
   const getCanalBadge = (canal: string) => {
     switch (canal) {
       case 'VERDE': return 'badge-green';
@@ -48,6 +152,31 @@ const Ordenes: React.FC = () => {
       default: return 'badge-gray';
     }
   };
+
+  // Calculations for Advanced Cobros Modal
+  const orderMoneda = selectedOrden?.cotizacion?.moneda || 'USD';
+  const checkedLinesObjects = selectedOrden?.cotizacion?.lineas?.filter((l: any) => checkedLineas.includes(l.id)) || [];
+  
+  // In our model, base concept values are collected in their quote currency (orderMoneda)
+  const totalBaseA_Cobrar = checkedLinesObjects.reduce((acc: number, l: any) => acc + l.precioVenta, 0);
+  // Taxes/Impuestos are always collected in PEN
+  const totalTaxA_Cobrar = checkedLinesObjects.reduce((acc: number, l: any) => acc + l.igv, 0);
+
+  // Collections received split
+  const legacySolesReceived = selectedOrden?.pagos?.reduce((acc: number, p: any) => acc + p.monto, 0) || 0;
+  
+  const cobrosUSD_Received = cobrosList.filter(c => c.moneda === 'USD').reduce((acc, c) => acc + c.monto, 0);
+  const cobrosEUR_Received = cobrosList.filter(c => c.moneda === 'EUR').reduce((acc, c) => acc + c.monto, 0);
+  const cobrosPEN_Received = cobrosList.filter(c => c.moneda === 'PEN').reduce((acc, c) => acc + c.monto, 0) + legacySolesReceived;
+
+  // Pending calculation depending on active Currency
+  const pendingForeign = orderMoneda !== 'PEN' 
+    ? totalBaseA_Cobrar - (orderMoneda === 'USD' ? cobrosUSD_Received : cobrosEUR_Received)
+    : 0;
+
+  const pendingSoles = orderMoneda !== 'PEN'
+    ? totalTaxA_Cobrar - cobrosPEN_Received
+    : (totalBaseA_Cobrar + totalTaxA_Cobrar) - cobrosPEN_Received;
 
   return (
     <div>
@@ -62,7 +191,7 @@ const Ordenes: React.FC = () => {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card animate-fade-in">
         <div className="table-container">
           <table>
             <thead>
@@ -73,27 +202,33 @@ const Ordenes: React.FC = () => {
                 <th>Canal</th>
                 <th>ETD / ETA</th>
                 <th>Estado</th>
-                <th>Pago</th>
+                <th>Avance Cobros</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {ordenes.map((o) => {
-                const totalPagado = o.pagos?.reduce((acc: number, p: any) => acc + p.monto, 0) || 0;
-                const totalOrden = o.cotizacion?.precioTotal || 0;
-                const porcentajePago = (totalPagado / totalOrden) * 100;
+                const totalPagadoSoles = 
+                  (o.pagos?.reduce((acc: number, p: any) => acc + p.monto, 0) || 0) +
+                  (o.cobros?.reduce((acc: number, c: any) => {
+                    if (c.moneda === 'PEN') return acc + c.monto;
+                    return acc + (c.monto * (c.tipoCambio || 1));
+                  }, 0) || 0);
+                
+                const totalOrdenSoles = o.cotizacion?.precioTotal || 0;
+                const porcentajePago = Math.min((totalPagadoSoles / (totalOrdenSoles || 1)) * 100, 100);
 
                 return (
                   <tr key={o.id}>
                     <td>
                       <div className="order-id">
                         <strong>ORD-{o.correlativo}-{o.anio}</strong>
-                        <small>Ref: {o.cotizacion?.numero}</small>
+                        <small>Ref. Cot: {String(o.cotizacion?.numero).padStart(5, '0')}</small>
                       </div>
                     </td>
                     <td>
                       <div className="order-id">
-                        <strong>{o.cotizacion?.cliente?.razonSocial}</strong>
+                        <strong className="text-slate-800">{o.cotizacion?.cliente?.razonSocial || o.cotizacion?.lead?.nombre || o.cotizacion?.lead?.contacto}</strong>
                         {o.proveedorExtranjero && <small style={{ display: 'block', color: 'var(--text-light)', fontSize: '0.7rem', marginTop: '2px' }}>Prov: {o.proveedorExtranjero}</small>}
                         {o.nroFacturaComercial && <small style={{ display: 'block', color: 'var(--text-light)', fontSize: '0.7rem' }}>Fact: {o.nroFacturaComercial}</small>}
                       </div>
@@ -127,7 +262,7 @@ const Ordenes: React.FC = () => {
                         <div className="progress-bar">
                           <div className="progress-fill" style={{ width: `${porcentajePago}%` }}></div>
                         </div>
-                        <small>{porcentajePago.toFixed(0)}% pagado</small>
+                        <small className="font-bold text-slate-700">{porcentajePago.toFixed(0)}% cobrado</small>
                       </div>
                     </td>
                     <td>
@@ -135,7 +270,7 @@ const Ordenes: React.FC = () => {
                         <button title="Actualizar Tracking" onClick={() => setSelectedOrden(o)}>
                           <Clock size={16} />
                         </button>
-                        <button title="Pagos" className="success" onClick={() => { setSelectedOrden(o); setShowPaymentModal(true); }}>
+                        <button title="Gestión de Cobros" className="success btn-glow" onClick={() => handleOpenCobros(o)}>
                           <DollarSign size={16} />
                         </button>
                       </div>
@@ -148,12 +283,13 @@ const Ordenes: React.FC = () => {
         </div>
       </div>
 
-      {selectedOrden && !showPaymentModal && (
+      {/* Legacy/Tracking Modal */}
+      {selectedOrden && !showCobrosModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content animate-slide-in">
             <div className="modal-header">
               <h3>Actualizar Tracking ORD-{selectedOrden.correlativo}</h3>
-              <button className="icon-btn" onClick={() => setSelectedOrden(null)}><Clock size={18} /></button>
+              <button className="icon-btn" onClick={() => setSelectedOrden(null)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div className="grid-2">
@@ -273,6 +409,334 @@ const Ordenes: React.FC = () => {
         </div>
       )}
 
+      {/* Advanced multi-currency Cobros Modal */}
+      {showCobrosModal && selectedOrden && (
+        <div className="modal-overlay">
+          <div className="modal-content large animate-slide-in" style={{ maxWidth: '950px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="text-xl font-black text-slate-800">
+                  💳 Gestión Integral de Cobros — ORD-{selectedOrden.correlativo}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Cliente: <strong>{selectedOrden.cotizacion?.cliente?.razonSocial || selectedOrden.cotizacion?.lead?.nombre}</strong> | Moneda Base: <strong>{orderMoneda}</strong>
+                </p>
+              </div>
+              <button className="icon-btn" onClick={() => { setShowCobrosModal(false); setSelectedOrden(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="modal-tabs">
+              <button 
+                className={`tab-btn ${activeTab === 'registrar' ? 'active' : ''}`}
+                onClick={() => setActiveTab('registrar')}
+              >
+                <Layers size={16} /> Registrar Cobranza
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'historial' ? 'active' : ''}`}
+                onClick={() => setActiveTab('historial')}
+              >
+                <Activity size={16} /> Historial de Cobros ({cobrosList.length})
+              </button>
+            </div>
+
+            {activeTab === 'registrar' ? (
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+                  
+                  {/* Left Column: Grid of Concepts */}
+                  <div>
+                    <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm uppercase tracking-wider">
+                      📋 Conceptos del Despacho a Cobrar
+                    </h4>
+                    <p className="text-xs text-slate-400 mb-3">
+                      Marque los conceptos que desea incluir en este cobro parcial o total. Los impuestos (IGV) siempre se segregarán en Soles.
+                    </p>
+                    <div className="table-container" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                      <table className="dense-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: '40px' }} className="text-center">Cobrar</th>
+                            <th>Concepto</th>
+                            <th className="text-right">Venta ({orderMoneda})</th>
+                            <th className="text-right">IGV (PEN)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedOrden.cotizacion?.lineas?.map((l: any) => (
+                            <tr key={l.id} className={checkedLineas.includes(l.id) ? 'checked-row' : ''}>
+                              <td className="text-center">
+                                <input 
+                                  type="checkbox"
+                                  checked={checkedLineas.includes(l.id)}
+                                  onChange={() => toggleLineaCheck(l.id)}
+                                />
+                              </td>
+                              <td>
+                                <strong className="text-xs text-slate-700 block">{l.concepto?.nombre}</strong>
+                                {l.proveedor && <small className="text-slate-400 font-medium">Prov: {l.proveedor.razonSocial}</small>}
+                              </td>
+                              <td className="text-right font-semibold text-slate-800 text-xs">
+                                {orderMoneda === 'PEN' ? 'S/' : (orderMoneda === 'USD' ? '$' : '€')} {l.precioVenta.toFixed(2)}
+                              </td>
+                              <td className="text-right text-amber-700 font-semibold text-xs">
+                                S/ {l.igv.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Calculations & Form */}
+                  <div>
+                    {/* dynamic calculations grid */}
+                    <div className="kpi-panel-small mb-4">
+                      <div className="kpi-item-small">
+                        <span className="kpi-lbl">Total a Cobrar</span>
+                        <div className="kpi-val text-primary">
+                          {orderMoneda !== 'PEN' && (
+                            <div className="text-sm font-bold">
+                              {orderMoneda === 'USD' ? '$' : '€'} {totalBaseA_Cobrar.toFixed(2)}
+                            </div>
+                          )}
+                          <div className="text-xs font-bold text-amber-700">
+                            S/ {totalTaxA_Cobrar.toFixed(2)} (Impuestos)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="kpi-item-small">
+                        <span className="kpi-lbl">Pagos Recibidos</span>
+                        <div className="kpi-val text-success">
+                          {orderMoneda === 'USD' && cobrosUSD_Received > 0 && (
+                            <div className="text-sm font-bold">$ {cobrosUSD_Received.toFixed(2)}</div>
+                          )}
+                          {orderMoneda === 'EUR' && cobrosEUR_Received > 0 && (
+                            <div className="text-sm font-bold">€ {cobrosEUR_Received.toFixed(2)}</div>
+                          )}
+                          <div className="text-xs font-bold text-emerald-700">
+                            S/ {cobrosPEN_Received.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="kpi-item-small">
+                        <span className="kpi-lbl">Saldo Pendiente</span>
+                        <div className="kpi-val text-danger">
+                          {orderMoneda !== 'PEN' && (
+                            <div className={`text-sm font-black ${pendingForeign <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {orderMoneda === 'USD' ? '$' : '€'} {pendingForeign.toFixed(2)}
+                            </div>
+                          )}
+                          <div className={`text-xs font-black ${pendingSoles <= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            S/ {pendingSoles.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Collection Registration Form */}
+                    <form onSubmit={handleRegisterCobro} className="cobros-form">
+                      <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3">
+                        ⚡ Registrar Nueva Transacción
+                      </h5>
+                      <div className="grid-2">
+                        <div className="form-group">
+                          <label>Moneda de Pago *</label>
+                          <select 
+                            value={cobroForm.moneda}
+                            onChange={(e) => setCobroForm({ ...cobroForm, moneda: e.target.value })}
+                            required
+                          >
+                            {orderMoneda !== 'PEN' && <option value={orderMoneda}>{orderMoneda}</option>}
+                            <option value="PEN">PEN (Soles)</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label>Monto a Cobrar *</label>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            required 
+                            placeholder="Monto"
+                            value={cobroForm.monto}
+                            onChange={(e) => setCobroForm({ ...cobroForm, monto: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label>Método de Pago *</label>
+                          <select 
+                            value={cobroForm.metodo}
+                            onChange={(e) => setCobroForm({ ...cobroForm, metodo: e.target.value })}
+                            required
+                          >
+                            <option value="EFECTIVO">Efectivo</option>
+                            <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                            <option value="TARJETA_CREDITO">Tarjeta de Crédito</option>
+                            <option value="TARJETA_DEBITO">Tarjeta de Débito</option>
+                            <option value="YAPE">Yape</option>
+                            <option value="PLIN">Plin</option>
+                            <option value="SIP">SIP</option>
+                          </select>
+                        </div>
+
+                        {cobroForm.moneda !== 'PEN' ? (
+                          <div className="form-group">
+                            <label>Tipo de Cambio (TC) *</label>
+                            <input 
+                              type="number" 
+                              step="0.0001" 
+                              required 
+                              value={tipoCambioInput}
+                              onChange={(e) => setTipoCambioInput(e.target.value)}
+                            />
+                          </div>
+                        ) : (
+                          <div className="form-group">
+                            <label>Tipo de Cambio Ref.</label>
+                            <input 
+                              type="number" 
+                              disabled 
+                              value={tipoCambioInput}
+                            />
+                          </div>
+                        )}
+
+                        <div className="form-group">
+                          <label>Tipo Doc. (Opcional)</label>
+                          <select 
+                            value={cobroForm.tipoDocumento}
+                            onChange={(e) => setCobroForm({ ...cobroForm, tipoDocumento: e.target.value })}
+                          >
+                            <option value="FACTURA">Factura</option>
+                            <option value="BOLETA">Boleta</option>
+                            <option value="RECIBO">Recibo de Caja</option>
+                            <option value="NINGUNO">Ninguno</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label>Documento Serie-Nro</label>
+                          <input 
+                            type="text" 
+                            placeholder="Ej. F001-000249"
+                            value={cobroForm.nroDocumento}
+                            onChange={(e) => setCobroForm({ ...cobroForm, nroDocumento: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                          <label>Fecha del Documento</label>
+                          <input 
+                            type="date" 
+                            value={cobroForm.fechaDocumento}
+                            onChange={(e) => setCobroForm({ ...cobroForm, fechaDocumento: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <button type="submit" className="primary full-width mt-3 icon-left">
+                        <Plus size={16} /> Guardar Cobranza
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Historial Tab
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                <h4 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider">
+                  🕒 Historial de Transacciones Registradas
+                </h4>
+                {cobrosList.length === 0 && legacySolesReceived === 0 ? (
+                  <div className="p-8 text-center text-slate-400 bg-slate-50 rounded border border-dashed border-slate-200">
+                    No se han registrado cobros ni pagos anteriores para esta orden.
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Método</th>
+                          <th>Doc. Referencia</th>
+                          <th className="text-right">Cobrado</th>
+                          <th className="text-right">T.C.</th>
+                          <th className="text-right">Equivalente PEN</th>
+                          <th style={{ width: '50px' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Render legacy payments if any */}
+                        {selectedOrden.pagos?.map((p: any) => (
+                          <tr key={`legacy-${p.id}`} style={{ background: '#f8fafc' }}>
+                            <td className="text-xs">{new Date(p.fecha).toLocaleDateString()}</td>
+                            <td>
+                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-xxs font-bold uppercase tracking-wider">
+                                {p.modo}
+                              </span>
+                            </td>
+                            <td className="text-xs text-slate-400 italic">Pago Legacy Registrado</td>
+                            <td className="text-right text-xs font-bold text-emerald-700">S/ {p.monto.toFixed(2)}</td>
+                            <td className="text-right text-xs text-slate-400">-</td>
+                            <td className="text-right text-xs font-bold text-slate-700">S/ {p.monto.toFixed(2)}</td>
+                            <td></td>
+                          </tr>
+                        ))}
+                        {/* Render advanced cobros */}
+                        {cobrosList.map((c: any) => {
+                          const equiv = c.moneda === 'PEN' ? c.monto : c.monto * (c.tipoCambio || 1);
+                          return (
+                            <tr key={c.id}>
+                              <td className="text-xs">
+                                {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td>
+                                <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xxs font-black uppercase tracking-wider">
+                                  {c.metodo}
+                                </span>
+                              </td>
+                              <td className="text-xs font-semibold text-slate-700">
+                                {c.tipoDocumento && c.tipoDocumento !== 'NINGUNO' ? (
+                                  <span>📄 {c.tipoDocumento}: <strong>{c.nroDocumento || '-'}</strong></span>
+                                ) : (
+                                  <span className="text-slate-400 italic">Sin documento</span>
+                                )}
+                                {c.fechaDocumento && <div className="text-xxs text-slate-400">Doc: {new Date(c.fechaDocumento).toLocaleDateString()}</div>}
+                              </td>
+                              <td className="text-right text-xs font-bold text-slate-800">
+                                {c.moneda === 'PEN' ? 'S/' : (c.moneda === 'USD' ? '$' : '€')} {c.monto.toFixed(2)}
+                              </td>
+                              <td className="text-right text-xs text-slate-500 font-semibold">{c.tipoCambio.toFixed(4)}</td>
+                              <td className="text-right text-xs font-bold text-slate-700">S/ {equiv.toFixed(2)}</td>
+                              <td className="text-center">
+                                <button 
+                                  className="icon-btn text-rose-500 hover:bg-rose-50 p-1 rounded" 
+                                  title="Eliminar registro"
+                                  onClick={() => handleDeleteCobro(c.id)}
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <style>{`
         .filters-bar {
           display: flex;
@@ -326,6 +790,76 @@ const Ordenes: React.FC = () => {
         }
         .progress-fill { height: 100%; background: var(--success); }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        
+        /* Advanced Cobros Styles */
+        .modal-tabs {
+          display: flex;
+          border-bottom: 2px solid #f1f5f9;
+          margin-bottom: 1.5rem;
+          gap: 1rem;
+        }
+        .tab-btn {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.75rem 1rem;
+          border: none;
+          background: none;
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: var(--text-light);
+          cursor: pointer;
+          border-bottom: 3px solid transparent;
+          transition: all 0.3s;
+        }
+        .tab-btn.active {
+          color: var(--primary);
+          border-bottom-color: var(--primary);
+        }
+        .dense-table th, .dense-table td {
+          padding: 0.5rem 0.75rem;
+          font-size: 0.75rem;
+        }
+        .dense-table tr.checked-row {
+          background: #f8fafc;
+        }
+        .kpi-panel-small {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 0.5rem;
+        }
+        .kpi-item-small {
+          background: #f8fafc;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          padding: 0.5rem;
+          text-align: center;
+        }
+        .kpi-lbl {
+          display: block;
+          font-size: 0.65rem;
+          font-weight: 700;
+          color: var(--text-light);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 0.25rem;
+        }
+        .kpi-val {
+          font-size: 0.8rem;
+          font-weight: 800;
+        }
+        .cobros-form {
+          background: #f8fafc;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 1rem;
+        }
+        .btn-glow:hover {
+          box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+        }
+        .text-xxs {
+          font-size: 0.65rem;
+        }
       `}</style>
     </div>
   );

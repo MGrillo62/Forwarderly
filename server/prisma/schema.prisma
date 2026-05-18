@@ -37,6 +37,7 @@ enum Incoterm {
 enum Moneda {
   USD
   EUR
+  PEN
 }
 
 enum CosteoEstado {
@@ -293,6 +294,7 @@ model Cotizacion {
   empresaId         String
   empresa           Empresa          @relation(fields: [empresaId], references: [id])
   pais              String           @default("PERÚ")
+  moneda            Moneda           @default(USD)
   lineas            CotizacionLinea[]
   totalVenta        Float            @default(0)
   igv               Float            @default(0)
@@ -355,6 +357,7 @@ model Orden {
   costeo           CosteoImportacion?
   historial        OrdenEstadoHistorial[]
   pagos            OrdenPago[]
+  cobros           Cobro[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -380,4 +383,19 @@ model OrdenPago {
 model MetodoPago {
   id     String @id @default(uuid())
   nombre String @unique
+}
+
+model Cobro {
+  id              String         @id @default(uuid())
+  ordenId         String
+  orden           Orden          @relation(fields: [ordenId], references: [id])
+  moneda          Moneda         // USD, EUR or PEN
+  monto           Float
+  metodo          String         // EFECTIVO, TRANSFERENCIA, TARJETA_CREDITO, TARJETA_DEBITO, YAPE, PLIN, SIP
+  tipoDocumento   String?        // FACTURA, BOLETA, etc.
+  nroDocumento    String?        // Serie y correlativo
+  fechaDocumento  DateTime?
+  lineasIds       String[]       // CotizacionLinea IDs that this payment applies to
+  tipoCambio      Float          @default(1)
+  createdAt       DateTime       @default(now())
 }
