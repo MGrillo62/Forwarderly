@@ -17,12 +17,19 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
   
   const [clienteId, setClienteId] = useState(initialData?.clienteId || '');
   const [leadId, setLeadId] = useState(initialData?.leadId || '');
+  const [moneda, setMoneda] = useState(initialData?.moneda || 'USD');
   const [selectedTarget, setSelectedTarget] = useState(() => {
     if (initialData?.clienteId) return `client:${initialData.clienteId}`;
     if (initialData?.leadId) return `lead:${initialData.leadId}`;
     return '';
   });
   const [lineas, setLineas] = useState<any[]>([]);
+
+  const getMonedaSymbol = (m: string) => {
+    if (m === 'PEN') return 'S/';
+    if (m === 'EUR') return '€';
+    return '$';
+  };
   
   const [loading, setLoading] = useState(true);
   const [showNewConceptInput, setShowNewConceptInput] = useState<string | null>(null);
@@ -191,6 +198,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
       const data = { 
         clienteId: clienteId || null, 
         leadId: leadId || null, 
+        moneda,
         lineas 
       };
       if (initialData) {
@@ -215,30 +223,64 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         </div>
 
         <div className="modal-body">
-          <div className="form-section" style={{ minWidth: '350px' }}>
-            <label>Cliente / Prospecto *</label>
-            <select 
-              value={selectedTarget} 
-              onChange={(e) => handleTargetChange(e.target.value)} 
-              disabled={viewOnly}
-              required
-            >
-              <option value="">-- Seleccione Cliente o Lead --</option>
-              <optgroup label="Clientes Oficiales">
-                {clientes.map(c => (
-                  <option key={`client:${c.id}`} value={`client:${c.id}`}>
-                    🏢 {c.razonSocial} (RUC: {c.ruc})
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Leads / Prospectos">
-                {leads.map(l => (
-                  <option key={`lead:${l.id}`} value={`lead:${l.id}`}>
-                    👤 {l.nombre || l.contacto} ({l.contacto} - {l.estado})
-                  </option>
-                ))}
-              </optgroup>
-            </select>
+          {initialData && (
+            <div className="quote-meta-banner" style={{
+              display: 'flex',
+              gap: '2.5rem',
+              background: '#f1f5f9',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              marginBottom: '1.5rem',
+              fontSize: '0.825rem',
+              color: '#334155'
+            }}>
+              <div><strong>Nro. Cotiz:</strong> #{String(initialData.numero).padStart(5, '0')}</div>
+              <div><strong>Fecha:</strong> {new Date(initialData.createdAt).toLocaleDateString()} {new Date(initialData.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+              <div><strong>Usuario Creador:</strong> {initialData.vendedor ? `${initialData.vendedor.nombres} ${initialData.vendedor.apellidos}` : 'Sistema'}</div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="form-section" style={{ minWidth: '350px', marginBottom: 0 }}>
+              <label>Cliente / Prospecto *</label>
+              <select 
+                value={selectedTarget} 
+                onChange={(e) => handleTargetChange(e.target.value)} 
+                disabled={viewOnly}
+                required
+              >
+                <option value="">-- Seleccione Cliente o Lead --</option>
+                <optgroup label="Clientes Oficiales">
+                  {clientes.map(c => (
+                    <option key={`client:${c.id}`} value={`client:${c.id}`}>
+                      🏢 {c.razonSocial} (RUC: {c.ruc})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Leads / Prospectos">
+                  {leads.map(l => (
+                    <option key={`lead:${l.id}`} value={`lead:${l.id}`}>
+                      👤 {l.nombre || l.contacto} ({l.contacto} - {l.estado})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            <div className="form-section" style={{ minWidth: '150px', marginBottom: 0 }}>
+              <label>Moneda de Cotización *</label>
+              <select 
+                value={moneda} 
+                onChange={(e) => setMoneda(e.target.value)} 
+                disabled={viewOnly}
+                required
+              >
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="PEN">PEN (S/)</option>
+              </select>
+            </div>
           </div>
 
           <div className="table-container">
@@ -247,11 +289,10 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                 <tr>
                   <th>Categoría / Concepto</th>
                   <th>Proveedor</th>
-                  <th>Costo</th>
-                  <th>Precio Venta</th>
-                  <th>Valor Venta</th>
-                  <th>IGV</th>
-                  <th>Utilidad</th>
+                  <th>Costo ({getMonedaSymbol(moneda)})</th>
+                  <th>Precio Venta ({getMonedaSymbol(moneda)})</th>
+                  <th>Valor Venta ({getMonedaSymbol(moneda)})</th>
+                  <th>Utilidad ({getMonedaSymbol(moneda)})</th>
                   <th>Margen %</th>
                   <th></th>
                 </tr>
@@ -294,7 +335,6 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                       />
                     </td>
                     <td>{linea.valorVenta.toFixed(2)}</td>
-                    <td>{linea.igv.toFixed(2)}</td>
                     <td>{linea.utilidad.toFixed(2)}</td>
                     <td>{linea.margen.toFixed(1)}%</td>
                     <td>
@@ -372,19 +412,19 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
             <div className="totals-grid">
               <div className="total-item">
                 <label>Total Venta</label>
-                <span>S/ {totals.totalVenta.toFixed(2)}</span>
+                <span>{getMonedaSymbol(moneda)} {totals.totalVenta.toFixed(2)}</span>
               </div>
               <div className="total-item">
                 <label>IGV (18%)</label>
-                <span>S/ {totals.igv.toFixed(2)}</span>
+                <span>{getMonedaSymbol(moneda)} {totals.igv.toFixed(2)}</span>
               </div>
               <div className="total-item highlight">
                 <label>Precio Total</label>
-                <span>S/ {totals.precioTotal.toFixed(2)}</span>
+                <span>{getMonedaSymbol(moneda)} {totals.precioTotal.toFixed(2)}</span>
               </div>
               <div className="total-item">
                 <label>Utilidad</label>
-                <span>S/ {totals.utilidad.toFixed(2)}</span>
+                <span>{getMonedaSymbol(moneda)} {totals.utilidad.toFixed(2)}</span>
               </div>
               <div className="total-item">
                 <label>% Utilidad</label>

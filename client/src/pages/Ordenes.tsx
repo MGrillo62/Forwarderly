@@ -28,14 +28,22 @@ const Ordenes: React.FC = () => {
   const [checkedLineas, setCheckedLineas] = useState<string[]>([]);
   const [cobrosList, setCobrosList] = useState<any[]>([]);
   const [tipoCambioInput, setTipoCambioInput] = useState('3.75');
+  const [incluirTributos, setIncluirTributos] = useState(true);
+  const [referenciaInput, setReferenciaInput] = useState('');
+  
+  // Document data mapped per individual concept line
+  const [lineasDocs, setLineasDocs] = useState<{
+    [lineaId: string]: {
+      tipoDocumento: string;
+      nroDocumento: string;
+      fechaDocumento: string;
+    }
+  }>({});
   
   const [cobroForm, setCobroForm] = useState({
     moneda: 'USD',
     monto: '',
-    metodo: 'TRANSFERENCIA',
-    tipoDocumento: 'FACTURA',
-    nroDocumento: '',
-    fechaDocumento: new Date().toISOString().split('T')[0]
+    metodo: 'TRANSFERENCIA'
   });
 
   useEffect(() => {
@@ -66,16 +74,26 @@ const Ordenes: React.FC = () => {
     setSelectedOrden(orden);
     const allIds = orden.cotizacion?.lineas?.map((l: any) => l.id) || [];
     setCheckedLineas(allIds);
+    setReferenciaInput('');
+    setIncluirTributos(true);
     
-    // Default form currency to order currency
+    // Initialize concept document details mapping
+    const initialDocs: any = {};
+    orden.cotizacion?.lineas?.forEach((l: any) => {
+      initialDocs[l.id] = {
+        tipoDocumento: 'FACTURA',
+        nroDocumento: '',
+        fechaDocumento: new Date().toISOString().split('T')[0]
+      };
+    });
+    setLineasDocs(initialDocs);
+
+    // Default form currency to order/quote currency
     const orderMoneda = orden.cotizacion?.moneda || 'USD';
     setCobroForm({
       moneda: orderMoneda === 'PEN' ? 'PEN' : orderMoneda,
       monto: '',
-      metodo: 'TRANSFERENCIA',
-      tipoDocumento: 'FACTURA',
-      nroDocumento: '',
-      fechaDocumento: new Date().toISOString().split('T')[0]
+      metodo: 'TRANSFERENCIA'
     });
     
     try {
@@ -90,6 +108,16 @@ const Ordenes: React.FC = () => {
     setShowCobrosModal(true);
   };
 
+  const handleLineaDocChange = (lineaId: string, field: string, value: string) => {
+    setLineasDocs(prev => ({
+      ...prev,
+      [lineaId]: {
+        ...(prev[lineaId] || { tipoDocumento: 'FACTURA', nroDocumento: '', fechaDocumento: new Date().toISOString().split('T')[0] }),
+        [field]: value
+      }
+    }));
+  };
+
   const handleRegisterCobro = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cobroForm.monto || parseFloat(cobroForm.monto) <= 0) {
@@ -97,14 +125,21 @@ const Ordenes: React.FC = () => {
     }
 
     try {
+      // Build concept-specific document mappings for checked lines
+      const detailsMap: any = {};
+      checkedLineas.forEach(id => {
+        if (lineasDocs[id]) {
+          detailsMap[id] = lineasDocs[id];
+        }
+      });
+
       const payload = {
         moneda: cobroForm.moneda,
         monto: cobroForm.monto,
         metodo: cobroForm.metodo,
-        tipoDocumento: cobroForm.tipoDocumento || null,
-        nroDocumento: cobroForm.nroDocumento || null,
-        fechaDocumento: cobroForm.fechaDocumento || null,
         lineasIds: checkedLineas,
+        referencia: referenciaInput || null,
+        detallesLineas: detailsMap,
         tipoCambio: tipoCambioInput
       };
       
@@ -114,7 +149,8 @@ const Ordenes: React.FC = () => {
       const res = await api.get(`/ordenes/${selectedOrden.id}/cobros`);
       setCobrosList(res.data);
       
-      setCobroForm(prev => ({ ...prev, monto: '', nroDocumento: '' }));
+      setCobroForm(prev => ({ ...prev, monto: '' }));
+      setReferenciaInput('');
       fetchOrdenes();
       alert('Cobro registrado exitosamente.');
     } catch (err: any) {
@@ -157,10 +193,25 @@ const Ordenes: React.FC = () => {
   const orderMoneda = selectedOrden?.cotizacion?.moneda || 'USD';
   const checkedLinesObjects = selectedOrden?.cotizacion?.lineas?.filter((l: any) => checkedLineas.includes(l.id)) || [];
   
-  // In our model, base concept values are collected in their quote currency (orderMoneda)
+  // Total base concept values
   const totalBaseA_Cobrar = checkedLinesObjects.reduce((acc: number, l: any) => acc + l.precioVenta, 0);
-  // Taxes/Impuestos are always collected in PEN
-  const totalTaxA_Cobrar = checkedLinesObjects.reduce((acc: number, l: any) => acc + l.igv, 0);
+
+  // Customs taxes (Tributos Aduaneros) in PEN
+  const costeo = selectedOrden?.costeo;
+  const adValoremGlobal = costeo?.adValoremGlobal || 0;
+  const costeoIgv = costeo?.igv || 0;
+  const costeoIpm = costeo?.ipm || 0;
+  const costeoPercepcion = costeo?.percepcionMonto || 0;
+  const tcCosteo = costeo?.tipoCambio || 1;
+
+  const adValoremPEN = adValoremGlobal * tcCosteo;
+  const igvPEN = costeoIgv * tcCosteo;
+  const ipmPEN = costeoIpm * tcCosteo;
+  const percepcionPEN = costeoPercepcion * tcCosteo;
+  const totalTributosPEN = adValoremPEN + igvPEN + ipmPEN + percepcionPEN;
+
+  // Soles Taxes to collect based on single check
+  const totalTaxA_Cobrar = (costeo && incluirTributos) ? totalTributosPEN : 0;
 
   // Collections received split
   const legacySolesReceived = selectedOrden?.pagos?.reduce((acc: number, p: any) => acc + p.monto, 0) || 0;
@@ -169,7 +220,7 @@ const Ordenes: React.FC = () => {
   const cobrosEUR_Received = cobrosList.filter(c => c.moneda === 'EUR').reduce((acc, c) => acc + c.monto, 0);
   const cobrosPEN_Received = cobrosList.filter(c => c.moneda === 'PEN').reduce((acc, c) => acc + c.monto, 0) + legacySolesReceived;
 
-  // Pending calculation depending on active Currency
+  // Pending calculations split
   const pendingForeign = orderMoneda !== 'PEN' 
     ? totalBaseA_Cobrar - (orderMoneda === 'USD' ? cobrosUSD_Received : cobrosEUR_Received)
     : 0;
@@ -215,7 +266,17 @@ const Ordenes: React.FC = () => {
                     return acc + (c.monto * (c.tipoCambio || 1));
                   }, 0) || 0);
                 
-                const totalOrdenSoles = o.cotizacion?.precioTotal || 0;
+                // Get correct exchange rate to convert base commercial values to Soles
+                const tcRef = o.costeo?.tipoCambio || o.cobros?.[0]?.tipoCambio || 3.75;
+                const baseQuoteSoles = o.cotizacion?.moneda === 'PEN' 
+                  ? (o.cotizacion?.precioTotal || 0)
+                  : (o.cotizacion?.precioTotal || 0) * tcRef;
+
+                const totalTributosPEN = o.costeo 
+                  ? ((o.costeo.adValoremGlobal || 0) + (o.costeo.igv || 0) + (o.costeo.ipm || 0) + (o.costeo.percepcionMonto || 0)) * (o.costeo.tipoCambio || 1)
+                  : 0;
+
+                const totalOrdenSoles = baseQuoteSoles + totalTributosPEN;
                 const porcentajePago = Math.min((totalPagadoSoles / (totalOrdenSoles || 1)) * 100, 100);
 
                 return (
@@ -412,7 +473,7 @@ const Ordenes: React.FC = () => {
       {/* Advanced multi-currency Cobros Modal */}
       {showCobrosModal && selectedOrden && (
         <div className="modal-overlay">
-          <div className="modal-content large animate-slide-in" style={{ maxWidth: '950px' }}>
+          <div className="modal-content large animate-slide-in" style={{ maxWidth: '1000px', width: '95%' }}>
             <div className="modal-header">
               <div>
                 <h3 className="text-xl font-black text-slate-800">
@@ -444,52 +505,156 @@ const Ordenes: React.FC = () => {
             </div>
 
             {activeTab === 'registrar' ? (
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+              <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '1.5rem' }}>
                   
-                  {/* Left Column: Grid of Concepts */}
+                  {/* Left Column: Grid of Concepts & Tributos */}
                   <div>
-                    <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm uppercase tracking-wider">
+                    <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5 text-sm uppercase tracking-wider">
                       📋 Conceptos del Despacho a Cobrar
                     </h4>
                     <p className="text-xs text-slate-400 mb-3">
-                      Marque los conceptos que desea incluir en este cobro parcial o total. Los impuestos (IGV) siempre se segregarán en Soles.
+                      Marque los conceptos comerciales que incluye en esta cobranza y defina sus documentos específicos.
                     </p>
-                    <div className="table-container" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                      <table className="dense-table">
+                    <div className="table-container" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      <table className="dense-table" style={{ width: '100%' }}>
                         <thead>
                           <tr>
                             <th style={{ width: '40px' }} className="text-center">Cobrar</th>
                             <th>Concepto</th>
                             <th className="text-right">Venta ({orderMoneda})</th>
-                            <th className="text-right">IGV (PEN)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {selectedOrden.cotizacion?.lineas?.map((l: any) => (
-                            <tr key={l.id} className={checkedLineas.includes(l.id) ? 'checked-row' : ''}>
-                              <td className="text-center">
-                                <input 
-                                  type="checkbox"
-                                  checked={checkedLineas.includes(l.id)}
-                                  onChange={() => toggleLineaCheck(l.id)}
-                                />
-                              </td>
-                              <td>
-                                <strong className="text-xs text-slate-700 block">{l.concepto?.nombre}</strong>
-                                {l.proveedor && <small className="text-slate-400 font-medium">Prov: {l.proveedor.razonSocial}</small>}
-                              </td>
-                              <td className="text-right font-semibold text-slate-800 text-xs">
-                                {orderMoneda === 'PEN' ? 'S/' : (orderMoneda === 'USD' ? '$' : '€')} {l.precioVenta.toFixed(2)}
-                              </td>
-                              <td className="text-right text-amber-700 font-semibold text-xs">
-                                S/ {l.igv.toFixed(2)}
-                              </td>
-                            </tr>
+                            <React.Fragment key={l.id}>
+                              <tr className={checkedLineas.includes(l.id) ? 'checked-row' : ''}>
+                                <td className="text-center" style={{ verticalAlign: 'middle' }}>
+                                  <input 
+                                    type="checkbox"
+                                    checked={checkedLineas.includes(l.id)}
+                                    onChange={() => toggleLineaCheck(l.id)}
+                                  />
+                                </td>
+                                <td>
+                                  <strong className="text-xs text-slate-700 block">{l.concepto?.nombre}</strong>
+                                  {l.proveedor && <small className="text-slate-400 font-medium">Prov: {l.proveedor.razonSocial}</small>}
+                                </td>
+                                <td className="text-right font-semibold text-slate-800 text-xs" style={{ verticalAlign: 'middle' }}>
+                                  {orderMoneda === 'PEN' ? 'S/' : (orderMoneda === 'USD' ? '$' : '€')} {l.precioVenta.toFixed(2)}
+                                </td>
+                              </tr>
+                              {checkedLineas.includes(l.id) && (
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                  <td colSpan={3} style={{ padding: '0.5rem 0.75rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                      <div className="form-group mb-0" style={{ flex: '1 1 100px', marginBottom: 0 }}>
+                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Tipo Doc.</label>
+                                        <select 
+                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                          value={lineasDocs[l.id]?.tipoDocumento || 'FACTURA'}
+                                          onChange={(e) => handleLineaDocChange(l.id, 'tipoDocumento', e.target.value)}
+                                        >
+                                          <option value="FACTURA">Factura</option>
+                                          <option value="BOLETA">Boleta</option>
+                                          <option value="RECIBO">Recibo de Caja</option>
+                                          <option value="NINGUNO">Ninguno</option>
+                                        </select>
+                                      </div>
+                                      <div className="form-group mb-0" style={{ flex: '2 1 140px', marginBottom: 0 }}>
+                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Documento (Serie-Nro)</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="F001-000214"
+                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                          value={lineasDocs[l.id]?.nroDocumento || ''}
+                                          onChange={(e) => handleLineaDocChange(l.id, 'nroDocumento', e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="form-group mb-0" style={{ flex: '1.5 1 110px', marginBottom: 0 }}>
+                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Fecha Doc.</label>
+                                        <input 
+                                          type="date" 
+                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                          value={lineasDocs[l.id]?.fechaDocumento || ''}
+                                          onChange={(e) => handleLineaDocChange(l.id, 'fechaDocumento', e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           ))}
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Tributos Aduaneros Section (Image 4 reference) */}
+                    {selectedOrden.costeo && (
+                      <div className="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50 animate-fade-in">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
+                            ⚖️ Tributos Aduaneros (Ref: {selectedOrden.costeo.codigo})
+                          </h4>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <input 
+                              type="checkbox"
+                              id="cb-tributos"
+                              checked={incluirTributos}
+                              onChange={(e) => setIncluirTributos(e.target.checked)}
+                              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="cb-tributos" className="text-xs font-black text-slate-700 cursor-pointer">
+                              Incluir Tributos en Cobro
+                            </label>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
+                          <div>
+                            <table className="dense-table" style={{ width: '100%', background: 'transparent' }}>
+                              <tbody>
+                                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  <td className="text-xs text-slate-500 py-1">Ad Valorem ({selectedOrden.costeo.adValoremGlobal ? 'Global' : '0%'})</td>
+                                  <td className="text-right text-xs font-bold text-slate-700 py-1">S/ {adValoremPEN.toFixed(2)}</td>
+                                </tr>
+                                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  <td className="text-xs text-slate-500 py-1">IGV Aduanas (16%)</td>
+                                  <td className="text-right text-xs font-bold text-slate-700 py-1">S/ {igvPEN.toFixed(2)}</td>
+                                </tr>
+                                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  <td className="text-xs text-slate-500 py-1">IPM (2%)</td>
+                                  <td className="text-right text-xs font-bold text-slate-700 py-1">S/ {ipmPEN.toFixed(2)}</td>
+                                </tr>
+                                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  <td className="text-xs text-slate-500 py-1">Percepción ({selectedOrden.costeo.percepcionPorcentaje}%)</td>
+                                  <td className="text-right text-xs font-bold text-slate-700 py-1">S/ {percepcionPEN.toFixed(2)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Giant Total Impuestos box as shown in Image 4 */}
+                          <div style={{
+                            background: '#f0fdf4',
+                            border: '2px solid #16a34a',
+                            borderRadius: '12px',
+                            padding: '1rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            textAlign: 'center'
+                          }}>
+                            <span className="text-xxs font-black text-emerald-800 uppercase tracking-widest block mb-1">Total Impuestos (PEN)</span>
+                            <div className="text-2xl font-black text-emerald-950">
+                              S/ {totalTributosPEN.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Right Column: Calculations & Form */}
@@ -609,35 +774,13 @@ const Ordenes: React.FC = () => {
                           </div>
                         )}
 
-                        <div className="form-group">
-                          <label>Tipo Doc. (Opcional)</label>
-                          <select 
-                            value={cobroForm.tipoDocumento}
-                            onChange={(e) => setCobroForm({ ...cobroForm, tipoDocumento: e.target.value })}
-                          >
-                            <option value="FACTURA">Factura</option>
-                            <option value="BOLETA">Boleta</option>
-                            <option value="RECIBO">Recibo de Caja</option>
-                            <option value="NINGUNO">Ninguno</option>
-                          </select>
-                        </div>
-
-                        <div className="form-group">
-                          <label>Documento Serie-Nro</label>
+                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                          <label>Nro. de Referencia (Opcional)</label>
                           <input 
                             type="text" 
-                            placeholder="Ej. F001-000249"
-                            value={cobroForm.nroDocumento}
-                            onChange={(e) => setCobroForm({ ...cobroForm, nroDocumento: e.target.value })}
-                          />
-                        </div>
-
-                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                          <label>Fecha del Documento</label>
-                          <input 
-                            type="date" 
-                            value={cobroForm.fechaDocumento}
-                            onChange={(e) => setCobroForm({ ...cobroForm, fechaDocumento: e.target.value })}
+                            placeholder="Ej. Nro Operación Bancaria, Yape Ref"
+                            value={referenciaInput}
+                            onChange={(e) => setReferenciaInput(e.target.value)}
                           />
                         </div>
                       </div>
@@ -650,7 +793,7 @@ const Ordenes: React.FC = () => {
               </div>
             ) : (
               // Historial Tab
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
                 <h4 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider">
                   🕒 Historial de Transacciones Registradas
                 </h4>
@@ -664,8 +807,8 @@ const Ordenes: React.FC = () => {
                       <thead>
                         <tr>
                           <th>Fecha</th>
-                          <th>Método</th>
-                          <th>Doc. Referencia</th>
+                          <th>Método / Referencia</th>
+                          <th>Conceptos y Facturación</th>
                           <th className="text-right">Cobrado</th>
                           <th className="text-right">T.C.</th>
                           <th className="text-right">Equivalente PEN</th>
@@ -678,7 +821,7 @@ const Ordenes: React.FC = () => {
                           <tr key={`legacy-${p.id}`} style={{ background: '#f8fafc' }}>
                             <td className="text-xs">{new Date(p.fecha).toLocaleDateString()}</td>
                             <td>
-                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-xxs font-bold uppercase tracking-wider">
+                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-xxs font-bold uppercase tracking-wider mr-2">
                                 {p.modo}
                               </span>
                             </td>
@@ -692,23 +835,55 @@ const Ordenes: React.FC = () => {
                         {/* Render advanced cobros */}
                         {cobrosList.map((c: any) => {
                           const equiv = c.moneda === 'PEN' ? c.monto : c.monto * (c.tipoCambio || 1);
+                          
+                          // Parse individual concept line billing documents
+                          let details: any = null;
+                          try {
+                            if (c.detallesLineas) {
+                              details = typeof c.detallesLineas === 'string' ? JSON.parse(c.detallesLineas) : c.detallesLineas;
+                            }
+                          } catch (err) {}
+
                           return (
                             <tr key={c.id}>
                               <td className="text-xs">
                                 {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </td>
                               <td>
-                                <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xxs font-black uppercase tracking-wider">
+                                <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xxs font-black uppercase tracking-wider block mb-1" style={{ width: 'fit-content' }}>
                                   {c.metodo}
                                 </span>
+                                {c.referencia && (
+                                  <small className="text-slate-500 font-bold block">
+                                    Ref: <strong>{c.referencia}</strong>
+                                  </small>
+                                )}
                               </td>
                               <td className="text-xs font-semibold text-slate-700">
-                                {c.tipoDocumento && c.tipoDocumento !== 'NINGUNO' ? (
-                                  <span>📄 {c.tipoDocumento}: <strong>{c.nroDocumento || '-'}</strong></span>
+                                {details && Object.keys(details).length > 0 ? (
+                                  <div className="space-y-1.5">
+                                    {Object.keys(details).map(lineId => {
+                                      const conceptObj = selectedOrden.cotizacion?.lineas?.find((x: any) => x.id === lineId);
+                                      const doc = details[lineId];
+                                      return (
+                                        <div key={lineId} style={{ display: 'flex', flexDirection: 'column', padding: '3px 6px', background: '#f8fafc', borderRadius: '4px' }}>
+                                          <span className="text-xxs font-bold text-slate-600">
+                                            📦 {conceptObj?.concepto?.nombre || 'Concepto Comercial'}
+                                          </span>
+                                          {doc?.nroDocumento ? (
+                                            <small className="text-xxs text-slate-500">
+                                              📄 {doc.tipoDocumento}: <strong>{doc.nroDocumento}</strong> ({new Date(doc.fechaDocumento).toLocaleDateString()})
+                                            </small>
+                                          ) : (
+                                            <small className="text-xxs text-slate-400 italic">Cobrado sin comprobante</small>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 ) : (
-                                  <span className="text-slate-400 italic">Sin documento</span>
+                                  <span className="text-slate-400 italic">No concept breakdown</span>
                                 )}
-                                {c.fechaDocumento && <div className="text-xxs text-slate-400">Doc: {new Date(c.fechaDocumento).toLocaleDateString()}</div>}
                               </td>
                               <td className="text-right text-xs font-bold text-slate-800">
                                 {c.moneda === 'PEN' ? 'S/' : (c.moneda === 'USD' ? '$' : '€')} {c.monto.toFixed(2)}
@@ -821,7 +996,7 @@ const Ordenes: React.FC = () => {
           font-size: 0.75rem;
         }
         .dense-table tr.checked-row {
-          background: #f8fafc;
+          background: #f0fdf4;
         }
         .kpi-panel-small {
           display: grid;
@@ -859,6 +1034,9 @@ const Ordenes: React.FC = () => {
         }
         .text-xxs {
           font-size: 0.65rem;
+        }
+        .text-emerald-950 {
+          color: #022c22;
         }
       `}</style>
     </div>

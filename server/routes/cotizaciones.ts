@@ -8,7 +8,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
-  const { clienteId, leadId, lineas } = req.body;
+  const { clienteId, leadId, lineas, moneda } = req.body;
   const { empresaId, id: vendedorId } = req.user!;
 
   try {
@@ -25,6 +25,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       data: {
         clienteId: clienteId || null,
         leadId: leadId || null,
+        moneda: moneda || 'USD',
         vendedorId,
         empresaId,
         ...totals,
@@ -59,7 +60,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { clienteId, leadId, lineas, estado, clientConversion } = req.body;
+  const { clienteId, leadId, lineas, estado, clientConversion, moneda } = req.body;
   const { empresaId } = req.user!;
 
   try {
@@ -135,6 +136,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           clienteId: finalClienteId,
           leadId: finalLeadId,
           estado,
+          moneda,
           ...totals,
           lineas: {
             create: calculatedLineas.map((l: any) => ({
@@ -166,6 +168,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           clienteId: finalClienteId,
           leadId: finalLeadId,
           estado,
+          moneda,
           ...(estado !== existing.estado && {
             historial: {
               create: {

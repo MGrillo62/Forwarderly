@@ -392,10 +392,12 @@ model Cobro {
   moneda          Moneda         // USD, EUR or PEN
   monto           Float
   metodo          String         // EFECTIVO, TRANSFERENCIA, TARJETA_CREDITO, TARJETA_DEBITO, YAPE, PLIN, SIP
-  tipoDocumento   String?        // FACTURA, BOLETA, etc.
-  nroDocumento    String?        // Serie y correlativo
-  fechaDocumento  DateTime?
+  tipoDocumento   String?        // Legacy or global Tipo Doc
+  nroDocumento    String?        // Legacy or global Documento
+  fechaDocumento  DateTime?      // Legacy or global Fecha Doc
   lineasIds       String[]       // CotizacionLinea IDs that this payment applies to
+  referencia      String?        // Nro de referencia opcional del cobro (ej. operacion bancaria)
+  detallesLineas  String?        // JSON stringified holding concept-specific billing docs
   tipoCambio      Float          @default(1)
   createdAt       DateTime       @default(now())
 }
