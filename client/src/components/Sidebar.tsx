@@ -13,7 +13,8 @@ import {
   LogOut,
   Calculator,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  CreditCard
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -43,11 +44,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
     
     // Configuración
     { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'], group: 'Configuración' },
+    { name: 'Cobros Suscripción', icon: CreditCard, path: '/suscripciones', roles: ['SUPER_ADMIN'], group: 'Configuración' },
     { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Configuración' },
     { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'], group: 'Configuración' },
   ];
+
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(rol));
 

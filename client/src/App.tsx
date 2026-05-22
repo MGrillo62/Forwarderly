@@ -16,6 +16,7 @@ import Costeos from './pages/Costeos';
 import Leads from './pages/Leads';
 import DashboardComercial from './pages/DashboardComercial';
 import DashboardOperativo from './pages/DashboardOperativo';
+import Suscripciones from './pages/Suscripciones';
 
 const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles: string[] }) => {
   const { token, user, loading } = useAuth();
@@ -31,7 +32,7 @@ import api from './api/axios';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [collapsed, setCollapsed] = useState(false);
-  const { user, selectedEmpresaId, setSelectedEmpresaId } = useAuth();
+  const { user, selectedEmpresaId, setSelectedEmpresaId, activeEmpresa } = useAuth();
   const [empresas, setEmpresas] = useState<any[]>([]);
 
   React.useEffect(() => {
@@ -58,6 +59,23 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
         <header className="app-header">
           <div className="header-actions">
+            {activeEmpresa?.logoUrl && (
+              <img 
+                src={activeEmpresa.logoUrl} 
+                alt="Logo Empresa" 
+                style={{
+                  height: '36px',
+                  maxWidth: '120px',
+                  objectFit: 'contain',
+                  marginRight: '1rem',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(226, 232, 240, 0.8)',
+                  padding: '2px',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                }}
+              />
+            )}
             {user.rol === 'SUPER_ADMIN' && (
               <div className="company-selector">
                 <span className="label">Actuando como:</span>
@@ -202,6 +220,12 @@ function App() {
           <Route path="/empresas" element={
             <ProtectedRoute roles={['SUPER_ADMIN']}>
               <Layout><Empresas /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/suscripciones" element={
+            <ProtectedRoute roles={['SUPER_ADMIN']}>
+              <Layout><Suscripciones /></Layout>
             </ProtectedRoute>
           } />
 

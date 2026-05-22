@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateCosteoReportPDF } from '../utils/costeoPdfGenerator';
+import { getBase64ImageFromUrl } from '../utils/logoHelper';
 
 interface Item {
   sku: string; producto: string; cantidad: number | ''; valorUnitario: number | ''; valorTotal: number;
@@ -22,7 +23,7 @@ interface Item {
 }
 
 const Costeos = () => {
-  const { user } = useAuth();
+  const { user, activeEmpresa } = useAuth();
   const [costeos, setCosteos] = useState<any[]>([]);
   const [ordenes, setOrdenes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -282,11 +283,30 @@ const Costeos = () => {
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Plantilla"); XLSX.writeFile(wb, "Plantilla_Costeo.xlsx");
   };
 
-  const exportPDF = () => {
-    generateCosteoReportPDF({
-      ...formData,
-      items: items
-    });
+  const handleExportPDF = async (costeoData: any) => {
+    try {
+      const logoBase64 = activeEmpresa?.logoUrl ? await getBase64ImageFromUrl(activeEmpresa.logoUrl) : null;
+      generateCosteoReportPDF(costeoData, logoBase64);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      generateCosteoReportPDF(costeoData, null);
+    }
+  };
+
+  const exportPDF = async () => {
+    try {
+      const logoBase64 = activeEmpresa?.logoUrl ? await getBase64ImageFromUrl(activeEmpresa.logoUrl) : null;
+      generateCosteoReportPDF({
+        ...formData,
+        items: items
+      }, logoBase64);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      generateCosteoReportPDF({
+        ...formData,
+        items: items
+      }, null);
+    }
   };
 
   return (
@@ -493,7 +513,7 @@ const Costeos = () => {
                         <button onClick={() => editCosteo(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Editar">
                           <Edit2 size={16} className="text-[#64748b] hover:text-emerald-600" />
                         </button>
-                        <button onClick={() => generateCosteoReportPDF(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Exportar PDF">
+                        <button onClick={() => handleExportPDF(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Exportar PDF">
                           <FileDown size={16} className="text-[#64748b] hover:text-indigo-500" />
                         </button>
                         <button onClick={() => { if (window.confirm('¿Eliminar costeo?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Eliminar">

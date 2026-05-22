@@ -1,11 +1,19 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const generateQuotationPDF = (cotizacion: any) => {
+export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null = null) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Header
+  if (logoBase64) {
+    try {
+      doc.addImage(logoBase64, 'PNG', 15, 10, 35, 12);
+    } catch (e) {
+      console.error('Error drawing logo in Quotation PDF:', e);
+    }
+  }
+
   doc.setFontSize(20);
   doc.setTextColor(40);
   doc.text('COTIZACIÓN DE IMPORTACIÓN', pageWidth / 2, 20, { align: 'center' });

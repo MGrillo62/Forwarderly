@@ -14,6 +14,7 @@ enum EmpresaEstado {
   ACTIVO
   SUSPENDIDO
   INACTIVO
+  DE_BAJA
 }
 
 enum UsuarioEstado {
@@ -163,26 +164,31 @@ enum CanalImportacion {
 }
 
 model Empresa {
-  id            String        @id @default(uuid())
-  ruc           String        @unique
-  razonSocial   String
-  contacto      String
-  celular       String
-  correo        String
-  fechaInicio   DateTime
-  fechaFin      DateTime?
-  estado        EmpresaEstado @default(ACTIVO)
-  usuarios      Usuario[]
-  clientes      Cliente[]
-  leads         Lead[]
-  proveedores   Proveedor[]
-  categorias    Categoria[]
-  cotizaciones  Cotizacion[]
-  costeos       CosteoImportacion[]
-  giroNegocios  GiroNegocio[]
-  bancos        Banco[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                 String             @id @default(uuid())
+  ruc                String             @unique
+  razonSocial        String
+  contacto           String
+  celular            String
+  correo             String
+  fechaInicio        DateTime
+  fechaFin           DateTime?
+  estado             EmpresaEstado      @default(ACTIVO)
+  logoUrl            String?
+  diaPagoSuscripcion Int                @default(5)
+  periodicidad       String             @default("MENSUAL")
+  montoSuscripcion   Float              @default(0.0)
+  pagosSuscripcion   PagoSuscripcion[]
+  usuarios           Usuario[]
+  clientes           Cliente[]
+  leads              Lead[]
+  proveedores        Proveedor[]
+  categorias         Categoria[]
+  cotizaciones       Cotizacion[]
+  costeos            CosteoImportacion[]
+  giroNegocios       GiroNegocio[]
+  bancos             Banco[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 }
 
 model Lead {
@@ -442,5 +448,23 @@ model Banco {
   updatedAt DateTime @updatedAt
 
   @@unique([nombre, empresaId])
+}
+
+model PagoSuscripcion {
+  id          String    @id @default(uuid())
+  empresaId   String
+  empresa     Empresa   @relation(fields: [empresaId], references: [id])
+  mes         Int       // 1 - 12
+  anio        Int       // e.g. 2026
+  monto       Float     // subscription cost always in Soles
+  estadoPago  String    // PENDIENTE, PAGADO, VENCIDO
+  modalidad   String?   // Yape, Plin, Transferencia, etc.
+  referencia  String?   // bank operation reference
+  banco       String?   // bank name
+  fechaPago   DateTime? // actual date of payment
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([empresaId, mes, anio])
 }
 

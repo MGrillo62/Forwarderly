@@ -15,9 +15,11 @@ import {
   Layers,
   Activity
 } from 'lucide-react';
+import { generateLiquidacionPDF } from '../utils/liquidacionPdfGenerator';
+import { getBase64ImageFromUrl } from '../utils/logoHelper';
 
 const Ordenes: React.FC = () => {
-  const { token } = useAuth();
+  const { token, activeEmpresa } = useAuth();
   const [ordenes, setOrdenes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrden, setSelectedOrden] = useState<any>(null);
@@ -242,6 +244,18 @@ const Ordenes: React.FC = () => {
       alert('Banco agregado exitosamente.');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Error al agregar banco');
+    }
+  };
+
+  const handleDownloadLiquidacion = async (orden: any) => {
+    try {
+      const res = await api.get(`/ordenes/${orden.id}/cobros`);
+      const cobros = res.data;
+      const logoBase64 = activeEmpresa?.logoUrl ? await getBase64ImageFromUrl(activeEmpresa.logoUrl) : null;
+      generateLiquidacionPDF(orden, cobros, logoBase64);
+    } catch (err) {
+      console.error('Error generating Liquidación de Cobranza PDF:', err);
+      alert('Error al generar el PDF de Liquidación de Cobranza.');
     }
   };
 
@@ -576,6 +590,9 @@ const Ordenes: React.FC = () => {
                         <button title="Gestión de Cobros" className="success btn-glow" onClick={() => handleOpenCobros(o)}>
                           <DollarSign size={16} />
                         </button>
+                        <button title="Liquidación de Cobranza" className="info" onClick={() => handleDownloadLiquidacion(o)}>
+                          <FileText size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -885,9 +902,18 @@ const Ordenes: React.FC = () => {
                   Cliente: <strong>{getClientName(selectedOrden)}</strong>
                 </p>
               </div>
-              <button className="icon-btn" onClick={() => { setShowCobrosModal(false); setSelectedOrden(null); }}>
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button 
+                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-slate-700 bg-white font-semibold text-xs hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+                  onClick={() => handleDownloadLiquidacion(selectedOrden)}
+                  title="Descargar reporte de liquidación de cobranza"
+                >
+                  <FileText size={15} className="text-slate-500" /> Liquidación
+                </button>
+                <button className="icon-btn" onClick={() => { setShowCobrosModal(false); setSelectedOrden(null); }}>
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Tabs */}

@@ -9,7 +9,17 @@ const Empresas: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<any>(null);
   const [formData, setFormData] = useState({
-    ruc: '', razonSocial: '', contacto: '', celular: '', correo: '', fechaInicio: '', estado: 'ACTIVO'
+    ruc: '',
+    razonSocial: '',
+    contacto: '',
+    celular: '',
+    correo: '',
+    fechaInicio: '',
+    estado: 'ACTIVO',
+    logoUrl: '',
+    diaPagoSuscripcion: 5,
+    periodicidad: 'MENSUAL',
+    montoSuscripcion: 0
   });
 
   useEffect(() => {
@@ -30,7 +40,9 @@ const Empresas: React.FC = () => {
     try {
       const payload = {
         ...formData,
-        fechaInicio: new Date(formData.fechaInicio)
+        fechaInicio: new Date(formData.fechaInicio),
+        diaPagoSuscripcion: parseInt(String(formData.diaPagoSuscripcion)) || 5,
+        montoSuscripcion: parseFloat(String(formData.montoSuscripcion)) || 0
       };
       
       if (editingEmpresa) {
@@ -55,7 +67,11 @@ const Empresas: React.FC = () => {
       celular: empresa.celular,
       correo: empresa.correo,
       fechaInicio: new Date(empresa.fechaInicio).toISOString().split('T')[0],
-      estado: empresa.estado
+      estado: empresa.estado,
+      logoUrl: empresa.logoUrl || '',
+      diaPagoSuscripcion: empresa.diaPagoSuscripcion ?? 5,
+      periodicidad: empresa.periodicidad || 'MENSUAL',
+      montoSuscripcion: empresa.montoSuscripcion ?? 0
     });
     setShowModal(true);
   };
@@ -63,7 +79,17 @@ const Empresas: React.FC = () => {
   const handleNew = () => {
     setEditingEmpresa(null);
     setFormData({
-      ruc: '', razonSocial: '', contacto: '', celular: '', correo: '', fechaInicio: '', estado: 'ACTIVO'
+      ruc: '',
+      razonSocial: '',
+      contacto: '',
+      celular: '',
+      correo: '',
+      fechaInicio: '',
+      estado: 'ACTIVO',
+      logoUrl: '',
+      diaPagoSuscripcion: 5,
+      periodicidad: 'MENSUAL',
+      montoSuscripcion: 0
     });
     setShowModal(true);
   };
@@ -86,6 +112,7 @@ const Empresas: React.FC = () => {
                 <th>RUC</th>
                 <th>Contacto</th>
                 <th>Inicio</th>
+                <th>Suscripción</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -94,9 +121,41 @@ const Empresas: React.FC = () => {
               {empresas.map(e => (
                 <tr key={e.id}>
                   <td>
-                    <div className="flex-align">
-                      <Building2 size={18} className="icon-blue" />
-                      <strong>{e.razonSocial}</strong>
+                    <div className="flex-align" style={{ gap: '0.75rem' }}>
+                      {e.logoUrl ? (
+                        <img 
+                          src={e.logoUrl} 
+                          alt="Logo" 
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            objectFit: 'contain',
+                            borderRadius: '4px',
+                            border: '1px solid rgba(226, 232, 240, 0.8)',
+                            backgroundColor: '#fff',
+                            padding: '2px'
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(226, 232, 240, 0.8)',
+                          backgroundColor: '#f1f5f9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#64748b',
+                          fontWeight: 'bold',
+                          fontSize: '0.8rem'
+                        }}>
+                          {e.razonSocial.substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <strong>{e.razonSocial}</strong>
+                      </div>
                     </div>
                   </td>
                   <td>{e.ruc}</td>
@@ -106,7 +165,13 @@ const Empresas: React.FC = () => {
                   </td>
                   <td>{new Date(e.fechaInicio).toLocaleDateString()}</td>
                   <td>
-                    <span className={`status-badge ${e.estado === 'ACTIVO' ? 'status-approved' : 'status-rejected'}`}>
+                    <div style={{ fontWeight: 700, color: 'var(--text-dark)' }}>S/ {e.montoSuscripcion.toFixed(2)}</div>
+                    <small className="text-light uppercase font-semibold" style={{ fontSize: '0.7rem' }}>
+                      {e.periodicidad} (Día {e.diaPagoSuscripcion})
+                    </small>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${e.estado === 'ACTIVO' ? 'status-approved' : e.estado === 'SUSPENDIDO' ? 'status-pending' : 'status-rejected'}`}>
                       {e.estado}
                     </span>
                   </td>
@@ -124,13 +189,13 @@ const Empresas: React.FC = () => {
 
       {showModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content animate-slide-in" style={{ maxWidth: '650px', width: '95%' }}>
             <div className="modal-header">
               <h3>{editingEmpresa ? 'Editar Empresa' : 'Registrar Empresa'}</h3>
               <button className="icon-btn" onClick={() => setShowModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>
-              <div className="modal-body">
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                 <div className="grid-2">
                   <div className="form-group">
                     <label>RUC</label>
@@ -186,16 +251,52 @@ const Empresas: React.FC = () => {
                       onChange={(e) => setFormData({...formData, fechaInicio: e.target.value})} 
                     />
                   </div>
-                  {editingEmpresa && (
-                    <div className="form-group">
-                      <label>Estado</label>
-                      <select value={formData.estado} onChange={(e) => setFormData({...formData, estado: e.target.value})}>
-                        <option value="ACTIVO">ACTIVO</option>
-                        <option value="SUSPENDIDO">SUSPENDIDO</option>
-                        <option value="INACTIVO">INACTIVO</option>
-                      </select>
-                    </div>
-                  )}
+                  <div className="form-group">
+                    <label>URL del Logo</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://ejemplo.com/logo.png"
+                      value={formData.logoUrl}
+                      onChange={(e) => setFormData({...formData, logoUrl: e.target.value})} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Estado de la Empresa</label>
+                    <select value={formData.estado} onChange={(e) => setFormData({...formData, estado: e.target.value})}>
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="SUSPENDIDO">SUSPENDIDO</option>
+                      <option value="DE_BAJA">DE BAJA</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Día de Pago Suscripción</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="31"
+                      required 
+                      value={formData.diaPagoSuscripcion}
+                      onChange={(e) => setFormData({...formData, diaPagoSuscripcion: parseInt(e.target.value) || 5})} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Periodicidad</label>
+                    <select value={formData.periodicidad} onChange={(e) => setFormData({...formData, periodicidad: e.target.value})}>
+                      <option value="MENSUAL">MENSUAL</option>
+                      <option value="ANUAL">ANUAL</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Monto Suscripción (Soles - PEN)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      min="0"
+                      required 
+                      value={formData.montoSuscripcion}
+                      onChange={(e) => setFormData({...formData, montoSuscripcion: parseFloat(e.target.value) || 0})} 
+                    />
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">

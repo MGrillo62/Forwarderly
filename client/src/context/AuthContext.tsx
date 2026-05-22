@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../api/axios';
 
 interface User {
   id: string;
@@ -19,6 +20,7 @@ interface AuthContextType {
   loading: boolean;
   selectedEmpresaId: string | null;
   setSelectedEmpresaId: (id: string | null) => void;
+  activeEmpresa: any;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [selectedEmpresaId, setSelectedEmpresaIdState] = useState<string | null>(localStorage.getItem('selectedEmpresaId'));
+  const [activeEmpresa, setActiveEmpresa] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,6 +39,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setLoading(false);
   }, [token]);
+
+  useEffect(() => {
+    if (token && user) {
+      if (user.rol === 'SUPER_ADMIN') {
+        const currentSaved = localStorage.getItem('selectedEmpresaId');
+        api.get('/empresas')
+          .then((res) => {
+            if (res.data.length > 0) {
+              const defaultId = currentSaved || res.data[0].id;
+              if (!currentSaved) {
+                localStorage.setItem('selectedEmpresaId', defaultId);
+                setSelectedEmpresaIdState(defaultId);
+              }
+              const found = res.data.find((e: any) => e.id === defaultId);
+              setActiveEmpresa(found || null);
+            }
+          })
+          .catch((err) => console.error(err));
+      } else {
+        api.get('/empresas/mi-empresa')
+          .then((res) => {
+            setActiveEmpresa(res.data);
+          })
+          .catch((err) => console.error(err));
+      }
+    } else {
+      setActiveEmpresa(null);
+    }
+  }, [token, user, selectedEmpresaId]);
 
   const login = (newToken: string, newUser: User) => {
     localStorage.setItem('token', newToken);
@@ -51,6 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     setUser(null);
     setSelectedEmpresaIdState(null);
+    setActiveEmpresa(null);
   };
 
   const setSelectedEmpresaId = (id: string | null) => {
@@ -60,11 +93,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, selectedEmpresaId, setSelectedEmpresaId }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, selectedEmpresaId, setSelectedEmpresaId, activeEmpresa }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

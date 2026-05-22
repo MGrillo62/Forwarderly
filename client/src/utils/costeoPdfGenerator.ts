@@ -60,7 +60,7 @@ export const getCosteoCalculations = (formData: any, items: any[]) => {
   };
 };
 
-export const generateCosteoReportPDF = (costeo: any) => {
+export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null = null) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   const itemsList = costeo.items || [];
   const calculations = getCosteoCalculations(costeo, itemsList);
@@ -73,6 +73,14 @@ export const generateCosteoReportPDF = (costeo: any) => {
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text('Global Logistics & Financial Report', 15, 10);
   doc.line(15, 12, 195, 12);
+
+  if (logoBase64) {
+    try {
+      doc.addImage(logoBase64, 'PNG', 165, 14, 20, 7);
+    } catch (e) {
+      console.error('Error drawing logo in Costeo PDF Page 1:', e);
+    }
+  }
 
   // Title
   doc.setFontSize(22);
@@ -368,6 +376,14 @@ export const generateCosteoReportPDF = (costeo: any) => {
     doc.setTextColor(148, 163, 184);
     doc.text('Global Logistics & Financial Report - Anexo de Mercadería', 15, 10);
     doc.line(15, 12, 195, 12);
+
+    if (logoBase64) {
+      try {
+        doc.addImage(logoBase64, 'PNG', 165, 13, 20, 7);
+      } catch (e) {
+        console.error('Error drawing logo in Costeo PDF Page 2:', e);
+      }
+    }
 
     // Title Page 2
     doc.setFontSize(18);

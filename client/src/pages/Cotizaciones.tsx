@@ -3,10 +3,11 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText, X, Copy, Search, ArrowUpDown } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
+import { getBase64ImageFromUrl } from '../utils/logoHelper';
 import CotizacionForm from '../components/CotizacionForm';
 
 const Cotizaciones: React.FC = () => {
-  const { token } = useAuth();
+  const { token, activeEmpresa } = useAuth();
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
@@ -59,6 +60,16 @@ const Cotizaciones: React.FC = () => {
       setLeads(lRes.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDownloadPDF = async (cot: any) => {
+    try {
+      const logoBase64 = activeEmpresa?.logoUrl ? await getBase64ImageFromUrl(activeEmpresa.logoUrl) : null;
+      generateQuotationPDF(cot, logoBase64);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      generateQuotationPDF(cot, null);
     }
   };
 
@@ -391,7 +402,7 @@ const Cotizaciones: React.FC = () => {
                         </button>
 
                         {(cot.estado === 'ENVIADA' || cot.estado === 'APROBADA' || cot.estado === 'RECHAZADA') && (
-                          <button title="Descargar PDF" className="info" onClick={() => generateQuotationPDF(cot)}>
+                          <button title="Descargar PDF" className="info" onClick={() => handleDownloadPDF(cot)}>
                             <FileText size={16} />
                           </button>
                         )}
