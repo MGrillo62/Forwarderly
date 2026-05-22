@@ -180,6 +180,7 @@ model Empresa {
   cotizaciones  Cotizacion[]
   costeos       CosteoImportacion[]
   giroNegocios  GiroNegocio[]
+  bancos        Banco[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 }
@@ -417,6 +418,7 @@ model Cobro {
   referencia      String?        // Nro de referencia opcional del cobro (ej. operacion bancaria)
   detallesLineas  String?        // JSON stringified holding concept-specific billing docs
   tipoCambio      Float          @default(1)
+  banco           String?
   createdAt       DateTime       @default(now())
 }
 
@@ -430,3 +432,15 @@ model GiroNegocio {
 
   @@unique([nombre, empresaId])
 }
+
+model Banco {
+  id        String   @id @default(uuid())
+  nombre    String
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([nombre, empresaId])
+}
+

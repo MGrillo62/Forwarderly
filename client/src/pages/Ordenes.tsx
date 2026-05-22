@@ -30,6 +30,8 @@ const Ordenes: React.FC = () => {
   const [tipoCambioInput, setTipoCambioInput] = useState('3.75');
   const [incluirTributos, setIncluirTributos] = useState(true);
   const [referenciaInput, setReferenciaInput] = useState('');
+  const [bancosList, setBancosList] = useState<any[]>([]);
+  const [selectedBanco, setSelectedBanco] = useState('');
 
   // Sorting & Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -219,8 +221,33 @@ const Ordenes: React.FC = () => {
     }
   };
 
+  const fetchBancos = async () => {
+    try {
+      const res = await api.get('/bancos');
+      setBancosList(res.data);
+    } catch (err) {
+      console.error('Error al obtener bancos:', err);
+    }
+  };
+
+  const handleAddBanco = async () => {
+    const nombre = prompt('Ingrese el nombre del nuevo banco:');
+    if (!nombre || nombre.trim() === '') return;
+    
+    try {
+      const res = await api.post('/bancos', { nombre: nombre.trim() });
+      const nuevoBanco = res.data;
+      await fetchBancos();
+      setSelectedBanco(nuevoBanco.nombre);
+      alert('Banco agregado exitosamente.');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Error al agregar banco');
+    }
+  };
+
   const handleOpenCobros = async (orden: any) => {
     setSelectedOrden(orden);
+    fetchBancos();
     const lines = getOrdenLines(orden);
     const allIds = lines.map((l: any) => l.id) || [];
     setCheckedLineas(allIds);
@@ -290,7 +317,8 @@ const Ordenes: React.FC = () => {
         lineasIds: checkedLineas,
         referencia: referenciaInput || null,
         detallesLineas: detailsMap,
-        tipoCambio: tipoCambioInput
+        tipoCambio: tipoCambioInput,
+        banco: selectedBanco || null
       };
       
       await api.post(`/ordenes/${selectedOrden.id}/cobros`, payload);
@@ -301,6 +329,7 @@ const Ordenes: React.FC = () => {
       
       setCobroForm(prev => ({ ...prev, monto: '' }));
       setReferenciaInput('');
+      setSelectedBanco('');
       fetchOrdenes();
       alert('Cobro registrado exitosamente.');
     } catch (err: any) {
@@ -1214,7 +1243,7 @@ const Ordenes: React.FC = () => {
                           </div>
                         )}
 
-                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <div className="form-group">
                           <label>Nro. de Referencia (Opcional)</label>
                           <input 
                             type="text" 
@@ -1222,6 +1251,31 @@ const Ordenes: React.FC = () => {
                             value={referenciaInput}
                             onChange={(e) => setReferenciaInput(e.target.value)}
                           />
+                        </div>
+
+                        <div className="form-group">
+                          <label>Banco (Opcional)</label>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <select 
+                              value={selectedBanco}
+                              onChange={(e) => setSelectedBanco(e.target.value)}
+                              style={{ flex: 1 }}
+                            >
+                              <option value="">Seleccionar...</option>
+                              {bancosList.map((b: any) => (
+                                <option key={b.id} value={b.nombre}>{b.nombre}</option>
+                              ))}
+                            </select>
+                            <button 
+                              type="button" 
+                              className="btn-glow success"
+                              onClick={handleAddBanco}
+                              style={{ padding: '0 12px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: '42px' }}
+                              title="Agregar Banco"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <button type="submit" className="primary full-width mt-3 icon-left">
@@ -1248,10 +1302,8 @@ const Ordenes: React.FC = () => {
                         <tr>
                           <th>Fecha</th>
                           <th>Método / Referencia</th>
-                          <th>Conceptos y Facturación</th>
                           <th className="text-right">Cobrado</th>
                           <th className="text-right">T.C.</th>
-                          <th className="text-right">Equivalente PEN</th>
                           <th style={{ width: '50px' }}></th>
                         </tr>
                       </thead>
@@ -1265,25 +1317,13 @@ const Ordenes: React.FC = () => {
                                 {p.modo}
                               </span>
                             </td>
-                            <td className="text-xs text-slate-400 italic">Pago Legacy Registrado</td>
                             <td className="text-right text-xs font-bold text-emerald-700">S/ {p.monto.toFixed(2)}</td>
                             <td className="text-right text-xs text-slate-400">-</td>
-                            <td className="text-right text-xs font-bold text-slate-700">S/ {p.monto.toFixed(2)}</td>
                             <td></td>
                           </tr>
                         ))}
                         {/* Render advanced cobros */}
                         {cobrosList.map((c: any) => {
-                          const equiv = c.moneda === 'PEN' ? c.monto : c.monto * (c.tipoCambio || 1);
-                          
-                          // Parse individual concept line billing documents
-                          let details: any = null;
-                          try {
-                            if (c.detallesLineas) {
-                              details = typeof c.detallesLineas === 'string' ? JSON.parse(c.detallesLineas) : c.detallesLineas;
-                            }
-                          } catch (err) {}
-
                           return (
                             <tr key={c.id}>
                               <td className="text-xs">
@@ -1298,38 +1338,16 @@ const Ordenes: React.FC = () => {
                                     Ref: <strong>{c.referencia}</strong>
                                   </small>
                                 )}
-                              </td>
-                              <td className="text-xs font-semibold text-slate-700">
-                                {details && Object.keys(details).length > 0 ? (
-                                  <div className="space-y-1.5">
-                                    {Object.keys(details).map(lineId => {
-                                      const conceptObj = selectedOrden.cotizacion?.lineas?.find((x: any) => x.id === lineId);
-                                      const doc = details[lineId];
-                                      return (
-                                        <div key={lineId} style={{ display: 'flex', flexDirection: 'column', padding: '3px 6px', background: '#f8fafc', borderRadius: '4px' }}>
-                                          <span className="text-xxs font-bold text-slate-600">
-                                            📦 {conceptObj?.concepto?.nombre || 'Concepto Comercial'}
-                                          </span>
-                                          {doc?.nroDocumento ? (
-                                            <small className="text-xxs text-slate-500">
-                                              📄 {doc.tipoDocumento}: <strong>{doc.nroDocumento}</strong> ({new Date(doc.fechaDocumento).toLocaleDateString()})
-                                            </small>
-                                          ) : (
-                                            <small className="text-xxs text-slate-400 italic">Cobrado sin comprobante</small>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400 italic">No concept breakdown</span>
+                                {c.banco && (
+                                  <small className="text-slate-500 font-bold block">
+                                    Banco: <strong>{c.banco}</strong>
+                                  </small>
                                 )}
                               </td>
                               <td className="text-right text-xs font-bold text-slate-800">
                                 {c.moneda === 'PEN' ? 'S/' : (c.moneda === 'USD' ? '$' : '€')} {c.monto.toFixed(2)}
                               </td>
                               <td className="text-right text-xs text-slate-500 font-semibold">{c.tipoCambio.toFixed(4)}</td>
-                              <td className="text-right text-xs font-bold text-slate-700">S/ {equiv.toFixed(2)}</td>
                               <td className="text-center">
                                 <button 
                                   className="icon-btn text-rose-500 hover:bg-rose-50 p-1 rounded" 

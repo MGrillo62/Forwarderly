@@ -292,7 +292,7 @@ router.get('/:id/cobros', authenticate, async (req: AuthRequest, res) => {
 // Register a new cobro for an order
 router.post('/:id/cobros', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { moneda, monto, metodo, tipoDocumento, nroDocumento, fechaDocumento, lineasIds, tipoCambio, referencia, detallesLineas } = req.body;
+  const { moneda, monto, metodo, tipoDocumento, nroDocumento, fechaDocumento, lineasIds, tipoCambio, referencia, detallesLineas, banco } = req.body;
 
   try {
     if (!moneda || !monto || !metodo) {
@@ -311,7 +311,8 @@ router.post('/:id/cobros', authenticate, async (req: AuthRequest, res) => {
         lineasIds: Array.isArray(lineasIds) ? lineasIds : [],
         referencia: referencia || null,
         detallesLineas: detallesLineas ? (typeof detallesLineas === 'string' ? detallesLineas : JSON.stringify(detallesLineas)) : null,
-        tipoCambio: tipoCambio ? parseFloat(tipoCambio) : 1
+        tipoCambio: tipoCambio ? parseFloat(tipoCambio) : 1,
+        banco: banco || null
       }
     });
 
