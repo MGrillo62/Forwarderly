@@ -190,6 +190,9 @@ model Lead {
   ruc          String?      
   razonSocial  String?      
   direccion    String?      
+  direccionNro String?
+  direccionInt String?
+  direccionRef String?
   contacto     String       
   correo       String?      
   celular      String?      
@@ -235,7 +238,13 @@ model Cliente {
   ruc              String
   razonSocial      String
   direccion        String
+  direccionNro     String?
+  direccionInt     String?
+  direccionRef     String?
   direccionEntrega String?
+  direccionEntregaNro String?
+  direccionEntregaInt String?
+  direccionEntregaRef String?
   contacto         String
   correo           String?
   celular          String?

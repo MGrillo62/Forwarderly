@@ -43,7 +43,15 @@ const Leads: React.FC = () => {
   const [secondaryContacts, setSecondaryContacts] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    nombre: '', ruc: '', razonSocial: '', direccion: '', estado: 'NUEVO_CONTACTO', giroNegocio: ''
+    nombre: '', 
+    ruc: '', 
+    razonSocial: '', 
+    direccion: '', 
+    direccionNro: '',
+    direccionInt: '',
+    direccionRef: '',
+    estado: 'NUEVO_CONTACTO', 
+    giroNegocio: ''
   });
 
   useEffect(() => {
@@ -196,6 +204,9 @@ const Leads: React.FC = () => {
       ruc: lead.ruc || '',
       razonSocial: lead.razonSocial || '',
       direccion: lead.direccion || '',
+      direccionNro: lead.direccionNro || '',
+      direccionInt: lead.direccionInt || '',
+      direccionRef: lead.direccionRef || '',
       estado: lead.estado,
       giroNegocio: lead.giroNegocio || ''
     });
@@ -220,7 +231,15 @@ const Leads: React.FC = () => {
   const handleNew = () => {
     setEditingLead(null);
     setFormData({
-      nombre: '', ruc: '', razonSocial: '', direccion: '', estado: 'NUEVO_CONTACTO', giroNegocio: ''
+      nombre: '', 
+      ruc: '', 
+      razonSocial: '', 
+      direccion: '', 
+      direccionNro: '',
+      direccionInt: '',
+      direccionRef: '',
+      estado: 'NUEVO_CONTACTO', 
+      giroNegocio: ''
     });
     setPrimaryContact({ nombre: '', correo: '', celular: '' });
     setSecondaryContacts([]);
@@ -403,13 +422,19 @@ const Leads: React.FC = () => {
                     const stage = STAGES.find(s => s.id === lead.estado);
                     const days = getDaysElapsed(lead.estadoChangedAt);
                     const addressText = lead.direccion?.split(' [GEO:')[0] || '';
+                    const fullAddress = [
+                      addressText,
+                      lead.direccionNro ? `Nº ${lead.direccionNro}` : '',
+                      lead.direccionInt ? `Int ${lead.direccionInt}` : '',
+                      lead.direccionRef ? `(Ref: ${lead.direccionRef})` : ''
+                    ].filter(Boolean).join(', ');
                     return (
                       <tr key={lead.id}>
                         <td>
                           <div>
                             <span className="font-semibold text-slate-800 block">{lead.nombre || lead.razonSocial || 'N/A'}</span>
                             {lead.razonSocial && lead.nombre && <span className="text-xs text-slate-400 block">{lead.razonSocial}</span>}
-                            {addressText && <span className="text-xs text-muted block italic mt-0.5">{addressText}</span>}
+                            {fullAddress && <span className="text-xs text-muted block italic mt-0.5">{fullAddress}</span>}
                           </div>
                         </td>
                         <td>
@@ -487,6 +512,12 @@ const Leads: React.FC = () => {
                       const days = getDaysElapsed(lead.estadoChangedAt);
                       const geoMatch = lead.direccion?.match(/\[GEO:(-?\d+\.\d+),(-?\d+\.\d+)\]/);
                       const addressText = lead.direccion?.split(' [GEO:')[0] || '';
+                      const fullAddress = [
+                        addressText,
+                        lead.direccionNro ? `Nº ${lead.direccionNro}` : '',
+                        lead.direccionInt ? `Int ${lead.direccionInt}` : '',
+                        lead.direccionRef ? `(Ref: ${lead.direccionRef})` : ''
+                      ].filter(Boolean).join(', ');
                       
                       return (
                         <div 
@@ -550,10 +581,10 @@ const Leads: React.FC = () => {
                                   <span className="font-mono text-xxs bg-slate-100 px-1 py-0.5 rounded text-slate-600">RUC: {lead.ruc}</span>
                                 </div>
                               )}
-                              {addressText && (
+                              {fullAddress && (
                                 <div className="flex items-center gap-1.5 text-slate-400 mt-1">
                                   <MapPin size={11} className={`${geoMatch ? 'text-success' : 'text-slate-300'} shrink-0`} />
-                                  <span className="truncate italic text-xxs">{addressText}</span>
+                                  <span className="truncate italic text-xxs" title={fullAddress}>{fullAddress}</span>
                                 </div>
                               )}
                             </div>
@@ -760,6 +791,36 @@ const Leads: React.FC = () => {
                     {loadingSuggestions && (
                       <span className="text-xs text-muted mt-1 block">Buscando geolocalizaciones en OSM...</span>
                     )}
+                  </div>
+
+                  <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', gridColumn: 'span 2' }}>
+                    <div className="form-group">
+                      <label>Numeración</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. 123" 
+                        value={formData.direccionNro}
+                        onChange={(e) => setFormData({ ...formData, direccionNro: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Interior</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Dpto 402" 
+                        value={formData.direccionInt}
+                        onChange={(e) => setFormData({ ...formData, direccionInt: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Referencia</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Frente a parque" 
+                        value={formData.direccionRef}
+                        onChange={(e) => setFormData({ ...formData, direccionRef: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 

@@ -30,7 +30,17 @@ const Clientes: React.FC = () => {
   const [secondaryContacts, setSecondaryContacts] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    ruc: '', razonSocial: '', direccion: '', direccionEntrega: '', giroNegocio: ''
+    ruc: '', 
+    razonSocial: '', 
+    direccion: '', 
+    direccionNro: '',
+    direccionInt: '',
+    direccionRef: '',
+    direccionEntrega: '', 
+    direccionEntregaNro: '',
+    direccionEntregaInt: '',
+    direccionEntregaRef: '',
+    giroNegocio: ''
   });
 
   useEffect(() => {
@@ -154,7 +164,13 @@ const Clientes: React.FC = () => {
       ruc: cliente.ruc,
       razonSocial: cliente.razonSocial,
       direccion: cliente.direccion || '',
+      direccionNro: cliente.direccionNro || '',
+      direccionInt: cliente.direccionInt || '',
+      direccionRef: cliente.direccionRef || '',
       direccionEntrega: cliente.direccionEntrega || '',
+      direccionEntregaNro: cliente.direccionEntregaNro || '',
+      direccionEntregaInt: cliente.direccionEntregaInt || '',
+      direccionEntregaRef: cliente.direccionEntregaRef || '',
       giroNegocio: cliente.giroNegocio || ''
     });
     setPrimaryContact({
@@ -178,7 +194,17 @@ const Clientes: React.FC = () => {
   const handleNew = () => {
     setEditingCliente(null);
     setFormData({
-      ruc: '', razonSocial: '', direccion: '', direccionEntrega: '', giroNegocio: ''
+      ruc: '', 
+      razonSocial: '', 
+      direccion: '', 
+      direccionNro: '',
+      direccionInt: '',
+      direccionRef: '',
+      direccionEntrega: '', 
+      direccionEntregaNro: '',
+      direccionEntregaInt: '',
+      direccionEntregaRef: '',
+      giroNegocio: ''
     });
     setPrimaryContact({ nombre: '', correo: '', celular: '' });
     setSecondaryContacts([]);
@@ -288,6 +314,20 @@ const Clientes: React.FC = () => {
               {filteredAndSorted.map(c => {
                 const geoMatch = c.direccion?.match(/\[GEO:(-?\d+\.\d+),(-?\d+\.\d+)\]/);
                 const addressText = c.direccion?.split(' [GEO:')[0] || '';
+                const fullAddress = [
+                  addressText,
+                  c.direccionNro ? `Nº ${c.direccionNro}` : '',
+                  c.direccionInt ? `Int ${c.direccionInt}` : '',
+                  c.direccionRef ? `(Ref: ${c.direccionRef})` : ''
+                ].filter(Boolean).join(', ');
+
+                const deliveryAddressText = c.direccionEntrega || '';
+                const fullDeliveryAddress = [
+                  deliveryAddressText,
+                  c.direccionEntregaNro ? `Nº ${c.direccionEntregaNro}` : '',
+                  c.direccionEntregaInt ? `Int ${c.direccionEntregaInt}` : '',
+                  c.direccionEntregaRef ? `(Ref: ${c.direccionEntregaRef})` : ''
+                ].filter(Boolean).join(', ');
                 
                 return (
                   <tr key={c.id}>
@@ -318,10 +358,20 @@ const Clientes: React.FC = () => {
                     </td>
                     <td>
                       <div>
-                        <span>{addressText}</span>
+                        {fullAddress && (
+                          <div style={{ fontSize: '0.85rem' }}>
+                            <span className="text-slate-700">{fullAddress}</span>
+                          </div>
+                        )}
+                        {fullDeliveryAddress && (
+                          <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-muted)' }}>
+                            <strong style={{ opacity: 0.85 }}>Entrega: </strong>
+                            <span>{fullDeliveryAddress}</span>
+                          </div>
+                        )}
                         {geoMatch && (
-                          <div className="text-xs text-success font-medium flex-center gap-1 mt-1">
-                            <MapPin size={12} /> Geoposicionado
+                          <div className="text-xs text-success font-medium flex-center gap-1 mt-1" style={{ fontSize: '0.7rem' }}>
+                            <MapPin size={10} /> Geoposicionado
                           </div>
                         )}
                       </div>
@@ -469,13 +519,74 @@ const Clientes: React.FC = () => {
                     )}
                   </div>
 
+                  <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', gridColumn: 'span 2' }}>
+                    <div className="form-group">
+                      <label>Numeración</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. 123" 
+                        value={formData.direccionNro}
+                        onChange={(e) => setFormData({ ...formData, direccionNro: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Interior</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Dpto 402" 
+                        value={formData.direccionInt}
+                        onChange={(e) => setFormData({ ...formData, direccionInt: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Referencia</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Frente a parque" 
+                        value={formData.direccionRef}
+                        onChange={(e) => setFormData({ ...formData, direccionRef: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
                     <label>Dirección de Entrega</label>
                     <input 
                       type="text" 
+                      placeholder="Dirección de entrega..."
                       value={formData.direccionEntrega}
                       onChange={(e) => setFormData({ ...formData, direccionEntrega: e.target.value })}
                     />
+                  </div>
+
+                  <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', gridColumn: 'span 2' }}>
+                    <div className="form-group">
+                      <label>Numeración Entrega</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. 456" 
+                        value={formData.direccionEntregaNro}
+                        onChange={(e) => setFormData({ ...formData, direccionEntregaNro: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Interior Entrega</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Almacén B" 
+                        value={formData.direccionEntregaInt}
+                        onChange={(e) => setFormData({ ...formData, direccionEntregaInt: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Referencia Entrega</label>
+                      <input 
+                        type="text" 
+                        placeholder="Ej. Portón verde" 
+                        value={formData.direccionEntregaRef}
+                        onChange={(e) => setFormData({ ...formData, direccionEntregaRef: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 

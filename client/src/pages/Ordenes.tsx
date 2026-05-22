@@ -380,16 +380,17 @@ const Ordenes: React.FC = () => {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Órdenes de Importación</h1>
-        <div className="filters-bar" style={{ flexWrap: 'wrap' }}>
-          <div className="search-input">
+      <div className="page-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem', marginBottom: '2rem' }}>
+        <h1 style={{ margin: 0 }}>Órdenes de Importación</h1>
+        <div className="filters-bar" style={{ display: 'flex', gap: '1rem', alignItems: 'center', width: '100%' }}>
+          <div className="search-input" style={{ flex: 1 }}>
             <Search size={18} />
             <input 
               type="text" 
               placeholder="Buscar por BL, DAM, Cliente..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ width: '100%' }}
             />
           </div>
           
@@ -397,7 +398,7 @@ const Ordenes: React.FC = () => {
             value={statusFilter} 
             onChange={(e) => setStatusFilter(e.target.value)}
             className="select-custom"
-            style={{ padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}
+            style={{ width: 'auto', minWidth: '180px' }}
           >
             <option value="">Todos los Estados</option>
             <option value="COORDINACION_EMBARQUE">Coordinación de embarque</option>
@@ -412,7 +413,7 @@ const Ordenes: React.FC = () => {
             value={canalFilter} 
             onChange={(e) => setCanalFilter(e.target.value)}
             className="select-custom"
-            style={{ padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}
+            style={{ width: 'auto', minWidth: '160px' }}
           >
             <option value="">Todos los Canales</option>
             <option value="VERDE">Verde</option>
@@ -421,7 +422,11 @@ const Ordenes: React.FC = () => {
             <option value="SIN_CANAL">Sin Canal</option>
           </select>
 
-          <button className="primary icon-left" onClick={handleOpenCreateMultiple}>
+          <button 
+            className="primary icon-left" 
+            onClick={handleOpenCreateMultiple}
+            style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
             <Plus size={18} /> Nueva Orden
           </button>
         </div>
@@ -1351,10 +1356,12 @@ const Ordenes: React.FC = () => {
         .filters-bar {
           display: flex;
           gap: 1rem;
+          width: 100%;
+          align-items: center;
         }
         .search-input {
           position: relative;
-          width: 300px;
+          flex: 1;
         }
         .search-input svg {
           position: absolute;

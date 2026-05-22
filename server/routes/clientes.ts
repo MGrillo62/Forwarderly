@@ -21,7 +21,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const { empresaId } = req.user!;
-    const { ruc, razonSocial, direccion, direccionEntrega, contacto, correo, celular, giroNegocio, contactos } = req.body;
+    const { ruc, razonSocial, direccion, direccionNro, direccionInt, direccionRef, direccionEntrega, direccionEntregaNro, direccionEntregaInt, direccionEntregaRef, contacto, correo, celular, giroNegocio, contactos } = req.body;
     
     if (!ruc || !razonSocial || !contacto) {
       return res.status(400).json({ error: 'RUC, Razón Social y Contacto son campos obligatorios.' });
@@ -32,7 +32,13 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ruc,
         razonSocial,
         direccion,
+        direccionNro,
+        direccionInt,
+        direccionRef,
         direccionEntrega,
+        direccionEntregaNro,
+        direccionEntregaInt,
+        direccionEntregaRef,
         contacto,
         correo,
         celular,
@@ -50,7 +56,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const { ruc, razonSocial, direccion, direccionEntrega, contacto, correo, celular, giroNegocio, contactos } = req.body;
+    const { ruc, razonSocial, direccion, direccionNro, direccionInt, direccionRef, direccionEntrega, direccionEntregaNro, direccionEntregaInt, direccionEntregaRef, contacto, correo, celular, giroNegocio, contactos } = req.body;
     
     const cliente = await prisma.cliente.update({
       where: { id },
@@ -58,7 +64,13 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         ruc,
         razonSocial,
         direccion,
+        direccionNro,
+        direccionInt,
+        direccionRef,
         direccionEntrega,
+        direccionEntregaNro,
+        direccionEntregaInt,
+        direccionEntregaRef,
         contacto,
         correo,
         celular,

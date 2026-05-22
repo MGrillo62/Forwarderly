@@ -37,7 +37,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const { empresaId } = req.user!;
-    const { nombre, ruc, razonSocial, direccion, contacto, correo, celular, estado, giroNegocio, contactos } = req.body;
+    const { nombre, ruc, razonSocial, direccion, direccionNro, direccionInt, direccionRef, contacto, correo, celular, estado, giroNegocio, contactos } = req.body;
     
     if (!contacto) {
       return res.status(400).json({ error: 'El nombre de contacto es obligatorio' });
@@ -49,6 +49,9 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ruc,
         razonSocial,
         direccion,
+        direccionNro,
+        direccionInt,
+        direccionRef,
         contacto,
         correo,
         celular,
@@ -69,7 +72,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const { nombre, ruc, razonSocial, direccion, contacto, correo, celular, estado, giroNegocio, contactos } = req.body;
+    const { nombre, ruc, razonSocial, direccion, direccionNro, direccionInt, direccionRef, contacto, correo, celular, estado, giroNegocio, contactos } = req.body;
     
     const currentLead = await prisma.lead.findUnique({ where: { id } });
     const isEstadoChanging = estado && currentLead && currentLead.estado !== estado;
@@ -81,6 +84,9 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         ruc,
         razonSocial,
         direccion,
+        direccionNro,
+        direccionInt,
+        direccionRef,
         contacto,
         correo,
         celular,
