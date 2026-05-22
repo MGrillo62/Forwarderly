@@ -401,11 +401,9 @@ const Cotizaciones: React.FC = () => {
                           <Copy size={16} />
                         </button>
 
-                        {(cot.estado === 'ENVIADA' || cot.estado === 'APROBADA' || cot.estado === 'RECHAZADA') && (
-                          <button title="Descargar PDF" className="info" onClick={() => handleDownloadPDF(cot)}>
-                            <FileText size={16} />
-                          </button>
-                        )}
+                        <button title="Descargar PDF" className="info" onClick={() => handleDownloadPDF(cot)}>
+                          <FileText size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
