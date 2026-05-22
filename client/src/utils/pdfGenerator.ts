@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null = null) => {
+export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null = null, currentUser: any = null) => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -57,9 +57,14 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42); // Dark slate for values
   const numStr = `#${String(cotizacion.numero).padStart(5, '0')}`;
-  const dateStr = new Date(cotizacion.createdAt).toLocaleDateString('es-PE');
   const estadoStr = cotizacion.estado || 'BORRADOR';
   const userStr = cotizacion.vendedor ? `${cotizacion.vendedor.nombres}` : 'S/V';
+
+  // Find exact date/time when this status was set
+  const statusHistory = cotizacion.historial || [];
+  const matchedHistory = [...statusHistory].reverse().find((h: any) => h.estado === estadoStr);
+  const statusDate = matchedHistory ? new Date(matchedHistory.fechaHora) : new Date(cotizacion.createdAt);
+  const dateStr = `${statusDate.toLocaleDateString('es-PE')} ${statusDate.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`;
 
   doc.setFont('helvetica', 'bold');
   doc.text(numStr, cardX + cardW - 4, cardY + 6, { align: 'right' });
@@ -155,7 +160,7 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   // Table (Start at yCards + 37)
   const symbol = currencySymbol;
   const tableRows = cotizacion.lineas.map((l: any) => [
-    (l.concepto?.categoria?.nombre || l.categoriaNombre || 'S/C').toUpperCase(),
+    `${(l.concepto?.categoria?.nombre || l.categoriaNombre || 'S/C').toUpperCase()}\n${l.concepto?.nombre || l.conceptoNombre || '—'}`,
     (l.proveedor?.razonSocial || l.proveedor?.contacto || '—').toUpperCase(),
     `${symbol} ${l.costo.toFixed(2)}`,
     `${symbol} ${l.precioVenta.toFixed(2)}`,
@@ -166,7 +171,7 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
 
   autoTable(doc, {
     startY: yCards + 37,
-    head: [['CATEGORÍA', 'PROVEEDOR', 'COSTO', 'PRECIO VENTA', 'VALOR VENTA', 'UTILIDAD', 'MARGEN']],
+    head: [['CATEGORÍA / CONCEPTO', 'PROVEEDOR', 'COSTO', 'PRECIO VENTA', 'VALOR VENTA', 'UTILIDAD', 'MARGEN']],
     body: tableRows,
     theme: 'grid',
     styles: {
@@ -185,7 +190,7 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
       halign: 'left'
     },
     columnStyles: {
-      0: { cellWidth: 35, halign: 'left' },  // Category
+      0: { cellWidth: 35, halign: 'left' },  // Category / Concept
       1: { cellWidth: 30, halign: 'left' },  // Provider
       2: { cellWidth: 23, halign: 'right' }, // Cost
       3: { cellWidth: 25, halign: 'right' }, // Sale Price
@@ -201,17 +206,27 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
     }
   });
 
-  // Table end Y coordinate
+  // Table end Y coordinate and page
   const finalY = (doc as any).lastAutoTable.finalY || (yCards + 37 + 15);
+  const tableEndPage = doc.getNumberOfPages();
 
-  // Italics note right below the table bottom, very close as requested
-  doc.setFont('helvetica', 'oblique');
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text('La lista continúa en la página 2', pageWidth - 15, finalY + 5.5, { align: 'right' });
+  // If table spans multiple pages, print the continuation note on Page 1
+  if (tableEndPage > 1) {
+    const origPage = doc.getNumberOfPages();
+    doc.setPage(1);
+    doc.setFont('helvetica', 'oblique');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('La lista continúa en la página 2', pageWidth - 15, 280, { align: 'right' });
+    doc.setPage(origPage);
+  }
 
-  // Totals Block section
-  const totalsY = finalY + 13;
+  // Determine if we need to start totals on a new page to prevent overflow / cut off
+  let totalsY = finalY + 10;
+  if (totalsY + 60 > 280) {
+    doc.addPage();
+    totalsY = 20; // Start at the top of the new page
+  }
 
   // Draw Left Card (Totals details)
   doc.setFillColor(248, 250, 252);
@@ -278,7 +293,7 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   doc.text(`MARGEN: ${cotizacion.porcentajeUtilidad.toFixed(1)}%`, 160, totalsY + 27, { align: 'center' });
 
   // Footer Section
-  const footerY = totalsY + 44;
+  const footerY = totalsY + 40;
 
   // Thin gray separator line
   doc.setDrawColor(226, 232, 240);
@@ -316,6 +331,25 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
   doc.text(`${sellerName} - LOGISTICS MANAGER`, pageWidth - 15, footerY + 20, { align: 'right' });
+
+  // Page Loop to Draw Professional Printer Footer & Page Numbers
+  const totalPages = doc.getNumberOfPages();
+  const now = new Date();
+  const formatPrintDate = `${now.toLocaleDateString('es-PE')} ${now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  const printerName = currentUser ? `${currentUser.nombres} ${currentUser.apellidos || ''}`.trim() : 'S/U';
+
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(148, 163, 184); // Slate 300
+    
+    // Left: Print details
+    doc.text(`Impreso por: ${printerName} | Fecha y Hora de Impresión: ${formatPrintDate}`, 15, 289);
+    
+    // Right: Page count
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth - 15, 289, { align: 'right' });
+  }
 
   // Save the PDF
   doc.save(`Cotizacion_${String(cotizacion.numero).padStart(5, '0')}.pdf`);

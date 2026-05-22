@@ -7,7 +7,7 @@ import { getBase64ImageFromUrl } from '../utils/logoHelper';
 import CotizacionForm from '../components/CotizacionForm';
 
 const Cotizaciones: React.FC = () => {
-  const { token, activeEmpresa } = useAuth();
+  const { token, activeEmpresa, user } = useAuth();
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
@@ -66,10 +66,10 @@ const Cotizaciones: React.FC = () => {
   const handleDownloadPDF = async (cot: any) => {
     try {
       const logoBase64 = activeEmpresa?.logoUrl ? await getBase64ImageFromUrl(activeEmpresa.logoUrl) : null;
-      generateQuotationPDF(cot, logoBase64);
+      generateQuotationPDF(cot, logoBase64, user);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      generateQuotationPDF(cot, null);
+      generateQuotationPDF(cot, null, user);
     }
   };
 
