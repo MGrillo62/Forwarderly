@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   Plus, X, Trash2, Calculator, Info, Package, DollarSign, TrendingUp,
   Upload, FileSpreadsheet, Edit2, Eye, Ship, Landmark, Save, Printer,
-  Download, ChevronRight, ArrowUpRight, FileDown
+  Download, ChevronRight, ArrowUpRight, FileDown, Search, Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -31,6 +31,73 @@ const Costeos = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedCosteo, setSelectedCosteo] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [estadoFilter, setEstadoFilter] = useState('');
+  const [canalFilter, setCanalFilter] = useState('');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getClientName = (c: any) => {
+    return c.clienteNombre || c.cliente?.razonSocial || c.orden?.cotizacion?.cliente?.razonSocial || c.orden?.cotizacion?.lead?.nombre || c.orden?.cotizacion?.lead?.contacto || '';
+  };
+
+  const filteredCosteos = costeos.filter(c => {
+    const query = searchTerm.toLowerCase();
+    const codigoStr = (c.codigo || '').toLowerCase();
+    const clientName = getClientName(c).toLowerCase();
+    const blStr = (c.nroBL || c.orden?.nroBL || '').toLowerCase();
+    const damStr = (c.nroDAM || c.orden?.nroDAM || '').toLowerCase();
+    const refOrdenStr = c.orden ? `ord-${c.orden.correlativo}-${c.orden.anio}`.toLowerCase() : '';
+
+    const matchesSearch = codigoStr.includes(query) ||
+                          clientName.includes(query) ||
+                          blStr.includes(query) ||
+                          damStr.includes(query) ||
+                          refOrdenStr.includes(query);
+
+    const matchesEstado = !estadoFilter || c.estado === estadoFilter;
+    const matchesCanal = !canalFilter || c.canal === canalFilter;
+
+    return matchesSearch && matchesEstado && matchesCanal;
+  });
+
+  const sortedCosteos = useMemo(() => {
+    return [...filteredCosteos].sort((a, b) => {
+      let valA: any = a[sortField];
+      let valB: any = b[sortField];
+
+      if (sortField === 'cliente') {
+        valA = getClientName(a);
+        valB = getClientName(b);
+      } else if (sortField === 'costeo') {
+        valA = a.codigo || '';
+        valB = b.codigo || '';
+      } else if (sortField === 'canal') {
+        valA = a.canal || '';
+        valB = b.canal || '';
+      } else if (sortField === 'inversion') {
+        valA = (a.costoTotalImportacion || 0) * (a.tipoCambio || 1);
+        valB = (b.costoTotalImportacion || 0) * (b.tipoCambio || 1);
+      } else if (sortField === 'estado') {
+        valA = a.estado || '';
+        valB = b.estado || '';
+      }
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredCosteos, sortField, sortDirection]);
 
   const formatNum = (val: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
@@ -238,23 +305,121 @@ const Costeos = () => {
         </button>
       </div>
 
+      {/* Premium Search and Filters Bar */}
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.5)',
+        borderRadius: '20px',
+        padding: '1rem',
+        marginBottom: '2rem',
+        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.05)',
+        display: 'flex',
+        gap: '1rem',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }} className="animate-fade-in">
+        <div style={{
+          position: 'relative',
+          flex: '1 1 250px',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          <Search size={18} style={{
+            position: 'absolute',
+            left: '1rem',
+            color: '#94a3b8'
+          }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por BL, DAM, Código, Cliente..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.65rem 1rem 0.65rem 2.75rem',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              fontSize: '0.85rem',
+              outline: 'none',
+              background: '#ffffff',
+              color: '#1e293b',
+              fontWeight: '600',
+              transition: 'all 0.3s'
+            }}
+          />
+        </div>
+
+        <select 
+          value={estadoFilter} 
+          onChange={(e) => setEstadoFilter(e.target.value)}
+          style={{
+            padding: '0.65rem 1rem',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            background: '#ffffff',
+            color: '#1e293b',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            outline: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="">Todos los Estados</option>
+          <option value="BORRADOR">Borrador</option>
+          <option value="TERMINADO">Terminado</option>
+        </select>
+
+        <select 
+          value={canalFilter} 
+          onChange={(e) => setCanalFilter(e.target.value)}
+          style={{
+            padding: '0.65rem 1rem',
+            border: '1px solid #e2e8f0',
+            borderRadius: '12px',
+            background: '#ffffff',
+            color: '#1e293b',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            outline: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="">Todos los Canales</option>
+          <option value="VERDE">Verde</option>
+          <option value="AMARILLO">Naranja</option>
+          <option value="ROJO">Rojo</option>
+          <option value="SIN_CANAL">Sin Canal</option>
+        </select>
+      </div>
+
       <div className="card animate-fade-in">
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>Costeo</th>
-                <th>Cliente</th>
+                <th onClick={() => handleSort('costeo')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Costeo {sortField === 'costeo' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
+                <th onClick={() => handleSort('cliente')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Cliente {sortField === 'cliente' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
                 <th>Nro BL / DAM</th>
-                <th>Canal</th>
+                <th onClick={() => handleSort('canal')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Canal {sortField === 'canal' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
                 <th>ETD / ETA</th>
-                <th>Estado</th>
-                <th className="text-right">Inversión Soles</th>
+                <th onClick={() => handleSort('estado')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Estado {sortField === 'estado' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
+                <th onClick={() => handleSort('inversion')} style={{ cursor: 'pointer', userSelect: 'none' }} className="text-right">
+                  Inversión Soles {sortField === 'inversion' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
                 <th style={{ width: '120px' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {costeos.map((c) => {
+              {sortedCosteos.map((c) => {
                 const getCanalBadge = (canal: string) => {
                   switch (canal) {
                     case 'VERDE': return 'badge-green';

@@ -13,6 +13,7 @@ import usuarioRoutes from './routes/usuarios';
 import costeoRoutes from './routes/costeos';
 import leadsRoutes from './routes/leads';
 import dashboardRoutes from './routes/dashboards';
+import girosNegocioRoutes from './routes/girosNegocio';
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/costeos', costeoRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/dashboards', dashboardRoutes);
+app.use('/api/giros-negocio', girosNegocioRoutes);
 
 const PORT = process.env.PORT || 5000;
 

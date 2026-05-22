@@ -6,30 +6,60 @@ import { authenticate, AuthRequest } from '../middlewares/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Get all orders
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   const { empresaId, rol, id: vendedorId } = req.user!;
   const { clienteId, estado, nroBL, canal } = req.query;
 
   try {
-    const where: any = {
-      cotizacion: {
-        empresaId
+    const andFilters: any[] = [
+      {
+        OR: [
+          { cotizacion: { empresaId } },
+          { cotizacionesAsociadas: { some: { empresaId } } }
+        ]
       }
-    };
+    ];
 
     if (rol === 'VENDEDOR') {
-      where.cotizacion.vendedorId = vendedorId;
+      andFilters.push({
+        OR: [
+          { cotizacion: { vendedorId } },
+          { cotizacionesAsociadas: { some: { vendedorId } } }
+        ]
+      });
     }
 
-    if (clienteId) where.cotizacion.clienteId = clienteId;
-    if (estado) where.estado = estado;
-    if (nroBL) where.nroBL = { contains: nroBL as string, mode: 'insensitive' };
-    if (canal) where.canal = canal;
+    if (clienteId) {
+      andFilters.push({
+        OR: [
+          { cotizacion: { clienteId } },
+          { cotizacionesAsociadas: { some: { clienteId } } }
+        ]
+      });
+    }
+
+    if (estado) {
+      andFilters.push({ estado });
+    }
+
+    if (nroBL) {
+      andFilters.push({ nroBL: { contains: nroBL as string, mode: 'insensitive' } });
+    }
+
+    if (canal) {
+      andFilters.push({ canal });
+    }
+
+    const where: any = { AND: andFilters };
 
     const ordenes = await prisma.orden.findMany({
       where,
       include: {
         cotizacion: {
+          include: { cliente: true, vendedor: true, lineas: { include: { concepto: true } } }
+        },
+        cotizacionesAsociadas: {
           include: { cliente: true, vendedor: true, lineas: { include: { concepto: true } } }
         },
         pagos: true,
@@ -46,6 +76,82 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Create a merged order from multiple quotes
+router.post('/multiple', authenticate, async (req: AuthRequest, res) => {
+  const { cotizacionIds, referencia, email } = req.body;
+  const { empresaId } = req.user!;
+
+  try {
+    if (!cotizacionIds || !Array.isArray(cotizacionIds) || cotizacionIds.length === 0) {
+      return res.status(400).json({ message: 'Debe seleccionar al menos una cotización' });
+    }
+
+    // Verify all quotes exist, are APROBADA, belong to the company, and are not already linked to an order
+    const quotes = await prisma.cotizacion.findMany({
+      where: {
+        id: { in: cotizacionIds },
+        empresaId,
+        estado: 'APROBADA'
+      },
+      include: {
+        orden: true,
+        ordenAsociada: true
+      }
+    });
+
+    if (quotes.length !== cotizacionIds.length) {
+      return res.status(400).json({ message: 'Algunas cotizaciones seleccionadas no son válidas, no están aprobadas, o pertenecen a otra empresa.' });
+    }
+
+    // Check if any is already linked to an order
+    const alreadyLinked = quotes.find(q => q.orden || q.ordenId || q.ordenAsociada);
+    if (alreadyLinked) {
+      return res.status(400).json({ message: `La cotización N° ${alreadyLinked.numero} ya está asociada a otra orden.` });
+    }
+
+    const year = new Date().getFullYear();
+    const lastOrden = await prisma.orden.findFirst({
+      where: { anio: year },
+      orderBy: { correlativo: 'desc' }
+    });
+    const correlativo = (lastOrden?.correlativo || 0) + 1;
+
+    // Create the merged order
+    const newOrden = await prisma.orden.create({
+      data: {
+        correlativo,
+        anio: year,
+        estado: 'COORDINACION_EMBARQUE',
+        referencia: referencia || null,
+        email: email || null,
+        cotizacionesAsociadas: {
+          connect: cotizacionIds.map(id => ({ id }))
+        }
+      },
+      include: {
+        cotizacionesAsociadas: {
+          include: { cliente: true, vendedor: true, lineas: true }
+        },
+        historial: true
+      }
+    });
+
+    // Add state change history
+    await prisma.ordenEstadoHistorial.create({
+      data: {
+        ordenId: newOrden.id,
+        estado: 'COORDINACION_EMBARQUE'
+      }
+    });
+
+    res.json(newOrden);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al crear la orden múltiple: ' + error.message });
+  }
+});
+
+// Update order
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
   const { 
@@ -68,19 +174,33 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
         where: { id },
         include: { 
           cotizacion: true, 
+          cotizacionesAsociadas: true,
           pagos: true,
           cobros: true
         }
       });
       
+      let totalOrdenSoles = 0;
+      const usdRate = 3.75;
+      const eurRate = 4.10;
+
+      if (orden?.cotizacion) {
+        const rate = orden.cotizacion.moneda === 'USD' ? usdRate : orden.cotizacion.moneda === 'EUR' ? eurRate : 1;
+        totalOrdenSoles = orden.cotizacion.precioTotal * rate;
+      }
+      if (orden?.cotizacionesAsociadas && orden.cotizacionesAsociadas.length > 0) {
+        for (const c of orden.cotizacionesAsociadas) {
+          const rate = c.moneda === 'USD' ? usdRate : c.moneda === 'EUR' ? eurRate : 1;
+          totalOrdenSoles += c.precioTotal * rate;
+        }
+      }
+
       const totalPagadoSoles = 
         (orden?.pagos.reduce((acc, p) => acc + p.monto, 0) || 0) +
         (orden?.cobros.reduce((acc, c) => {
           if (c.moneda === 'PEN') return acc + c.monto;
           return acc + (c.monto * (c.tipoCambio || 1));
         }, 0) || 0);
-
-      const totalOrdenSoles = orden?.cotizacion.precioTotal || 0;
 
       if (totalPagadoSoles < totalOrdenSoles - 0.01) {
         return res.status(400).json({ message: 'La orden debe estar totalmente cobrada/pagada para culminar el despacho' });
@@ -130,6 +250,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
     res.json(updated);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Error al actualizar orden' });
   }
 });

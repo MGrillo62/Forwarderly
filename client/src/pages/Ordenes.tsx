@@ -30,6 +30,21 @@ const Ordenes: React.FC = () => {
   const [tipoCambioInput, setTipoCambioInput] = useState('3.75');
   const [incluirTributos, setIncluirTributos] = useState(true);
   const [referenciaInput, setReferenciaInput] = useState('');
+
+  // Sorting & Filtering States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState<string>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [canalFilter, setCanalFilter] = useState<string>('');
+
+  // Merge multiple quotes modal states
+  const [showCreateMultipleModal, setShowCreateMultipleModal] = useState(false);
+  const [candidateQuotes, setCandidateQuotes] = useState<any[]>([]);
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
+  const [mergeReferencia, setMergeReferencia] = useState('');
+  const [mergeEmail, setMergeEmail] = useState('');
+  const [quotesLoading, setQuotesLoading] = useState(false);
   
   // Document data mapped per individual concept line
   const [lineasDocs, setLineasDocs] = useState<{
@@ -60,6 +75,140 @@ const Ordenes: React.FC = () => {
     }
   };
 
+  const getClientName = (o: any) => {
+    if (!o) return '-';
+    if (o.cotizacion) {
+      return o.cotizacion.cliente?.razonSocial || o.cotizacion.lead?.nombre || o.cotizacion.lead?.contacto || '-';
+    }
+    if (o.cotizacionesAsociadas && o.cotizacionesAsociadas.length > 0) {
+      const names = o.cotizacionesAsociadas.map((c: any) => c.cliente?.razonSocial || c.lead?.nombre || c.lead?.contacto).filter(Boolean);
+      const uniqueNames = Array.from(new Set(names));
+      return uniqueNames.join(' / ') || '-';
+    }
+    return '-';
+  };
+
+  const getOrdenLines = (orden: any) => {
+    if (!orden) return [];
+    const list: any[] = [];
+    if (orden.cotizacion?.lineas) {
+      orden.cotizacion.lineas.forEach((l: any) => {
+        list.push({
+          ...l,
+          cotizacionNumero: orden.cotizacion.numero,
+          moneda: orden.cotizacion.moneda
+        });
+      });
+    }
+    if (orden.cotizacionesAsociadas) {
+      orden.cotizacionesAsociadas.forEach((c: any) => {
+        if (c.lineas) {
+          c.lineas.forEach((l: any) => {
+            list.push({
+              ...l,
+              cotizacionNumero: c.numero,
+              moneda: c.moneda
+            });
+          });
+        }
+      });
+    }
+    return list;
+  };
+
+  const handleOpenCreateMultiple = async () => {
+    setQuotesLoading(true);
+    setShowCreateMultipleModal(true);
+    setSelectedQuoteIds([]);
+    setMergeReferencia('');
+    setMergeEmail('');
+    try {
+      const response = await api.get('/cotizaciones');
+      const eligible = response.data.filter((c: any) => 
+        c.estado === 'APROBADA' && !c.orden && !c.ordenId
+      );
+      setCandidateQuotes(eligible);
+    } catch (err) {
+      console.error(err);
+      alert('Error al cargar cotizaciones para fusionar.');
+    } finally {
+      setQuotesLoading(false);
+    }
+  };
+
+  const handleCreateMultipleOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedQuoteIds.length === 0) {
+      return alert('Debe seleccionar al menos una cotización para crear la orden.');
+    }
+    try {
+      await api.post('/ordenes/multiple', {
+        cotizacionIds: selectedQuoteIds,
+        referencia: mergeReferencia || null,
+        email: mergeEmail || null
+      });
+      alert('Orden creada exitosamente fusionando las cotizaciones.');
+      setShowCreateMultipleModal(false);
+      fetchOrdenes();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al crear la orden múltiple');
+    }
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const filteredOrdenes = ordenes.filter(o => {
+    const refCot = String(o.cotizacion?.numero || '').padStart(5, '0');
+    const associatedRefs = o.cotizacionesAsociadas?.map((c: any) => String(c.numero).padStart(5, '0')).join(', ') || '';
+    const clientName = getClientName(o).toLowerCase();
+    const bl = (o.nroBL || '').toLowerCase();
+    const dam = (o.nroDAM || '').toLowerCase();
+    const correlativoStr = `ORD-${o.correlativo}-${o.anio}`.toLowerCase();
+    const query = searchTerm.toLowerCase();
+
+    const matchesSearch = correlativoStr.includes(query) ||
+                          refCot.includes(query) ||
+                          associatedRefs.includes(query) ||
+                          clientName.includes(query) ||
+                          bl.includes(query) ||
+                          dam.includes(query);
+
+    const matchesStatus = !statusFilter || o.estado === statusFilter;
+    const matchesCanal = !canalFilter || o.canal === canalFilter;
+
+    return matchesSearch && matchesStatus && matchesCanal;
+  });
+
+  const sortedOrdenes = [...filteredOrdenes].sort((a, b) => {
+    let valA: any = a[sortField];
+    let valB: any = b[sortField];
+
+    if (sortField === 'cliente') {
+      valA = getClientName(a);
+      valB = getClientName(b);
+    } else if (sortField === 'orden') {
+      valA = a.correlativo;
+      valB = b.correlativo;
+    } else if (sortField === 'canal') {
+      valA = a.canal || '';
+      valB = b.canal || '';
+    } else if (sortField === 'estado') {
+      valA = a.estado;
+      valB = b.estado;
+    }
+
+    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const handleUpdateOrden = async (id: string, data: any) => {
     try {
       await api.put(`/ordenes/${id}`, data);
@@ -72,14 +221,15 @@ const Ordenes: React.FC = () => {
 
   const handleOpenCobros = async (orden: any) => {
     setSelectedOrden(orden);
-    const allIds = orden.cotizacion?.lineas?.map((l: any) => l.id) || [];
+    const lines = getOrdenLines(orden);
+    const allIds = lines.map((l: any) => l.id) || [];
     setCheckedLineas(allIds);
     setReferenciaInput('');
     setIncluirTributos(true);
     
     // Initialize concept document details mapping
     const initialDocs: any = {};
-    orden.cotizacion?.lineas?.forEach((l: any) => {
+    lines.forEach((l: any) => {
       initialDocs[l.id] = {
         tipoDocumento: 'FACTURA',
         nroDocumento: '',
@@ -88,10 +238,10 @@ const Ordenes: React.FC = () => {
     });
     setLineasDocs(initialDocs);
 
-    // Default form currency to order/quote currency
-    const orderMoneda = orden.cotizacion?.moneda || 'USD';
+    // Default form currency to the first line's currency or USD
+    const firstLineMoneda = lines[0]?.moneda || 'USD';
     setCobroForm({
-      moneda: orderMoneda === 'PEN' ? 'PEN' : orderMoneda,
+      moneda: firstLineMoneda,
       monto: '',
       metodo: 'TRANSFERENCIA'
     });
@@ -190,11 +340,13 @@ const Ordenes: React.FC = () => {
   };
 
   // Calculations for Advanced Cobros Modal
-  const orderMoneda = selectedOrden?.cotizacion?.moneda || 'USD';
-  const checkedLinesObjects = selectedOrden?.cotizacion?.lineas?.filter((l: any) => checkedLineas.includes(l.id)) || [];
-  
-  // Total base concept values
-  const totalBaseA_Cobrar = checkedLinesObjects.reduce((acc: number, l: any) => acc + l.precioVenta, 0);
+  const allLines = getOrdenLines(selectedOrden);
+  const checkedLinesObjects = allLines.filter((l: any) => checkedLineas.includes(l.id));
+
+  // Segregate concept values to collect by currency
+  const baseUSD_ToCollect = checkedLinesObjects.filter((l: any) => l.moneda === 'USD').reduce((acc: number, l: any) => acc + l.precioVenta, 0);
+  const baseEUR_ToCollect = checkedLinesObjects.filter((l: any) => l.moneda === 'EUR').reduce((acc: number, l: any) => acc + l.precioVenta, 0);
+  const basePEN_ToCollect = checkedLinesObjects.filter((l: any) => l.moneda === 'PEN').reduce((acc: number, l: any) => acc + l.precioVenta, 0);
 
   // Customs taxes (Tributos Aduaneros) in PEN
   const costeo = selectedOrden?.costeo;
@@ -210,8 +362,9 @@ const Ordenes: React.FC = () => {
   const percepcionPEN = costeoPercepcion * tcCosteo;
   const totalTributosPEN = adValoremPEN + igvPEN + ipmPEN + percepcionPEN;
 
-  // Soles Taxes to collect based on single check
+  // Soles Taxes to collect based on inclusion checkbox
   const totalTaxA_Cobrar = (costeo && incluirTributos) ? totalTributosPEN : 0;
+  const totalPEN_ToCollect = basePEN_ToCollect + totalTaxA_Cobrar;
 
   // Collections received split
   const legacySolesReceived = selectedOrden?.pagos?.reduce((acc: number, p: any) => acc + p.monto, 0) || 0;
@@ -221,24 +374,56 @@ const Ordenes: React.FC = () => {
   const cobrosPEN_Received = cobrosList.filter(c => c.moneda === 'PEN').reduce((acc, c) => acc + c.monto, 0) + legacySolesReceived;
 
   // Pending calculations split
-  const pendingForeign = orderMoneda !== 'PEN' 
-    ? totalBaseA_Cobrar - (orderMoneda === 'USD' ? cobrosUSD_Received : cobrosEUR_Received)
-    : 0;
-
-  const pendingSoles = orderMoneda !== 'PEN'
-    ? totalTaxA_Cobrar - cobrosPEN_Received
-    : (totalBaseA_Cobrar + totalTaxA_Cobrar) - cobrosPEN_Received;
+  const pendingUSD = baseUSD_ToCollect - cobrosUSD_Received;
+  const pendingEUR = baseEUR_ToCollect - cobrosEUR_Received;
+  const pendingPEN = totalPEN_ToCollect - cobrosPEN_Received;
 
   return (
     <div>
       <div className="page-header">
         <h1>Órdenes de Importación</h1>
-        <div className="filters-bar">
+        <div className="filters-bar" style={{ flexWrap: 'wrap' }}>
           <div className="search-input">
             <Search size={18} />
-            <input type="text" placeholder="Buscar por BL, DAM, Cliente..." />
+            <input 
+              type="text" 
+              placeholder="Buscar por BL, DAM, Cliente..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <button className="btn-outline icon-left"><Filter size={18} /> Filtros</button>
+          
+          <select 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="select-custom"
+            style={{ padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}
+          >
+            <option value="">Todos los Estados</option>
+            <option value="COORDINACION_EMBARQUE">Coordinación de embarque</option>
+            <option value="EN_TRANSITO">En tránsito</option>
+            <option value="EN_PUERTO">En puerto</option>
+            <option value="NUMERADA">Numerada</option>
+            <option value="ENTREGADA">Entregada</option>
+            <option value="DESPACHO_CULMINADO">Despacho culminado</option>
+          </select>
+
+          <select 
+            value={canalFilter} 
+            onChange={(e) => setCanalFilter(e.target.value)}
+            className="select-custom"
+            style={{ padding: '0.5rem 1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: '600' }}
+          >
+            <option value="">Todos los Canales</option>
+            <option value="VERDE">Verde</option>
+            <option value="AMARILLO">Naranja</option>
+            <option value="ROJO">Rojo</option>
+            <option value="SIN_CANAL">Sin Canal</option>
+          </select>
+
+          <button className="primary icon-left" onClick={handleOpenCreateMultiple}>
+            <Plus size={18} /> Nueva Orden
+          </button>
         </div>
       </div>
 
@@ -247,18 +432,28 @@ const Ordenes: React.FC = () => {
           <table>
             <thead>
               <tr>
-                <th>Orden</th>
-                <th>Cliente</th>
-                <th>Nro BL / DAM</th>
-                <th>Canal</th>
+                <th onClick={() => handleSort('orden')} style={{ cursor: 'pointer' }}>
+                  Orden {sortField === 'orden' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
+                <th onClick={() => handleSort('cliente')} style={{ cursor: 'pointer' }}>
+                  Cliente {sortField === 'cliente' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
+                <th onClick={() => handleSort('nroBL')} style={{ cursor: 'pointer' }}>
+                  Nro BL / DAM {sortField === 'nroBL' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
+                <th onClick={() => handleSort('canal')} style={{ cursor: 'pointer' }}>
+                  Canal {sortField === 'canal' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
                 <th>ETD / ETA</th>
-                <th>Estado</th>
+                <th onClick={() => handleSort('estado')} style={{ cursor: 'pointer' }}>
+                  Estado {sortField === 'estado' && (sortDirection === 'asc' ? '▲' : '▼')}
+                </th>
                 <th>Avance Cobros</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {ordenes.map((o) => {
+              {sortedOrdenes.map((o) => {
                 const totalPagadoSoles = 
                   (o.pagos?.reduce((acc: number, p: any) => acc + p.monto, 0) || 0) +
                   (o.cobros?.reduce((acc: number, c: any) => {
@@ -268,9 +463,18 @@ const Ordenes: React.FC = () => {
                 
                 // Get correct exchange rate to convert base commercial values to Soles
                 const tcRef = o.costeo?.tipoCambio || o.cobros?.[0]?.tipoCambio || 3.75;
-                const baseQuoteSoles = o.cotizacion?.moneda === 'PEN' 
-                  ? (o.cotizacion?.precioTotal || 0)
-                  : (o.cotizacion?.precioTotal || 0) * tcRef;
+                
+                let baseQuoteSoles = 0;
+                if (o.cotizacion) {
+                  const quoteTotal = o.cotizacion.precioTotal || 0;
+                  baseQuoteSoles += o.cotizacion.moneda === 'PEN' ? quoteTotal : quoteTotal * tcRef;
+                }
+                if (o.cotizacionesAsociadas) {
+                  o.cotizacionesAsociadas.forEach((c: any) => {
+                    const quoteTotal = c.precioTotal || 0;
+                    baseQuoteSoles += c.moneda === 'PEN' ? quoteTotal : quoteTotal * tcRef;
+                  });
+                }
 
                 const totalTributosPEN = o.costeo 
                   ? ((o.costeo.adValoremGlobal || 0) + (o.costeo.igv || 0) + (o.costeo.ipm || 0) + (o.costeo.percepcionMonto || 0)) * (o.costeo.tipoCambio || 1)
@@ -284,12 +488,16 @@ const Ordenes: React.FC = () => {
                     <td>
                       <div className="order-id">
                         <strong>ORD-{o.correlativo}-{o.anio}</strong>
-                        <small>Ref. Cot: {String(o.cotizacion?.numero).padStart(5, '0')}</small>
+                        <small>Ref. Cot: {
+                          o.cotizacion 
+                            ? String(o.cotizacion.numero).padStart(5, '0')
+                            : o.cotizacionesAsociadas?.map((c: any) => String(c.numero).padStart(5, '0')).join(', ') || '-'
+                        }</small>
                       </div>
                     </td>
                     <td>
                       <div className="order-id">
-                        <strong className="text-slate-800">{o.cotizacion?.cliente?.razonSocial || o.cotizacion?.lead?.nombre || o.cotizacion?.lead?.contacto}</strong>
+                        <strong className="text-slate-800">{getClientName(o)}</strong>
                         {o.proveedorExtranjero && <small style={{ display: 'block', color: 'var(--text-light)', fontSize: '0.7rem', marginTop: '2px' }}>Prov: {o.proveedorExtranjero}</small>}
                         {o.nroFacturaComercial && <small style={{ display: 'block', color: 'var(--text-light)', fontSize: '0.7rem' }}>Fact: {o.nroFacturaComercial}</small>}
                       </div>
@@ -343,6 +551,166 @@ const Ordenes: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* "Nueva Orden" Fusión Modal */}
+      {showCreateMultipleModal && (
+        <div className="modal-overlay">
+          <div className="modal-content large animate-slide-in" style={{ maxWidth: '850px', width: '95%' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="text-xl font-black text-slate-800">
+                  ✨ Nueva Orden — Fusión de Cotizaciones
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Seleccione cotizaciones aprobadas de un mismo cliente para unirlas en una sola Orden de Importación.
+                </p>
+              </div>
+              <button className="icon-btn" onClick={() => setShowCreateMultipleModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateMultipleOrder}>
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                {quotesLoading ? (
+                  <div className="p-8 text-center text-slate-400">
+                    Cargando cotizaciones aprobadas...
+                  </div>
+                ) : candidateQuotes.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 bg-slate-50 rounded border border-dashed border-slate-200">
+                    No hay cotizaciones aprobadas pendientes de orden.
+                  </div>
+                ) : (
+                  <div>
+                    {/* Guidance / Information Alert */}
+                    <div style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '0.75rem',
+                      marginBottom: '1rem',
+                      fontSize: '0.75rem',
+                      color: '#475569'
+                    }}>
+                      💡 <strong>Tip Pro:</strong> Al seleccionar una cotización, la lista se filtrará automáticamente para mostrar solo cotizaciones del mismo cliente/lead, evitando errores contables o de despacho.
+                    </div>
+
+                    <div className="table-container mb-4">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '40px' }} className="text-center">Seleccionar</th>
+                            <th>Nro Cotización</th>
+                            <th>Cliente / Lead</th>
+                            <th>Validez / Fecha</th>
+                            <th className="text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* Apply dynamic smart client filter */}
+                          {(() => {
+                            const selectedObjects = candidateQuotes.filter((c: any) => selectedQuoteIds.includes(c.id));
+                            const activeClientId = selectedObjects[0]?.clienteId || null;
+                            const activeLeadId = selectedObjects[0]?.leadId || null;
+
+                            const filteredCandidates = candidateQuotes.filter((c: any) => {
+                              if (selectedQuoteIds.length === 0) return true;
+                              if (activeClientId) return c.clienteId === activeClientId;
+                              if (activeLeadId) return c.leadId === activeLeadId;
+                              return false;
+                            });
+
+                            return filteredCandidates.map((c: any) => {
+                              const isChecked = selectedQuoteIds.includes(c.id);
+                              const clientName = c.cliente?.razonSocial || c.lead?.nombre || c.lead?.contacto || '-';
+                              const totalStr = `${c.moneda === 'PEN' ? 'S/' : (c.moneda === 'USD' ? '$' : '€')} ${c.precioTotal?.toFixed(2) || '0.00'}`;
+                              return (
+                                <tr key={c.id} className={isChecked ? 'checked-row' : ''} style={{ cursor: 'pointer' }} onClick={() => {
+                                  if (isChecked) {
+                                    setSelectedQuoteIds(selectedQuoteIds.filter(id => id !== c.id));
+                                  } else {
+                                    setSelectedQuoteIds([...selectedQuoteIds, c.id]);
+                                  }
+                                }}>
+                                  <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedQuoteIds([...selectedQuoteIds, c.id]);
+                                        } else {
+                                          setSelectedQuoteIds(selectedQuoteIds.filter(id => id !== c.id));
+                                        }
+                                      }}
+                                    />
+                                  </td>
+                                  <td>
+                                    <strong className="text-xs text-primary font-bold">
+                                      COT-{String(c.numero).padStart(5, '0')}
+                                    </strong>
+                                  </td>
+                                  <td>
+                                    <span className="text-xs font-bold text-slate-800">{clientName}</span>
+                                    <span className="ml-2 text-xxs font-black uppercase text-slate-400">
+                                      {c.clienteId ? 'Cliente' : 'Prospecto'}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <small className="text-slate-400 font-medium">
+                                      {c.fechaValidez ? new Date(c.fechaValidez).toLocaleDateString() : '-'}
+                                    </small>
+                                  </td>
+                                  <td className="text-right text-xs font-extrabold text-slate-800">
+                                    {totalStr}
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="grid-2">
+                      <div className="form-group">
+                        <label>Referencia de Orden (Opcional)</label>
+                        <input 
+                          type="text" 
+                          placeholder="Ej. OC-12345, Contrato Especial"
+                          value={mergeReferencia}
+                          onChange={(e) => setMergeReferencia(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Correo del Cliente / Notificación (Opcional)</label>
+                        <input 
+                          type="email" 
+                          placeholder="cliente@ejemplo.com"
+                          value={mergeEmail}
+                          onChange={(e) => setMergeEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-outline" onClick={() => setShowCreateMultipleModal(false)}>
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="primary btn-glow" 
+                  disabled={selectedQuoteIds.length === 0}
+                >
+                  FUSIONAR ({selectedQuoteIds.length}) COTIZACIONES Y CREAR ORDEN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Legacy/Tracking Modal */}
       {selectedOrden && !showCobrosModal && (
@@ -480,7 +848,7 @@ const Ordenes: React.FC = () => {
                   💳 Gestión Integral de Cobros — ORD-{selectedOrden.correlativo}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Cliente: <strong>{selectedOrden.cotizacion?.cliente?.razonSocial || selectedOrden.cotizacion?.lead?.nombre}</strong> | Moneda Base: <strong>{orderMoneda}</strong>
+                  Cliente: <strong>{getClientName(selectedOrden)}</strong>
                 </p>
               </div>
               <button className="icon-btn" onClick={() => { setShowCobrosModal(false); setSelectedOrden(null); }}>
@@ -522,70 +890,78 @@ const Ordenes: React.FC = () => {
                           <tr>
                             <th style={{ width: '40px' }} className="text-center">Cobrar</th>
                             <th>Concepto</th>
-                            <th className="text-right">Venta ({orderMoneda})</th>
+                            <th className="text-right">Venta</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedOrden.cotizacion?.lineas?.map((l: any) => (
-                            <React.Fragment key={l.id}>
-                              <tr className={checkedLineas.includes(l.id) ? 'checked-row' : ''}>
-                                <td className="text-center" style={{ verticalAlign: 'middle' }}>
-                                  <input 
-                                    type="checkbox"
-                                    checked={checkedLineas.includes(l.id)}
-                                    onChange={() => toggleLineaCheck(l.id)}
-                                  />
-                                </td>
-                                <td>
-                                  <strong className="text-xs text-slate-700 block">{l.concepto?.nombre}</strong>
-                                  {l.proveedor && <small className="text-slate-400 font-medium">Prov: {l.proveedor.razonSocial}</small>}
-                                </td>
-                                <td className="text-right font-semibold text-slate-800 text-xs" style={{ verticalAlign: 'middle' }}>
-                                  {orderMoneda === 'PEN' ? 'S/' : (orderMoneda === 'USD' ? '$' : '€')} {l.precioVenta.toFixed(2)}
-                                </td>
-                              </tr>
-                              {checkedLineas.includes(l.id) && (
-                                <tr className="bg-slate-50 border-b border-slate-200">
-                                  <td colSpan={3} style={{ padding: '0.5rem 0.75rem' }}>
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                      <div className="form-group mb-0" style={{ flex: '1 1 100px', marginBottom: 0 }}>
-                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Tipo Doc.</label>
-                                        <select 
-                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                          value={lineasDocs[l.id]?.tipoDocumento || 'FACTURA'}
-                                          onChange={(e) => handleLineaDocChange(l.id, 'tipoDocumento', e.target.value)}
-                                        >
-                                          <option value="FACTURA">Factura</option>
-                                          <option value="BOLETA">Boleta</option>
-                                          <option value="RECIBO">Recibo de Caja</option>
-                                          <option value="NINGUNO">Ninguno</option>
-                                        </select>
-                                      </div>
-                                      <div className="form-group mb-0" style={{ flex: '2 1 140px', marginBottom: 0 }}>
-                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Documento (Serie-Nro)</label>
-                                        <input 
-                                          type="text" 
-                                          placeholder="F001-000214"
-                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                          value={lineasDocs[l.id]?.nroDocumento || ''}
-                                          onChange={(e) => handleLineaDocChange(l.id, 'nroDocumento', e.target.value)}
-                                        />
-                                      </div>
-                                      <div className="form-group mb-0" style={{ flex: '1.5 1 110px', marginBottom: 0 }}>
-                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Fecha Doc.</label>
-                                        <input 
-                                          type="date" 
-                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                          value={lineasDocs[l.id]?.fechaDocumento || ''}
-                                          onChange={(e) => handleLineaDocChange(l.id, 'fechaDocumento', e.target.value)}
-                                        />
-                                      </div>
-                                    </div>
+                          {allLines.map((l: any) => {
+                            const currencySign = l.moneda === 'PEN' ? 'S/' : (l.moneda === 'USD' ? '$' : '€');
+                            return (
+                              <React.Fragment key={l.id}>
+                                <tr className={checkedLineas.includes(l.id) ? 'checked-row' : ''}>
+                                  <td className="text-center" style={{ verticalAlign: 'middle' }}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={checkedLineas.includes(l.id)}
+                                      onChange={() => toggleLineaCheck(l.id)}
+                                    />
+                                  </td>
+                                  <td>
+                                    <strong className="text-xs text-slate-700 block">
+                                      {l.concepto?.nombre} 
+                                      <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-black text-xxs">
+                                        Cot: {String(l.cotizacionNumero).padStart(5, '0')}
+                                      </span>
+                                    </strong>
+                                    {l.proveedor && <small className="text-slate-400 font-medium">Prov: {l.proveedor.razonSocial}</small>}
+                                  </td>
+                                  <td className="text-right font-semibold text-slate-800 text-xs" style={{ verticalAlign: 'middle' }}>
+                                    {currencySign} {l.precioVenta.toFixed(2)}
                                   </td>
                                 </tr>
-                              )}
-                            </React.Fragment>
-                          ))}
+                                {checkedLineas.includes(l.id) && (
+                                  <tr className="bg-slate-50 border-b border-slate-200">
+                                    <td colSpan={3} style={{ padding: '0.5rem 0.75rem' }}>
+                                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <div className="form-group mb-0" style={{ flex: '1 1 100px', marginBottom: 0 }}>
+                                          <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Tipo Doc.</label>
+                                          <select 
+                                            style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                            value={lineasDocs[l.id]?.tipoDocumento || 'FACTURA'}
+                                            onChange={(e) => handleLineaDocChange(l.id, 'tipoDocumento', e.target.value)}
+                                          >
+                                            <option value="FACTURA">Factura</option>
+                                            <option value="BOLETA">Boleta</option>
+                                            <option value="RECIBO">Recibo de Caja</option>
+                                            <option value="NINGUNO">Ninguno</option>
+                                          </select>
+                                        </div>
+                                        <div className="form-group mb-0" style={{ flex: '2 1 140px', marginBottom: 0 }}>
+                                          <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Documento (Serie-Nro)</label>
+                                          <input 
+                                            type="text" 
+                                            placeholder="F001-000214"
+                                            style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                            value={lineasDocs[l.id]?.nroDocumento || ''}
+                                            onChange={(e) => handleLineaDocChange(l.id, 'nroDocumento', e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="form-group mb-0" style={{ flex: '1.5 1 110px', marginBottom: 0 }}>
+                                          <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Fecha Doc.</label>
+                                          <input 
+                                            type="date" 
+                                            style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                            value={lineasDocs[l.id]?.fechaDocumento || ''}
+                                            onChange={(e) => handleLineaDocChange(l.id, 'fechaDocumento', e.target.value)}
+                                          />
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -659,49 +1035,107 @@ const Ordenes: React.FC = () => {
 
                   {/* Right Column: Calculations & Form */}
                   <div>
-                    {/* dynamic calculations grid */}
-                    <div className="kpi-panel-small mb-4">
-                      <div className="kpi-item-small">
-                        <span className="kpi-lbl">Total a Cobrar</span>
-                        <div className="kpi-val text-primary">
-                          {orderMoneda !== 'PEN' && (
-                            <div className="text-sm font-bold">
-                              {orderMoneda === 'USD' ? '$' : '€'} {totalBaseA_Cobrar.toFixed(2)}
+                    {/* dynamic calculations grid - Segregated by Currency */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                      <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                        💰 Saldos Segregados por Moneda
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                        {/* USD Card */}
+                        {(baseUSD_ToCollect > 0 || cobrosUSD_Received > 0) && (
+                          <div style={{
+                            background: 'rgba(255, 255, 255, 0.4)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(99, 102, 241, 0.2)',
+                            borderRadius: '12px',
+                            padding: '0.75rem',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: '900', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>USD ($)</span>
                             </div>
-                          )}
-                          <div className="text-xs font-bold text-amber-700">
-                            S/ {totalTaxA_Cobrar.toFixed(2)} (Impuestos)
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="kpi-item-small">
-                        <span className="kpi-lbl">Pagos Recibidos</span>
-                        <div className="kpi-val text-success">
-                          {orderMoneda === 'USD' && cobrosUSD_Received > 0 && (
-                            <div className="text-sm font-bold">$ {cobrosUSD_Received.toFixed(2)}</div>
-                          )}
-                          {orderMoneda === 'EUR' && cobrosEUR_Received > 0 && (
-                            <div className="text-sm font-bold">€ {cobrosEUR_Received.toFixed(2)}</div>
-                          )}
-                          <div className="text-xs font-bold text-emerald-700">
-                            S/ {cobrosPEN_Received.toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="kpi-item-small">
-                        <span className="kpi-lbl">Saldo Pendiente</span>
-                        <div className="kpi-val text-danger">
-                          {orderMoneda !== 'PEN' && (
-                            <div className={`text-sm font-black ${pendingForeign <= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {orderMoneda === 'USD' ? '$' : '€'} {pendingForeign.toFixed(2)}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                <span style={{ color: 'var(--text-light)', fontWeight: '600' }}>Total:</span>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>$ {baseUSD_ToCollect.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                <span style={{ color: 'var(--text-light)', fontWeight: '600' }}>Cobrado:</span>
+                                <span style={{ color: 'var(--success)', fontWeight: '800' }}>$ {cobrosUSD_Received.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '2px' }}>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>Pendiente:</span>
+                                <span style={{ color: pendingUSD <= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: '900' }}>
+                                  $ {pendingUSD.toFixed(2)}
+                                </span>
+                              </div>
                             </div>
-                          )}
-                          <div className={`text-xs font-black ${pendingSoles <= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            S/ {pendingSoles.toFixed(2)}
                           </div>
-                        </div>
+                        )}
+
+                        {/* EUR Card */}
+                        {(baseEUR_ToCollect > 0 || cobrosEUR_Received > 0) && (
+                          <div style={{
+                            background: 'rgba(255, 255, 255, 0.4)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(139, 92, 246, 0.2)',
+                            borderRadius: '12px',
+                            padding: '0.75rem',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: '900', color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EUR (€)</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                <span style={{ color: 'var(--text-light)', fontWeight: '600' }}>Total:</span>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>€ {baseEUR_ToCollect.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                <span style={{ color: 'var(--text-light)', fontWeight: '600' }}>Cobrado:</span>
+                                <span style={{ color: 'var(--success)', fontWeight: '800' }}>€ {cobrosEUR_Received.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '2px' }}>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>Pendiente:</span>
+                                <span style={{ color: pendingEUR <= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: '900' }}>
+                                  € {pendingEUR.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* PEN Card */}
+                        {(totalPEN_ToCollect > 0 || cobrosPEN_Received > 0 || ((baseUSD_ToCollect === 0) && (baseEUR_ToCollect === 0))) && (
+                          <div style={{
+                            background: 'rgba(255, 255, 255, 0.4)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                            borderRadius: '12px',
+                            padding: '0.75rem',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: '900', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PEN (S/)</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                <span style={{ color: 'var(--text-light)', fontWeight: '600' }}>Total:</span>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>S/ {totalPEN_ToCollect.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                <span style={{ color: 'var(--text-light)', fontWeight: '600' }}>Cobrado:</span>
+                                <span style={{ color: 'var(--success)', fontWeight: '800' }}>S/ {cobrosPEN_Received.toFixed(2)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '2px' }}>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '800' }}>Pendiente:</span>
+                                <span style={{ color: pendingPEN <= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: '900' }}>
+                                  S/ {pendingPEN.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -718,8 +1152,9 @@ const Ordenes: React.FC = () => {
                             onChange={(e) => setCobroForm({ ...cobroForm, moneda: e.target.value })}
                             required
                           >
-                            {orderMoneda !== 'PEN' && <option value={orderMoneda}>{orderMoneda}</option>}
-                            <option value="PEN">PEN (Soles)</option>
+                            <option value="USD">Dólares (USD)</option>
+                            <option value="PEN">Soles (PEN)</option>
+                            <option value="EUR">Euros (EUR)</option>
                           </select>
                         </div>
 

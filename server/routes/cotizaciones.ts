@@ -182,7 +182,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
-    if (estado === 'APROBADA') {
+    if (estado === 'APROBADA' && req.body.crearOrdenImmediately === true) {
       const year = new Date().getFullYear();
       const lastOrden = await prisma.orden.findFirst({
         where: { anio: year },
@@ -225,6 +225,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         cliente: true, 
         lead: true,
         vendedor: true, 
+        orden: true,
         historial: { 
           include: { usuario: true },
           orderBy: { fechaHora: 'asc' }
@@ -244,6 +245,68 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
     res.json(cotizaciones);
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener cotizaciones' });
+  }
+});
+
+// Duplicar cotización
+router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { clienteId, leadId } = req.body;
+  const { empresaId, id: vendedorId } = req.user!;
+
+  try {
+    const existing = await prisma.cotizacion.findUnique({
+      where: { id },
+      include: { lineas: true }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Cotización no encontrada' });
+    }
+
+    const targetClienteId = clienteId !== undefined ? clienteId : existing.clienteId;
+    const targetLeadId = leadId !== undefined ? leadId : existing.leadId;
+
+    const duplicated = await prisma.cotizacion.create({
+      data: {
+        clienteId: targetClienteId,
+        leadId: targetLeadId,
+        vendedorId,
+        empresaId,
+        moneda: existing.moneda,
+        pais: existing.pais,
+        estado: 'BORRADOR',
+        totalVenta: existing.totalVenta,
+        igv: existing.igv,
+        precioTotal: existing.precioTotal,
+        utilidad: existing.utilidad,
+        porcentajeUtilidad: existing.porcentajeUtilidad,
+        lineas: {
+          create: existing.lineas.map((l) => ({
+            conceptoId: l.conceptoId,
+            proveedorId: l.proveedorId,
+            costo: l.costo,
+            precioVenta: l.precioVenta,
+            valorVenta: l.valorVenta,
+            igv: l.igv,
+            utilidad: l.utilidad,
+            margen: l.margen
+          }))
+        },
+        historial: {
+          create: {
+            estado: 'BORRADOR',
+            usuarioId: vendedorId
+          }
+        }
+      },
+      include: { lineas: true, cliente: true, lead: true, historial: true }
+    });
+
+    res.json(duplicated);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al duplicar cotización: ' + error.message });
   }
 });
 

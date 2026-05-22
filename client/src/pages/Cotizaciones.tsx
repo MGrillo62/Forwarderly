@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText, X } from 'lucide-react';
+import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText, X, Copy, Search, ArrowUpDown } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import CotizacionForm from '../components/CotizacionForm';
 
 const Cotizaciones: React.FC = () => {
   const { token } = useAuth();
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedCot, setSelectedCot] = useState<any>(null);
   const [viewOnly, setViewOnly] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Search & Sorting States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState('numero');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // States for lead-to-client conversion
   const [showConversionModal, setShowConversionModal] = useState(false);
@@ -21,9 +28,17 @@ const Cotizaciones: React.FC = () => {
   const [conversionForm, setConversionForm] = useState({
     ruc: '', razonSocial: '', direccion: '', contacto: '', correo: '', celular: ''
   });
+  const [conversionCrearOrden, setConversionCrearOrden] = useState(true);
+
+  // States for Duplicar Cotización modal
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateSourceCot, setDuplicateSourceCot] = useState<any>(null);
+  const [duplicateTargetType, setDuplicateTargetType] = useState<'same' | 'cliente' | 'lead'>('same');
+  const [duplicateTargetId, setDuplicateTargetId] = useState('');
 
   useEffect(() => {
     fetchCotizaciones();
+    fetchClientesYLeads();
   }, []);
 
   const fetchCotizaciones = async () => {
@@ -31,6 +46,17 @@ const Cotizaciones: React.FC = () => {
       const response = await api.get('/cotizaciones');
       setCotizaciones(response.data);
       setLoading(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchClientesYLeads = async () => {
+    try {
+      const cRes = await api.get('/clientes');
+      const lRes = await api.get('/leads');
+      setClientes(cRes.data);
+      setLeads(lRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -56,8 +82,14 @@ const Cotizaciones: React.FC = () => {
     }
 
     if (!window.confirm(`¿Seguro que desea cambiar el estado a ${estado}?`)) return;
+
+    let crearOrdenImmediately = false;
+    if (estado === 'APROBADA') {
+      crearOrdenImmediately = window.confirm('¿Desea crear inmediatamente la Orden de Importación para esta cotización aprobada?');
+    }
+
     try {
-      await api.put(`/cotizaciones/${id}`, { estado });
+      await api.put(`/cotizaciones/${id}`, { estado, crearOrdenImmediately });
       fetchCotizaciones();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al actualizar estado');
@@ -73,15 +105,47 @@ const Cotizaciones: React.FC = () => {
     try {
       await api.put(`/cotizaciones/${conversionCotId}`, {
         estado: 'APROBADA',
-        clientConversion: conversionForm
+        clientConversion: conversionForm,
+        crearOrdenImmediately: conversionCrearOrden
       });
       setShowConversionModal(false);
       setConversionLead(null);
       setConversionCotId(null);
       fetchCotizaciones();
-      alert('Cotización aprobada. El Prospecto se ha convertido en Cliente Oficial con éxito.');
+      alert('Cotización aprobada y convertida a Cliente Oficial con éxito.');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al realizar conversión de Lead a Cliente');
+    }
+  };
+
+  const handleDuplicateClick = (cot: any) => {
+    setDuplicateSourceCot(cot);
+    setDuplicateTargetType('same');
+    setDuplicateTargetId('');
+    setShowDuplicateModal(true);
+  };
+
+  const handleDuplicateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!duplicateSourceCot) return;
+
+    let payload: any = {};
+    if (duplicateTargetType === 'cliente') {
+      if (!duplicateTargetId) return alert('Por favor seleccione el cliente destino');
+      payload = { clienteId: duplicateTargetId, leadId: null };
+    } else if (duplicateTargetType === 'lead') {
+      if (!duplicateTargetId) return alert('Por favor seleccione el prospecto destino');
+      payload = { leadId: duplicateTargetId, clienteId: null };
+    }
+
+    try {
+      await api.post(`/cotizaciones/${duplicateSourceCot.id}/duplicar`, payload);
+      setShowDuplicateModal(false);
+      setDuplicateSourceCot(null);
+      fetchCotizaciones();
+      alert('Cotización duplicada con éxito como Borrador.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al duplicar cotización');
     }
   };
 
@@ -116,6 +180,46 @@ const Cotizaciones: React.FC = () => {
       default: return '';
     }
   };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Filter and Sort Cotizaciones
+  const filteredAndSorted = cotizaciones
+    .filter(cot => {
+      const search = searchTerm.toLowerCase();
+      const nroStr = String(cot.numero).padStart(5, '0');
+      const clienteName = cot.cliente?.razonSocial || cot.lead?.nombre || cot.lead?.contacto || '';
+      const vendedorName = cot.vendedor?.nombres || '';
+      return (
+        nroStr.includes(search) ||
+        clienteName.toLowerCase().includes(search) ||
+        vendedorName.toLowerCase().includes(search) ||
+        cot.estado.toLowerCase().includes(search)
+      );
+    })
+    .sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (sortField === 'cliente') {
+        aVal = a.cliente?.razonSocial || a.lead?.nombre || '';
+        bVal = b.cliente?.razonSocial || b.lead?.nombre || '';
+      } else if (sortField === 'vendedor') {
+        aVal = a.vendedor?.nombres || '';
+        bVal = b.vendedor?.nombres || '';
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   const StatusStepper = ({ currentStatus, historial }: { currentStatus: string, historial: any[] }) => {
     const steps = ['BORRADOR', 'ENVIADA', 'APROBADA'];
@@ -176,10 +280,27 @@ const Cotizaciones: React.FC = () => {
   return (
     <div>
       <div className="page-header">
-        <h1>Cotizaciones</h1>
+        <div>
+          <h1>Cotizaciones</h1>
+          <p className="subtitle">Gestione propuestas comerciales, duplicados inteligentes y órdenes asociadas</p>
+        </div>
         <button className="primary icon-left" onClick={handleNew}>
           <Plus size={18} /> Nueva Cotización
         </button>
+      </div>
+
+      {/* Filters card */}
+      <div className="card mb-4" style={{ padding: '1rem' }}>
+        <div className="search-box" style={{ position: 'relative' }}>
+          <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input 
+            type="text" 
+            placeholder="Buscar por N° Cotización, Cliente/Prospecto, Vendedor o Estado..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ paddingLeft: '38px', width: '100%' }}
+          />
+        </div>
       </div>
 
       <div className="card">
@@ -187,17 +308,29 @@ const Cotizaciones: React.FC = () => {
           <table>
             <thead>
               <tr>
-                <th>Nro</th>
-                <th>Cliente</th>
-                <th>Fecha</th>
-                <th>Vendedor</th>
-                <th>Total</th>
-                <th>Estado</th>
+                <th className="sortable-header" onClick={() => handleSort('numero')}>
+                  <div className="flex-center gap-1">Nro <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('cliente')}>
+                  <div className="flex-center gap-1">Cliente / Prospecto <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('createdAt')}>
+                  <div className="flex-center gap-1">Fecha <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('vendedor')}>
+                  <div className="flex-center gap-1">Vendedor <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('precioTotal')}>
+                  <div className="flex-center gap-1">Total <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('estado')}>
+                  <div className="flex-center gap-1">Estado <ArrowUpDown size={14} /></div>
+                </th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {cotizaciones.map((cot) => (
+              {filteredAndSorted.map((cot) => (
                 <React.Fragment key={cot.id}>
                   <tr>
                     <td><strong>{String(cot.numero).padStart(5, '0')}</strong></td>
@@ -211,7 +344,11 @@ const Cotizaciones: React.FC = () => {
                     </td>
                     <td>{new Date(cot.createdAt).toLocaleDateString()}</td>
                     <td>{cot.vendedor?.nombres}</td>
-                    <td>S/ {cot.precioTotal.toFixed(2)}</td>
+                    <td>
+                      <span className="font-semibold text-slate-800">
+                        {cot.moneda === 'PEN' ? 'S/' : cot.moneda === 'EUR' ? '€' : '$'} {cot.precioTotal.toFixed(2)}
+                      </span>
+                    </td>
                     <td>
                       <span 
                         className={`status-badge ${getStatusClass(cot.estado)}`}
@@ -247,6 +384,12 @@ const Cotizaciones: React.FC = () => {
                         <button title="Ver" onClick={() => handleView(cot)}>
                           <Eye size={16} />
                         </button>
+                        
+                        {/* Duplicate Button */}
+                        <button title="Duplicar / Copiar Cotización" className="info" onClick={() => handleDuplicateClick(cot)}>
+                          <Copy size={16} />
+                        </button>
+
                         {(cot.estado === 'ENVIADA' || cot.estado === 'APROBADA' || cot.estado === 'RECHAZADA') && (
                           <button title="Descargar PDF" className="info" onClick={() => generateQuotationPDF(cot)}>
                             <FileText size={16} />
@@ -264,6 +407,11 @@ const Cotizaciones: React.FC = () => {
                   )}
                 </React.Fragment>
               ))}
+              {filteredAndSorted.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-4">No se encontraron cotizaciones.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -278,9 +426,10 @@ const Cotizaciones: React.FC = () => {
         />
       )}
 
+      {/* Conversion modal */}
       {showConversionModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" style={{ maxWidth: '650px', width: '90%' }}>
             <div className="modal-header">
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 🌟 Conversión Inteligente: De Prospecto a Cliente
@@ -300,7 +449,6 @@ const Cotizaciones: React.FC = () => {
                     <input 
                       type="text" 
                       required 
-                      placeholder="Ej. 20123456789"
                       value={conversionForm.ruc}
                       onChange={(e) => setConversionForm({ ...conversionForm, ruc: e.target.value })}
                     />
@@ -310,7 +458,6 @@ const Cotizaciones: React.FC = () => {
                     <input 
                       type="text" 
                       required 
-                      placeholder="Ej. Importaciones Peru SAC"
                       value={conversionForm.razonSocial}
                       onChange={(e) => setConversionForm({ ...conversionForm, razonSocial: e.target.value })}
                     />
@@ -320,7 +467,6 @@ const Cotizaciones: React.FC = () => {
                     <input 
                       type="text" 
                       required 
-                      placeholder="Ej. Juan Pérez"
                       value={conversionForm.contacto}
                       onChange={(e) => setConversionForm({ ...conversionForm, contacto: e.target.value })}
                     />
@@ -329,7 +475,6 @@ const Cotizaciones: React.FC = () => {
                     <label>Celular</label>
                     <input 
                       type="text" 
-                      placeholder="Ej. 987654321"
                       value={conversionForm.celular}
                       onChange={(e) => setConversionForm({ ...conversionForm, celular: e.target.value })}
                     />
@@ -338,7 +483,6 @@ const Cotizaciones: React.FC = () => {
                     <label>Correo Electrónico</label>
                     <input 
                       type="email" 
-                      placeholder="contacto@empresa.com"
                       value={conversionForm.correo}
                       onChange={(e) => setConversionForm({ ...conversionForm, correo: e.target.value })}
                     />
@@ -348,16 +492,126 @@ const Cotizaciones: React.FC = () => {
                     <input 
                       type="text" 
                       required 
-                      placeholder="Av. Las Magnolias 123, Lima"
                       value={conversionForm.direccion}
                       onChange={(e) => setConversionForm({ ...conversionForm, direccion: e.target.value })}
                     />
                   </div>
                 </div>
+
+                {/* Conditional Order prompt in conversion modal */}
+                <div className="form-group mt-4" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    id="conversionCrearOrden"
+                    checked={conversionCrearOrden}
+                    onChange={(e) => setConversionCrearOrden(e.target.checked)}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="conversionCrearOrden" style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+                    Crear inmediatamente la Orden de Importación asociada
+                  </label>
+                </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-outline" onClick={() => setShowConversionModal(false)}>Cancelar</button>
-                <button type="submit" className="primary">Convertir y Aprobar</button>
+                <button type="submit" className="primary">Convertir, Aprobar y Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Cotización Modal */}
+      {showDuplicateModal && duplicateSourceCot && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header">
+              <h3 className="font-bold text-lg text-slate-800">
+                📋 Duplicar Cotización N° {String(duplicateSourceCot.numero).padStart(5, '0')}
+              </h3>
+              <button className="icon-btn" onClick={() => setShowDuplicateModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleDuplicateSubmit}>
+              <div className="modal-body">
+                <p className="text-sm text-slate-500 mb-4">
+                  Se creará una copia idéntica de esta cotización en estado <strong>BORRADOR</strong>. Elija a quién irá dirigida:
+                </p>
+
+                <div className="form-group mb-4">
+                  <label className="block mb-2 font-semibold">Cliente/Prospecto Destino</label>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                      <input
+                        type="radio"
+                        name="duplicateTarget"
+                        checked={duplicateTargetType === 'same'}
+                        onChange={() => { setDuplicateTargetType('same'); setDuplicateTargetId(''); }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Mismo Cliente / Prospecto original
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                      <input
+                        type="radio"
+                        name="duplicateTarget"
+                        checked={duplicateTargetType === 'cliente'}
+                        onChange={() => { setDuplicateTargetType('cliente'); setDuplicateTargetId(''); }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Asociar a OTRO Cliente
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                      <input
+                        type="radio"
+                        name="duplicateTarget"
+                        checked={duplicateTargetType === 'lead'}
+                        onChange={() => { setDuplicateTargetType('lead'); setDuplicateTargetId(''); }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Asociar a OTRO Prospecto
+                    </label>
+                  </div>
+                </div>
+
+                {duplicateTargetType === 'cliente' && (
+                  <div className="form-group mb-4">
+                    <label>Seleccione el Cliente Destino</label>
+                    <select
+                      required
+                      value={duplicateTargetId}
+                      onChange={(e) => setDuplicateTargetId(e.target.value)}
+                    >
+                      <option value="">-- Seleccionar Cliente --</option>
+                      {clientes.map(c => (
+                        <option key={c.id} value={c.id}>{c.razonSocial} (RUC: {c.ruc})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {duplicateTargetType === 'lead' && (
+                  <div className="form-group mb-4">
+                    <label>Seleccione el Prospecto Destino</label>
+                    <select
+                      required
+                      value={duplicateTargetId}
+                      onChange={(e) => setDuplicateTargetId(e.target.value)}
+                    >
+                      <option value="">-- Seleccionar Prospecto --</option>
+                      {leads.map(l => (
+                        <option key={l.id} value={l.id}>{l.nombre || l.razonSocial || l.contacto}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-outline" onClick={() => setShowDuplicateModal(false)}>Cancelar</button>
+                <button type="submit" className="primary">Duplicar Cotización</button>
               </div>
             </form>
           </div>
@@ -400,20 +654,6 @@ const Cotizaciones: React.FC = () => {
         .actions-cell button.danger { color: var(--danger); }
         .actions-cell button.info { color: #3b82f6; }
 
-        .history-row { background: #f8fafc; }
-        .history-container { padding: 1rem 2rem; }
-        .history-container h4 { font-size: 0.875rem; margin-bottom: 1rem; color: var(--text-light); }
-        .history-timeline { display: flex; flex-direction: column; gap: 0.75rem; }
-        .history-item { display: flex; align-items: center; gap: 1rem; position: relative; }
-        .history-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--secondary); }
-        .history-info { display: flex; gap: 1rem; align-items: center; font-size: 0.8rem; }
-        .status-text { font-weight: 700; text-transform: uppercase; width: 80px; }
-        .history-user { color: var(--text-dark); font-weight: 600; }
-        .history-date { color: var(--text-light); }
-
-        .stepper-row {
-          background: white;
-        }
         .stepper-row td {
           padding-top: 0;
           padding-bottom: 1.5rem;

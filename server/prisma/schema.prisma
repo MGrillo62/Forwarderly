@@ -179,6 +179,7 @@ model Empresa {
   categorias    Categoria[]
   cotizaciones  Cotizacion[]
   costeos       CosteoImportacion[]
+  giroNegocios  GiroNegocio[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 }
@@ -196,6 +197,9 @@ model Lead {
   empresaId    String
   empresa      Empresa      @relation(fields: [empresaId], references: [id])
   cotizaciones Cotizacion[]
+  giroNegocio  String?
+  contactos    String?
+  estadoChangedAt DateTime  @default(now())
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -239,6 +243,8 @@ model Cliente {
   empresa          Empresa      @relation(fields: [empresaId], references: [id])
   cotizaciones     Cotizacion[]
   costeos          CosteoImportacion[]
+  giroNegocio      String?
+  contactos        String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -303,6 +309,8 @@ model Cotizacion {
   porcentajeUtilidad Float           @default(0)
   historial         CotizacionEstadoHistorial[]
   orden             Orden?
+  ordenId           String?
+  ordenAsociada     Orden?           @relation(fields: [ordenId], references: [id], name: "OrdenAsociada")
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 }
@@ -339,8 +347,9 @@ model Orden {
   id               String       @id @default(uuid())
   correlativo      Int
   anio             Int
-  cotizacionId     String       @unique
-  cotizacion       Cotizacion   @relation(fields: [cotizacionId], references: [id])
+  cotizacionId     String?      @unique
+  cotizacion       Cotizacion?  @relation(fields: [cotizacionId], references: [id])
+  cotizacionesAsociadas Cotizacion[] @relation(name: "OrdenAsociada")
   nroBL            String?
   nroDAM           String?
   canal            CanalImportacion?
@@ -400,4 +409,15 @@ model Cobro {
   detallesLineas  String?        // JSON stringified holding concept-specific billing docs
   tipoCambio      Float          @default(1)
   createdAt       DateTime       @default(now())
+}
+
+model GiroNegocio {
+  id        String   @id @default(uuid())
+  nombre    String
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([nombre, empresaId])
 }
