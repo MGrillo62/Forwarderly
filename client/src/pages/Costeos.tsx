@@ -343,90 +343,104 @@ const Costeos = () => {
           </table>
         </div>
       </div>
-
-      {/* FULL SCREEN MODAL - REDESIGNED FOR MAX ROBUSTNESS */}
+           {/* PREMIUM FLOATING MODAL REDESIGN */}
       {showModal && (
         <div className="modal-container-fixed">
           <div className="modal-inner-full">
             
             {/* Header */}
-            <div className="bg-white px-10 py-6 flex justify-between items-center shrink-0 border-b border-slate-100 shadow-sm z-10">
-              <div className="flex items-center gap-8">
-                <h2 className="text-3xl font-black text-[#1E293B] tracking-tighter">{isEditing ? 'EDITAR COSTEO' : isViewing ? 'DETALLE COSTEO' : 'NUEVO COSTEO ESTRATÉGICO'}</h2>
+            <div className="bg-white/95 backdrop-blur-sm px-6 py-4 flex justify-between items-center shrink-0 border-b border-slate-100/80 shadow-sm z-10">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Calculator size={20} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+                    {isEditing ? 'Editar Costeo Estratégico' : isViewing ? 'Detalle de Costeo' : 'Nuevo Costeo Estratégico'}
+                  </h2>
+                  <p className="text-[10px] font-medium text-slate-400 tracking-wider uppercase mt-0.5">SISTEMA INTEGRADO DE IMPORTACIONES</p>
+                </div>
                 <button
                   onClick={() => {
                     const nuevoEstado = formData.estado === 'BORRADOR' ? 'TERMINADO' : 'BORRADOR';
                     setFormData({...formData, estado: nuevoEstado});
                     if (isEditing && selectedCosteo) handleCambiarEstado(selectedCosteo.id, nuevoEstado);
                   }}
-                  className={`text-[11px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest transition-all hover:scale-105 ${
+                  className={`text-[9px] font-bold px-3 py-1 rounded-lg uppercase tracking-wider transition-all hover:scale-[1.02] cursor-pointer ${
                     formData.estado === 'TERMINADO'
-                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-700 hover:text-white'
-                      : 'bg-amber-100 text-amber-700 hover:bg-amber-700 hover:text-white'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50 hover:bg-emerald-100'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200/50 hover:bg-amber-100'
                   }`}
                   disabled={isViewing}
                 >
                   {formData.estado === 'TERMINADO' ? '✓ TERMINADO' : '⏳ BORRADOR'}
                 </button>
               </div>
-              <div className="flex items-center gap-5">
-                <button onClick={exportPDF} className="flex items-center gap-2 px-6 py-3.5 border-2 border-slate-100 rounded-2xl text-[#4F46E5] font-black text-xs hover:bg-slate-50 transition-all uppercase tracking-[0.2em]"><FileDown size={18} /> PDF</button>
+              <div className="flex items-center gap-3">
+                <button onClick={exportPDF} className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-slate-700 bg-white font-semibold text-xs hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"><FileDown size={15} className="text-slate-500" /> Exportar PDF</button>
                 {!isViewing && (
-                  <button onClick={handleSave} className="flex items-center gap-3 px-10 py-4 bg-[#0F172A] text-white rounded-2xl font-black text-xs hover:bg-slate-800 transition-all shadow-2xl shadow-slate-200 uppercase tracking-[0.2em]"><Save size={20} /> Guardar Costeo</button>
+                  <button onClick={handleSave} className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white rounded-xl font-semibold text-xs hover:bg-indigo-700 hover:shadow-md transition-all shadow-sm"><Save size={15} /> Guardar Costeo</button>
                 )}
-                <button onClick={() => { setShowModal(false); resetForm(); }} className="ml-6 p-2 text-slate-300 hover:text-rose-600 transition-all"><X size={40} /></button>
+                <button onClick={() => { setShowModal(false); resetForm(); }} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all" title="Cerrar"><X size={18} /></button>
               </div>
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-10 custom-scrollbar relative">
-              <div className="max-w-[1500px] mx-auto pb-20">
+            <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6 custom-scrollbar relative">
+              <div className="max-w-[1400px] mx-auto pb-10">
                 
                 {/* Metrics Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   {[
-                    { l: 'TOTAL INVESTMENT (PEN)', v: `S/ ${formatNum(totals.cTotalPEN)}`, trend: true },
-                    { l: 'FOB VALUE (USD)', v: `$ ${formatNum(totals.totalFC)}` },
-                    { l: 'ROI RATIO', v: `${formatNum(totals.ratio)}x` },
+                    { l: 'INVERSIÓN TOTAL (PEN)', v: `S/ ${formatNum(totals.cTotalPEN)}`, trend: true },
+                    { l: 'VALOR FOB (USD)', v: `$ ${formatNum(totals.totalFC)}` },
+                    { l: 'RATIO ROI', v: `${formatNum(totals.ratio)}x` },
                     { l: 'MARGEN PROMEDIO', v: `${formatNum(totals.margProm)}%`, emerald: true }
                   ].map((m, i) => (
-                    <div key={i} className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm relative group overflow-hidden">
-                      <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:scale-110 transition-transform"><Calculator size={100} /></div>
-                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4">{m.l}</p>
-                      <div className="flex items-baseline gap-4">
-                        <span className={`text-4xl font-black tracking-tighter ${m.emerald ? 'text-emerald-500' : 'text-[#0F172A]'}`}>{m.v}</span>
-                        {m.trend && <span className="text-emerald-500 text-[11px] font-black flex items-center mb-1"><TrendingUp size={14} className="mr-1" /> 4.2%</span>}
+                    <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100/80 shadow-sm relative group overflow-hidden hover:shadow-md transition-all">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] text-slate-400 group-hover:scale-110 transition-transform"><Calculator size={60} /></div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{m.l}</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-xl font-bold tracking-tight ${m.emerald ? 'text-emerald-600' : 'text-slate-800'}`}>{m.v}</span>
+                        {m.trend && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[9px] font-medium ml-1">
+                            <TrendingUp size={10} className="mr-0.5" /> 4.2%
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-12 gap-10">
+                <div className="grid grid-cols-12 gap-6">
                   {/* LEFT COLUMN (8/12) */}
-                  <div className="col-span-12 xl:col-span-8 space-y-12">
+                  <div className="col-span-12 xl:col-span-8 space-y-6">
                     
                     {/* Products Grid */}
-                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-10 py-10 flex justify-between items-center border-b border-slate-50 bg-slate-50/20">
-                        <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Detalle de Mercadería</h3>
-                        <div className="flex items-center gap-4">
-                          <button onClick={downloadTemplate} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all"><Download size={14} /> Plantilla</button>
-                          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"><Upload size={14} /> Importar</button>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 flex justify-between items-center border-b border-slate-100/60 bg-slate-50/30">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-sm tracking-tight">Detalle de Mercadería</h3>
+                          <p className="text-[10px] text-slate-400 font-medium">Gestión de productos y valores de importación</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button onClick={downloadTemplate} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg text-[9px] font-semibold uppercase tracking-wider transition-all"><Download size={11} /> Plantilla</button>
+                          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white rounded-lg text-[9px] font-semibold uppercase tracking-wider transition-all"><Upload size={11} /> Importar</button>
                           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
-                          <button onClick={addItem} className="flex items-center gap-2 text-[#4F46E5] font-black text-[11px] uppercase tracking-[0.25em] ml-6 hover:scale-110 transition-all"><Plus size={22} /> Agregar Producto</button>
+                          <button onClick={addItem} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-700 font-semibold text-[9px] uppercase tracking-wider transition-all ml-2"><Plus size={16} /> Agregar Producto</button>
                         </div>
                       </div>
-                      <div className="p-0">
-                        <table className="w-full text-sm">
-                          <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[11px] border-b border-slate-100">
+                      <div className="p-0 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-[#F8FAFC] text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100 tracking-wider">
                             <tr>
-                              <th className="px-4 py-6 text-left">SKU</th>
-                              <th className="px-10 py-6 text-left">DESCRIPTION</th>
-                              <th className="px-6 py-6 text-center">QTY</th>
-                              <th className="px-6 py-6 text-right">PRICE ({formData.moneda})</th>
-                              <th className="px-6 py-6 text-center">ADVALOREM (%)</th>
-                              <th className="px-6 py-6 text-right">TOTAL ({formData.moneda})</th>
-                              <th className="px-4 py-6 text-center"></th>
+                              <th className="px-3 py-2.5 text-left w-24">SKU</th>
+                              <th className="px-4 py-2.5 text-left">DESCRIPCIÓN</th>
+                              <th className="px-3 py-2.5 text-center w-16">CANT.</th>
+                              <th className="px-4 py-2.5 text-right w-32">PRECIO ({formData.moneda})</th>
+                              <th className="px-3 py-2.5 text-center w-24">ADVALOREM (%)</th>
+                              <th className="px-4 py-2.5 text-right w-32">TOTAL ({formData.moneda})</th>
+                              <th className="px-3 py-2.5 text-center w-10"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
@@ -434,34 +448,72 @@ const Costeos = () => {
                               const calc = totals.finalItems[idx];
                               const isGlobalAVActive = Number(formData.adValoremGlobal) > 0;
                               return (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-4 py-7"><input type="text" value={it.sku} onChange={(e) => updateItem(idx, 'sku', e.target.value)} className="bg-transparent border-0 font-bold w-20 text-[#1E293B] focus:ring-0" placeholder="SKU" disabled={isViewing} /></td>
-                                  <td className="px-6 py-7"><input type="text" value={it.producto} onChange={(e) => updateItem(idx, 'producto', e.target.value)} className="bg-transparent border-0 font-black text-slate-700 w-full focus:ring-0" placeholder="Descripción del producto..." disabled={isViewing} /></td>
-                                  <td className="px-6 py-7 text-center"><input type="number" value={it.cantidad || ''} onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-16 text-center" disabled={isViewing} /></td>
-                                  <td className="px-6 py-7 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <span className="text-slate-400 font-black">{formData.moneda === 'EUR' ? '€' : '$'}</span>
-                                      <input type="number" value={it.valorUnitario || ''} onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)} className="bg-slate-50/50 rounded-lg px-2 py-1 border-0 font-black text-[#0F172A] w-24 text-right" disabled={isViewing} />
+                                <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
+                                  <td className="px-3 py-2">
+                                    <input 
+                                      type="text" 
+                                      value={it.sku} 
+                                      onChange={(e) => updateItem(idx, 'sku', e.target.value)} 
+                                      className="w-full px-2 py-1 text-xs font-semibold bg-slate-50/50 border border-slate-200/55 rounded-lg text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none transition-all" 
+                                      placeholder="SKU" 
+                                      disabled={isViewing} 
+                                    />
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <input 
+                                      type="text" 
+                                      value={it.producto} 
+                                      onChange={(e) => updateItem(idx, 'producto', e.target.value)} 
+                                      className="w-full px-2 py-1 text-xs font-semibold bg-slate-50/50 border border-slate-200/55 rounded-lg text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none transition-all" 
+                                      placeholder="Descripción..." 
+                                      disabled={isViewing} 
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    <input 
+                                      type="number" 
+                                      value={it.cantidad || ''} 
+                                      onChange={(e) => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} 
+                                      className="w-16 px-2 py-1 text-xs font-semibold bg-slate-50/50 border border-slate-200/55 rounded-lg text-slate-800 text-center focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none transition-all" 
+                                      disabled={isViewing} 
+                                    />
+                                  </td>
+                                  <td className="px-4 py-2 text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <span className="text-slate-400 font-bold">{formData.moneda === 'EUR' ? '€' : '$'}</span>
+                                      <input 
+                                        type="number" 
+                                        value={it.valorUnitario || ''} 
+                                        onChange={(e) => updateItem(idx, 'valorUnitario', parseFloat(e.target.value) || 0)} 
+                                        className="w-24 px-2 py-1 text-xs font-semibold bg-slate-50/50 border border-slate-200/55 rounded-lg text-slate-800 text-right focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 outline-none transition-all" 
+                                        disabled={isViewing} 
+                                      />
                                     </div>
                                   </td>
-                                  <td className="px-6 py-7 text-center">
+                                  <td className="px-3 py-2 text-center">
                                     <input 
                                       type="number" 
                                       value={it.adValoremPorcentaje ?? ''} 
                                       onChange={(e) => updateItem(idx, 'adValoremPorcentaje', e.target.value === '' ? '' : parseFloat(e.target.value))} 
-                                      className={`rounded-lg px-2 py-1 border-0 font-black w-16 text-center ${isGlobalAVActive ? 'bg-slate-100 text-slate-300' : 'bg-indigo-50 text-indigo-600'}`} 
-                                      placeholder={isGlobalAVActive ? 'GLOBAL' : '0'}
+                                      className={`w-16 px-2 py-1 text-xs font-semibold rounded-lg text-center border outline-none transition-all focus:bg-white focus:ring-1 focus:ring-indigo-500/20 ${
+                                        isGlobalAVActive 
+                                          ? 'bg-slate-100 text-slate-400 border-slate-200' 
+                                          : 'bg-indigo-50/50 text-indigo-700 border-indigo-200/50 focus:border-indigo-500'
+                                      }`} 
+                                      placeholder={isGlobalAVActive ? 'GLB' : '0'}
                                       disabled={isViewing || isGlobalAVActive} 
                                     />
                                   </td>
-                                  <td className="px-6 py-7 text-right">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formData.moneda === 'EUR' ? '€' : '$'}</p>
-                                    <p className="font-black text-[#1E293B] text-base leading-tight tracking-tight">{formatNum(Number(it.valorTotal) || 0)}</p>
+                                  <td className="px-4 py-2 text-right">
+                                    <div className="py-1">
+                                      <span className="text-[9px] text-slate-400 uppercase tracking-wider mr-1">{formData.moneda === 'EUR' ? '€' : '$'}</span>
+                                      <span className="font-bold text-slate-700">{formatNum(Number(it.valorTotal) || 0)}</span>
+                                    </div>
                                   </td>
-                                  <td className="px-4 py-7 text-center">
+                                  <td className="px-3 py-2 text-center">
                                     {!isViewing && (
-                                      <button onClick={() => removeItem(idx)} className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
-                                        <Trash2 size={16} />
+                                      <button onClick={() => removeItem(idx)} className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
+                                        <Trash2 size={13} />
                                       </button>
                                     )}
                                   </td>
@@ -474,76 +526,80 @@ const Costeos = () => {
                     </div>
 
                     {/* Taxes Section */}
-                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20 flex justify-between items-center">
-                        <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Tributos Aduaneros</h3>
-                        <div className="flex items-center gap-6">
-                          <div className="flex items-center gap-3">
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Percepción (%)</p>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-100/60 bg-slate-50/30 flex justify-between items-center">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-sm tracking-tight">Tributos Aduaneros</h3>
+                          <p className="text-[10px] text-slate-400 font-medium">Configuración de gravámenes arancelarios e impuestos</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Percepción (%)</p>
                             <input 
                               type="number" 
                               value={formData.percepcionPorcentaje || ''} 
                               onChange={(e) => setFormData({...formData, percepcionPorcentaje: parseFloat(e.target.value) || 0})} 
-                              className="bg-orange-50 text-orange-600 rounded-xl px-4 py-2 border-0 font-black w-20 text-center focus:ring-2 focus:ring-orange-400" 
-                              placeholder="0.00"
+                              className="bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2 py-1 font-bold w-14 text-xs text-center focus:bg-white focus:border-indigo-500 outline-none transition-all" 
+                              placeholder="0.0"
                               disabled={isViewing}
                             />
                           </div>
-                          <div className="flex items-center gap-3">
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">ADValorem Global (%)</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ADValorem Global (%)</p>
                             <input 
                               type="number" 
                               value={formData.adValoremGlobal || ''} 
                               onChange={(e) => setFormData({...formData, adValoremGlobal: parseFloat(e.target.value) || 0})} 
-                              className="bg-indigo-50 text-indigo-600 rounded-xl px-4 py-2 border-0 font-black w-24 text-center focus:ring-2 focus:ring-indigo-500" 
-                              placeholder="0.00"
+                              className="bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2 py-1 font-bold w-16 text-xs text-center focus:bg-white focus:border-indigo-500 outline-none transition-all" 
+                              placeholder="0.0"
                               disabled={isViewing}
                             />
                           </div>
                         </div>
                       </div>
-                      <div className="p-12 grid grid-cols-2 gap-20 items-center">
-                        <div className="space-y-6">
+                      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <div className="space-y-3.5">
                           {[
                             { l: `Ad Valorem (${(Number(formData.adValoremGlobal) > 0 || !items.some(i => Number(i.adValoremPorcentaje) > 0)) ? (formData.adValoremGlobal || 0) : 'Variable'}%)`, v: totals.adValoremG },
                             { l: 'IGV (16%)', v: totals.igv },
                             { l: 'IPM (2%)', v: totals.ipm },
                             { l: `Percepción (${formData.percepcionPorcentaje || 0}%)`, v: totals.perc }
                           ].map((t, i) => (
-                            <div key={i} className="flex justify-between items-center font-black text-slate-500 text-base">
-                              <span className="opacity-50 text-sm">{t.l}</span>
-                              <span className="text-[#1E293B]">S/ {formatNum(t.v * Number(formData.tipoCambio || 1))}</span>
+                            <div key={i} className="flex justify-between items-center font-semibold text-slate-600 text-xs">
+                              <span className="opacity-75">{t.l}</span>
+                              <span className="text-slate-800 font-bold">S/ {formatNum(t.v * Number(formData.tipoCambio || 1))}</span>
                             </div>
                           ))}
                         </div>
-                        <div className="bg-[#F0F9FF] p-16 rounded-[4rem] text-center border-2 border-indigo-50 shadow-inner relative overflow-hidden group">
+                        <div className="bg-[#F8FAFC] border border-slate-200/50 p-6 rounded-2xl text-center relative overflow-hidden group">
                           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent"></div>
-                          <p className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-4 relative z-10">TOTAL IMPUESTOS</p>
-                          <p className="text-6xl font-black text-[#0F172A] tracking-tighter relative z-10 leading-none">S/ {formatNum((totals.adValoremG + totals.igv + totals.ipm + totals.perc) * (formData.tipoCambio || 1))}</p>
+                          <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5 relative z-10">TOTAL IMPUESTOS</p>
+                          <p className="text-3xl font-extrabold text-slate-900 tracking-tight relative z-10 leading-none">
+                            S/ {formatNum((totals.adValoremG + totals.igv + totals.ipm + totals.perc) * (formData.tipoCambio || 1))}
+                          </p>
                         </div>
                       </div>
                     </div>
 
                     {/* Distribución de Costos y Proyección de Ventas */}
-                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-                      <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/20">
-                        <h3 className="font-black text-[#1E293B] text-2xl tracking-tight">Distribución de Costos y Proyección de Ventas</h3>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Análisis de rentabilidad por producto</p>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-100/60 bg-slate-50/30">
+                        <h3 className="font-bold text-slate-800 text-sm tracking-tight">Distribución de Costos y Proyección de Ventas</h3>
+                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">Análisis de rentabilidad por producto y costos unitarios nacionalizados</p>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-[#F8FAFC] text-slate-400 font-black uppercase text-[10px] border-b border-slate-100">
+                        <table className="w-full text-xs">
+                          <thead className="bg-[#F8FAFC] text-slate-400 font-bold uppercase text-[9px] border-b border-slate-100 tracking-wider">
                             <tr>
-                              <th className="px-6 py-5 text-left whitespace-nowrap">PRODUCTO</th>
-                              <th className="px-6 py-5 text-center whitespace-nowrap">CANT.</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">COSTO UNIT. ({formData.moneda})</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap text-indigo-500">COSTO LOTE ({formData.moneda})</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">COSTO UNIT. (PEN)</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">PRECIO VENTA (PEN)</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">DESC. B2B (%)</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">MARGEN %</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">UTILIDAD UNIT. (PEN)</th>
-                              <th className="px-6 py-5 text-right whitespace-nowrap">UTILIDAD TOTAL (PEN)</th>
+                              <th className="px-4 py-2.5 text-left whitespace-nowrap">PRODUCTO</th>
+                              <th className="px-3 py-2.5 text-center whitespace-nowrap">CANT.</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap">COSTO UNIT. ({formData.moneda})</th>
+                              <th className="px-4 py-2.5 text-right whitespace-nowrap text-indigo-600">COSTO LOTE ({formData.moneda})</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap">COSTO UNIT. (PEN)</th>
+                              <th className="px-4 py-2.5 text-right whitespace-nowrap w-24">P. VENTA (PEN)</th>
+                              <th className="px-4 py-2.5 text-right whitespace-nowrap w-20">DESC. B2B (%)</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap">MARGEN %</th>
+                              <th className="px-3 py-2.5 text-right whitespace-nowrap">UTILIDAD (PEN)</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
@@ -563,80 +619,69 @@ const Costeos = () => {
                               const isPositive = utilidadUnit >= 0;
                               
                               return (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="px-6 py-5">
-                                    <p className="font-black text-[#1E293B] text-sm leading-tight">{item.producto || '-'}</p>
-                                    {item.sku && <p className="text-[10px] font-bold text-slate-400 mt-0.5">{item.sku}</p>}
+                                <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
+                                  <td className="px-4 py-2.5">
+                                    <p className="font-semibold text-slate-800 text-xs leading-tight">{item.producto || '-'}</p>
+                                    {item.sku && <p className="text-[9px] font-bold text-slate-400 mt-0.5">{item.sku}</p>}
                                   </td>
-                                  <td className="px-6 py-5 text-center">
-                                    <span className="font-black text-slate-600">{item.cantidad}</span>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <span className="font-bold text-slate-600">{item.cantidad}</span>
                                   </td>
-                                  <td className="px-6 py-5 text-right">
-                                    <span className="font-black text-slate-700">{formData.moneda === 'EUR' ? '€' : '$'}{formatNum(costoUnitUSD)}</span>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className="font-bold text-slate-700">{formData.moneda === 'EUR' ? '€' : '$'}{formatNum(costoUnitUSD)}</span>
                                   </td>
-                                  <td className="px-6 py-5 text-right">
-                                    <span className="font-black text-indigo-600 text-base">{formData.moneda === 'EUR' ? '€' : '$'}{formatNum(costoLoteUSD)}</span>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <span className="font-bold text-indigo-600">{formData.moneda === 'EUR' ? '€' : '$'}{formatNum(costoLoteUSD)}</span>
                                   </td>
-                                  <td className="px-6 py-5 text-right">
-                                    <span className="font-black text-slate-700">S/{formatNum(costoUnitPEN)}</span>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className="font-bold text-slate-700">S/{formatNum(costoUnitPEN)}</span>
                                   </td>
-                                  <td className="px-6 py-5 text-right">
+                                  <td className="px-4 py-2">
                                     <input
                                       type="number"
                                       value={item.precioVentaPEN || ''}
                                       onChange={(e) => updateItem(idx, 'precioVentaPEN', parseFloat(e.target.value) || 0)}
-                                      className="bg-slate-50 rounded-xl px-3 py-2 border-0 font-black text-[#1E293B] w-24 text-right focus:ring-2 focus:ring-indigo-400"
+                                      className="w-full bg-slate-50 border border-slate-200/60 rounded-lg px-2 py-1 text-xs font-semibold text-right focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                                       placeholder="0"
                                       disabled={isViewing}
                                     />
                                   </td>
-                                  <td className="px-6 py-5 text-right">
+                                  <td className="px-4 py-2">
                                     <input
                                       type="number"
                                       value={item.descuentoPorcentaje || ''}
                                       onChange={(e) => updateItem(idx, 'descuentoPorcentaje', parseFloat(e.target.value) || 0)}
-                                      className="bg-slate-50 rounded-xl px-3 py-2 border-0 font-black text-slate-600 w-20 text-right focus:ring-2 focus:ring-slate-300"
+                                      className="w-full bg-slate-50 border border-slate-200/60 rounded-lg px-2 py-1 text-xs font-semibold text-right focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                                       placeholder="0.0"
                                       disabled={isViewing}
                                     />
                                   </td>
-                                  <td className="px-6 py-5 text-right">
-                                    <span className={`font-black text-base ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
                                       {formatNum(margen)}%
                                     </span>
                                   </td>
-                                  <td className="px-6 py-5 text-right">
-                                    <span className={`font-black text-base ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                      S/{formatNum(utilidadUnit)}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-5 text-right">
-                                    <span className={`font-black text-base ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                      S/{formatNum(utilidadTotal)}
-                                    </span>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <div className="flex flex-col items-end">
+                                      <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        S/{formatNum(utilidadTotal)}
+                                      </span>
+                                      <span className="text-[8px] text-slate-400 mt-0.5">S/{formatNum(utilidadUnit)} u.</span>
+                                    </div>
                                   </td>
                                 </tr>
                               );
                             })}
                           </tbody>
                           {totals.finalItems.length > 0 && (
-                            <tfoot className="bg-[#F8FAFC] border-t-2 border-slate-200">
+                            <tfoot className="bg-slate-50/80 border-t border-slate-200 font-semibold text-slate-700 text-xs">
                               <tr>
-                                <td colSpan={3} className="px-6 py-5 font-black text-slate-500 uppercase text-[11px] tracking-widest">TOTALES</td>
-                                <td className="px-6 py-5 text-right font-black text-indigo-700 text-base">
+                                <td colSpan={3} className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">TOTALES</td>
+                                <td className="px-4 py-2.5 text-right font-bold text-indigo-600">
                                   {formData.moneda === 'EUR' ? '€' : '$'}{formatNum(totals.finalItems.reduce((s: number, i: any) => s + (i.costoTotalUnitario || 0) * (Number(i.cantidad) || 0), 0))}
                                 </td>
-                                <td colSpan={4} className="px-6 py-5"></td>
-                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-base">
-                                  S/{formatNum(totals.finalItems.reduce((s: number, i: any) => {
-                                    const tc2 = Number(formData.tipoCambio || 1);
-                                    const costoU = (i.costoTotalUnitario || 0) * tc2;
-                                    const pvSinIGV = (Number(i.precioVentaPEN) || 0) / 1.18;
-                                    const dsc = pvSinIGV * ((Number(i.descuentoPorcentaje) || 0) / 100);
-                                    return s + (pvSinIGV - dsc - costoU);
-                                  }, 0))}
-                                </td>
-                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-base">
+                                <td colSpan={4} className="px-3 py-2.5"></td>
+                                <td className="px-3 py-2.5 text-right font-bold text-emerald-600">
                                   S/{formatNum(totals.finalItems.reduce((s: number, i: any) => {
                                     const tc2 = Number(formData.tipoCambio || 1);
                                     const costoU = (i.costoTotalUnitario || 0) * tc2;
@@ -654,19 +699,21 @@ const Costeos = () => {
                   </div>
 
                   {/* RIGHT COLUMN (4/12) */}
-                  <div className="col-span-12 xl:col-span-4 space-y-12">
+                  <div className="col-span-12 xl:col-span-4 space-y-6">
                     
                     {/* Operation Info */}
-                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
-                      <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12 flex items-center gap-3"><Info size={22} className="text-indigo-600" /> Información de Operación</h3>
-                      <div className="space-y-10">
-                        <div className="grid grid-cols-2 gap-10">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-6 flex items-center gap-2">
+                        <Info size={16} className="text-indigo-500" /> Información de Operación
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">ORDEN DE IMPORTACIÓN (OPCIONAL)</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">ORDEN DE IMPORTACIÓN (OPC)</p>
                             <select 
                               value={formData.ordenId} 
                               onChange={(e) => handleOrdenChange(e.target.value)} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-lg w-full focus:ring-0" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing}
                             >
                               <option value="">-- NINGUNA --</option>
@@ -676,25 +723,25 @@ const Costeos = () => {
                             </select>
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CLIENTE</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">CLIENTE</p>
                             <input 
                               type="text" 
                               value={formData.clienteNombre} 
                               onChange={(e) => setFormData({...formData, clienteNombre: e.target.value.toUpperCase()})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-lg w-full focus:ring-2 focus:ring-indigo-500 uppercase" 
-                              placeholder="NOMBRE DEL CLIENTE..." 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all uppercase" 
+                              placeholder="Nombre..." 
                               disabled={isViewing} 
                             />
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">MONEDA</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">MONEDA</p>
                             <select 
                               value={formData.moneda} 
                               onChange={(e) => setFormData({...formData, moneda: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-xl w-full focus:ring-0" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing}
                             >
                               <option value="USD">USD - DÓLARES</option>
@@ -702,21 +749,28 @@ const Costeos = () => {
                             </select>
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">TIPO DE CAMBIO</p>
-                            <div className="flex items-center gap-2 bg-slate-50/50 rounded-xl px-4 py-3">
-                              <span className="text-indigo-500 font-black text-sm">S/</span>
-                              <input type="number" step="0.001" value={formData.tipoCambio || ''} onChange={(e) => setFormData({...formData, tipoCambio: parseFloat(e.target.value) || 0})} className="bg-transparent border-0 font-black text-[#1E293B] text-2xl p-0 focus:ring-0 leading-none w-full" disabled={isViewing} />
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">TIPO DE CAMBIO</p>
+                            <div className="flex items-center gap-1.5 bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                              <span className="text-indigo-500 font-bold text-xs">S/</span>
+                              <input 
+                                type="number" 
+                                step="0.001" 
+                                value={formData.tipoCambio || ''} 
+                                onChange={(e) => setFormData({...formData, tipoCambio: parseFloat(e.target.value) || 0})} 
+                                className="bg-transparent border-0 font-bold text-slate-800 text-xs p-0 focus:ring-0 w-full outline-none" 
+                                disabled={isViewing} 
+                              />
                             </div>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">INCOTERM</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">INCOTERM</p>
                             <select 
                               value={formData.incoterm} 
                               onChange={(e) => setFormData({...formData, incoterm: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#4F46E5] text-xl w-full focus:ring-0" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-600 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing}
                             >
                               <option value="FOB">FOB</option>
@@ -725,11 +779,11 @@ const Costeos = () => {
                             </select>
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">MODALIDAD</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">MODALIDAD</p>
                             <select 
                               value={formData.modalidad} 
                               onChange={(e) => setFormData({...formData, modalidad: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-slate-500 text-xl w-full focus:ring-0 uppercase" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all uppercase" 
                               disabled={isViewing}
                             >
                               <option value="AEREO">AÉREO</option>
@@ -740,12 +794,12 @@ const Costeos = () => {
                         </div>
 
                         <div>
-                          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">CANAL ADUANA</p>
-                          <div className="flex items-center gap-4">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">CANAL ADUANA</p>
+                          <div className="flex items-center gap-3">
                             <select 
                               value={formData.canal} 
                               onChange={(e) => setFormData({...formData, canal: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] text-xl w-full focus:ring-0" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing}
                             >
                               <option value="VERDE">VERDE</option>
@@ -753,99 +807,99 @@ const Costeos = () => {
                               <option value="ROJO">ROJO</option>
                               <option value="SIN_CANAL">SIN CANAL</option>
                             </select>
-                            <span className={`w-10 h-10 rounded-full shrink-0 ${
-                              formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-xl shadow-emerald-200' : 
-                              formData.canal === 'AMARILLO' ? 'bg-orange-500 shadow-xl shadow-orange-200' : 
-                              formData.canal === 'ROJO' ? 'bg-rose-500 shadow-xl shadow-rose-200' : 
-                              'bg-slate-200 shadow-xl shadow-slate-100'
+                            <span className={`w-6 h-6 rounded-full shrink-0 border border-slate-200/50 shadow-sm ${
+                              formData.canal === 'VERDE' ? 'bg-emerald-500 shadow-emerald-100' : 
+                              formData.canal === 'AMARILLO' ? 'bg-orange-500 shadow-orange-100' : 
+                              formData.canal === 'ROJO' ? 'bg-rose-500 shadow-rose-100' : 
+                              'bg-slate-200 shadow-slate-50'
                             }`}></span>
                           </div>
                         </div>
 
                         {/* Dates row */}
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">FECHA DE SALIDA</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">FECHA DE SALIDA</p>
                             <input 
                               type="date" 
                               value={formData.fechaEmbarque} 
                               onChange={(e) => setFormData({...formData, fechaEmbarque: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing} 
                             />
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">FECHA DE LLEGADA</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">FECHA DE LLEGADA</p>
                             <input 
                               type="date" 
                               value={formData.fechaLlegada} 
                               onChange={(e) => setFormData({...formData, fechaLlegada: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing} 
                             />
                           </div>
                         </div>
 
                         {/* Proveedor / Invoice */}
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">PROVEEDOR</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">PROVEEDOR</p>
                             <input 
                               type="text" 
                               value={formData.proveedorExtranjero} 
                               onChange={(e) => setFormData({...formData, proveedorExtranjero: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500 uppercase" 
-                              placeholder="NOMBRE DEL PROVEEDOR..." 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all uppercase" 
+                              placeholder="Nombre..." 
                               disabled={isViewing} 
                             />
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">INVOICE / FACTURA</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">INVOICE / FACTURA</p>
                             <input 
                               type="text" 
                               value={formData.nroFacturaComercial} 
                               onChange={(e) => setFormData({...formData, nroFacturaComercial: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
-                              placeholder="NRO. INVOICE..." 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
+                              placeholder="Nro..." 
                               disabled={isViewing} 
                             />
                           </div>
                         </div>
 
                         {/* NRO DAM / Observaciones */}
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">NRO. DAM</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">NRO. DAM</p>
                             <input 
                               type="text" 
                               value={formData.nroDAM} 
                               onChange={(e) => setFormData({...formData, nroDAM: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
-                              placeholder="NRO. DAM..." 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
+                              placeholder="Nro..." 
                               disabled={isViewing} 
                             />
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">OBSERVACIONES</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">OBSERVACIONES</p>
                             <input 
                               type="text" 
                               value={formData.observaciones} 
                               onChange={(e) => setFormData({...formData, observaciones: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-bold text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
-                              placeholder="Observaciones..." 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
+                              placeholder="Notas..." 
                               disabled={isViewing} 
                             />
                           </div>
                         </div>
 
                         {/* Tipo de Carga / Nro de Contenedor */}
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">TIPO DE CARGA</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">TIPO DE CARGA</p>
                             <select 
                               value={formData.tipoCarga} 
                               onChange={(e) => setFormData({...formData, tipoCarga: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
                               disabled={isViewing}
                             >
                               <option value="">SELECCIONAR...</option>
@@ -854,13 +908,13 @@ const Costeos = () => {
                             </select>
                           </div>
                           <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">NRO. CONTENEDOR</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">NRO. CONTENEDOR</p>
                             <input 
                               type="text" 
                               value={formData.nroContenedor || ''} 
                               onChange={(e) => setFormData({...formData, nroContenedor: e.target.value})} 
-                              className="bg-slate-50/50 rounded-xl px-4 py-3 border-0 font-black text-[#1E293B] w-full focus:ring-2 focus:ring-indigo-500" 
-                              placeholder="NRO. CONTENEDOR..." 
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" 
+                              placeholder="Nro..." 
                               disabled={isViewing} 
                             />
                           </div>
@@ -870,9 +924,9 @@ const Costeos = () => {
                     </div>
 
                     {/* Logistics Card */}
-                    <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
-                      <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12">LOGÍSTICA OPERATIVA</h3>
-                      <div className="space-y-8">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-6">LOGÍSTICA OPERATIVA</h3>
+                      <div className="space-y-4">
                         {[
                           { l: 'Gastos de Origen', f: 'gastosOrigen', fobLocked: true },
                           { l: 'Flete Internacional', f: 'fleteInternacional' },
@@ -881,45 +935,55 @@ const Costeos = () => {
                         ].map((lo, i) => {
                           const isFobLocked = lo.fobLocked && formData.incoterm === 'FOB';
                           return (
-                          <div key={i} className="flex justify-between items-center font-bold text-slate-600">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-base ${isFobLocked ? 'opacity-40' : ''}`}>{lo.l}</span>
-                              {isFobLocked && <span className="text-[9px] font-black bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full uppercase">FOB</span>}
+                          <div key={i} className="flex justify-between items-center text-xs font-semibold text-slate-600">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`${isFobLocked ? 'opacity-40' : ''}`}>{lo.l}</span>
+                              {isFobLocked && <span className="text-[8px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.25 rounded-md uppercase">FOB</span>}
                             </div>
-                            <div className="flex items-center gap-3 font-black text-[#1E293B]">
-                              <span className={`text-sm ${isFobLocked ? 'text-slate-200' : 'text-slate-300'}`}>{formData.moneda === 'EUR' ? '€' : '$'}</span>
+                            <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                              <span className={`text-[10px] ${isFobLocked ? 'text-slate-350' : 'text-slate-400'}`}>{formData.moneda === 'EUR' ? '€' : '$'}</span>
                               <input 
                                 type="number" 
                                 value={isFobLocked ? '' : ((formData as any)[lo.f] || '')} 
                                 onChange={(e) => setFormData({...formData, [lo.f]: e.target.value === '' ? 0 : parseFloat(e.target.value)})} 
-                                className={`rounded-lg px-2 py-1 border-0 text-right w-24 text-xl focus:ring-0 leading-none ${isFobLocked ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-50/50'}`} 
-                                placeholder={isFobLocked ? 'N/A (FOB)' : lo.placeholder}
+                                className={`rounded-lg px-2 py-1 text-right w-20 text-xs border focus:outline-none transition-all ${
+                                  isFobLocked 
+                                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' 
+                                    : 'bg-slate-50/50 border-slate-200/60 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+                                }`} 
+                                placeholder={isFobLocked ? 'N/A' : lo.placeholder}
                                 disabled={isViewing || isFobLocked} 
                               />
                             </div>
                           </div>
                           );
                         })}
-                        <div className="pt-10 border-t border-slate-50 flex justify-between items-center">
-                          <span className="font-black text-[#1E293B] text-sm uppercase tracking-[0.2em] opacity-60">Total Operativos</span>
-                          <span className="font-black text-[#1E293B] text-2xl tracking-tighter">
+                        <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                          <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider">Total Operativos</span>
+                          <span className="font-bold text-slate-800 text-lg">
                             {formData.moneda === 'EUR' ? '€' : '$'} {formatNum(totals.totalOperativoOriginal)}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Rentabilidad ESTIMADA - DARK CARD */}
-                    <div className="bg-[#0F172A] p-12 rounded-[4rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] text-white relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:scale-150 transition-all duration-1000"><TrendingUp size={200} /></div>
-                      <p className="text-[12px] font-black text-slate-500 uppercase tracking-[0.5em] mb-12 relative z-10">RENTABILIDAD ESTIMADA</p>
-                      <div className="mb-14 relative z-10">
-                        <p className="text-[13px] font-black text-indigo-400 mb-4 uppercase tracking-[0.2em]">Precio Venta Objetivo (PEN)</p>
-                        <p className="text-6xl font-black tracking-tighter leading-none">S/ {formatNum(totals.ingTotalPEN)}</p>
+                    {/* Rentabilidad ESTIMADA - DEEP GRADIENT CARD */}
+                    <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 rounded-2xl shadow-xl border border-slate-800/80 text-white relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] text-slate-400 group-hover:scale-125 transition-all duration-1000"><TrendingUp size={100} /></div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 relative z-10">RENTABILIDAD ESTIMADA</p>
+                      <div className="mb-8 relative z-10">
+                        <p className="text-[10px] font-bold text-indigo-300 mb-1.5 uppercase tracking-wider">Ingreso de Venta Objetivo (PEN)</p>
+                        <p className="text-3xl font-extrabold tracking-tight leading-none">S/ {formatNum(totals.ingTotalPEN)}</p>
                       </div>
-                      <div className="grid grid-cols-2 gap-12 pt-12 border-t border-white/5 relative z-10">
-                        <div><p className="text-[11px] font-black text-slate-500 uppercase mb-3 tracking-widest">UTILIDAD NETA</p><p className="text-3xl font-black text-emerald-400 tracking-tighter leading-none">S/ {formatNum(totals.uTotalPEN)}</p></div>
-                        <div><p className="text-[11px] font-black text-slate-500 uppercase mb-3 tracking-widest">MARGEN REAL</p><p className="text-3xl font-black text-indigo-400 tracking-tighter leading-none">{formatNum(totals.margProm)}%</p></div>
+                      <div className="grid grid-cols-2 gap-4 pt-5 border-t border-white/5 relative z-10">
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-500 uppercase mb-1 tracking-wider">UTILIDAD NETA</p>
+                          <p className="text-lg font-bold text-emerald-400 leading-none">S/ {formatNum(totals.uTotalPEN)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-500 uppercase mb-1 tracking-wider">MARGEN PROMEDIO</p>
+                          <p className="text-lg font-bold text-indigo-300 leading-none">{formatNum(totals.margProm)}%</p>
+                        </div>
                       </div>
                     </div>
 
@@ -938,8 +1002,8 @@ const Costeos = () => {
           left: 0 !important;
           right: 0 !important;
           bottom: 0 !important;
-          background: rgba(15, 23, 42, 0.9) !important;
-          backdrop-filter: blur(8px) !important;
+          background: rgba(15, 23, 42, 0.65) !important;
+          backdrop-filter: blur(12px) !important;
           z-index: 10000 !important;
           display: flex !important;
           align-items: center !important;
@@ -948,18 +1012,33 @@ const Costeos = () => {
           margin: 0 !important;
         }
         .modal-inner-full {
-          width: 100vw !important;
-          height: 100vh !important;
+          width: 95vw !important;
+          max-width: 1460px !important;
+          height: 90vh !important;
           display: flex !important;
           flex-direction: column !important;
           background: #F8FAFC !important;
           position: relative !important;
+          border-radius: 1.5rem !important;
+          border: 1px solid rgba(226, 232, 240, 0.8) !important;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
           overflow: hidden !important;
+          animation: modal-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        @keyframes modal-slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         .order-id strong { color: var(--primary, #4f46e5); display: block; }
         .order-id small { color: var(--text-light, #64748b); font-size: 0.7rem; }
