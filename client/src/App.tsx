@@ -89,9 +89,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-bottom: 2rem;
+          padding: 1rem 0 1.25rem 0;
           margin-bottom: 2rem;
-          border-bottom: 1px solid var(--border);
+          border-bottom: 1px solid rgba(226, 232, 240, 0.8);
         }
         .header-actions {
           display: flex;
@@ -100,35 +100,60 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         .company-selector {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          background: #f8fafc;
-          padding: 0.5rem 1rem;
-          border-radius: 6px;
-          border: 1px solid var(--border);
+          gap: 0.625rem;
+          background: rgba(241, 245, 249, 0.6);
+          padding: 0.45rem 0.875rem;
+          border-radius: 0.75rem;
+          border: 1px solid rgba(226, 232, 240, 0.9);
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .company-selector:hover {
+          background: var(--white);
+          border-color: var(--primary);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.05);
         }
         .company-selector .label {
-          font-size: 0.8rem;
+          font-size: 0.725rem;
           color: var(--text-light);
-          font-weight: 600;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
         .company-selector select {
           border: none;
           background: transparent;
-          font-weight: 600;
+          font-weight: 700;
           color: var(--primary);
           outline: none;
           cursor: pointer;
+          font-size: 0.825rem;
+          padding: 0;
         }
         .header-user {
           text-align: right;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.25rem;
         }
         .header-user span {
           display: block;
-          font-size: 0.9rem;
+          font-size: 0.875rem;
+          color: var(--text-dark);
+        }
+        .header-user span strong {
+          color: var(--primary);
+          font-weight: 700;
         }
         .header-user small {
           color: var(--text-light);
-          font-size: 0.75rem;
+          font-size: 0.725rem;
+          font-weight: 600;
+          background: rgba(241, 245, 249, 0.9);
+          padding: 0.125rem 0.625rem;
+          border-radius: 9999px;
+          border: 1px solid rgba(226, 232, 240, 0.5);
+          display: inline-block;
         }
       `}</style>
     </div>
