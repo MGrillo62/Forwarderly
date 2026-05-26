@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 const formatNum = (val: number) => 
   new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
@@ -8,197 +7,524 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // --- HEADER SECTION ---
-  // Top Header Line
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184); // slate-400
-  doc.text('Forwarderly Financial Systems — Settlement Report', 15, 10);
-  doc.line(15, 12, 195, 12);
+  // --- CLIENT NAME LOGIC ---
+  const getClientName = () => {
+    if (order.cotizacion) {
+      return order.cotizacion.cliente?.razonSocial || order.cotizacion.lead?.nombre || order.cotizacion.lead?.contacto || 'SIN CLIENTE';
+    }
+    if (order.cotizacionesAsociadas && order.cotizacionesAsociadas.length > 0) {
+      const names = order.cotizacionesAsociadas.map((c: any) => c.cliente?.razonSocial || c.lead?.nombre || c.lead?.contacto).filter(Boolean);
+      const uniqueNames = Array.from(new Set(names));
+      return uniqueNames.join(' / ') || 'SIN CLIENTE';
+    }
+    return 'SIN CLIENTE';
+  };
+  const clienteName = getClientName();
 
-  // Logo
+  // --- HEADER SECTION ---
+  let startY = 18;
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', 15, 15, 35, 12);
+      doc.addImage(logoBase64, 'PNG', 15, 12, 35, 10);
+      startY = 28;
     } catch (e) {
-      console.error('Error drawing logo in Settlement PDF:', e);
+      console.error('Error drawing logo:', e);
+      startY = 18;
     }
   }
 
-  // Document Title
-  doc.setFontSize(18);
+  // Title left aligned
+  doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42); // slate-900
-  doc.text('LIQUIDACIÓN DE COBRANZA', 195, 22, { align: 'right' });
+  doc.text(`GESTIÓN INTEGRAL DE COBROS — ORD-${order.correlativo}`, 15, startY);
 
-  // Document Metadata
-  doc.setFontSize(9);
+  // Client info below title (Large client name)
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105); // slate-600
+  doc.text('Cliente:', 15, startY + 7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(13); // Large text for the client's name
+  doc.text(clienteName, 29, startY + 7);
+
+  // State in the top right
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139); // slate-500
-  const correlativoStr = `ORD-${String(order.correlativo).padStart(4, '0')}-${order.anio}`;
-  doc.text(`Referencia Orden: ${correlativoStr}`, 195, 27, { align: 'right' });
-  doc.text(`Fecha Emisión: ${new Date().toLocaleDateString()}`, 195, 32, { align: 'right' });
+  doc.text('ESTADO DEL DOCUMENTO', 195, startY - 3, { align: 'right' });
 
-  // --- COORDINATES / METADATA CARD ---
-  // We will build a beautiful card with double column details
-  const cardY = 38;
-  doc.setFillColor(248, 250, 252); // slate-50
+  // Badge background
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.roundedRect(162, startY - 1.5, 33, 5, 0.5, 0.5, 'F');
+  // Badge text
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text('CONSOLIDADO', 178.5, startY + 2.2, { align: 'center' });
+
+  // Separator Line
   doc.setDrawColor(226, 232, 240); // slate-200
-  doc.roundedRect(15, cardY, 180, 32, 2, 2, 'FD');
+  doc.line(15, startY + 11, 195, startY + 11);
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(79, 70, 229); // Indigo-600
-  doc.text('COORDINADAS LOGÍSTICAS Y CLIENTE', 18, cardY + 6);
-  doc.line(18, cardY + 8, 80, cardY + 8);
+  // --- TOTALS CALCULATION ---
+  const lines: any[] = [];
+  if (order.cotizacion?.lineas) {
+    order.cotizacion.lineas.forEach((l: any) => {
+      lines.push({
+        ...l,
+        moneda: order.cotizacion.moneda,
+        cotizacionNumero: order.cotizacion.numero
+      });
+    });
+  }
+  if (order.cotizacionesAsociadas) {
+    order.cotizacionesAsociadas.forEach((c: any) => {
+      if (c.lineas) {
+        c.lineas.forEach((l: any) => {
+          lines.push({
+            ...l,
+            moneda: c.moneda,
+            cotizacionNumero: c.numero
+          });
+        });
+      }
+    });
+  }
 
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
+  let usdTotal = 0;
+  let penTotal = 0;
+  let eurTotal = 0;
 
-  // Left Column
-  const clienteName = order.cotizacion?.cliente?.razonSocial || order.cotizacion?.lead?.nombre || 'SIN CLIENTE';
-  const clienteDoc = order.cotizacion?.cliente?.ruc || order.cotizacion?.lead?.ruc || 'SIN DOCUMENTO';
-  doc.setFont('helvetica', 'bold');
-  doc.text('Cliente:', 18, cardY + 15);
-  doc.setFont('helvetica', 'normal');
-  doc.text(clienteName, 35, cardY + 15);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('RUC / ID:', 18, cardY + 22);
-  doc.setFont('helvetica', 'normal');
-  doc.text(clienteDoc, 35, cardY + 22);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Incoterm:', 18, cardY + 27);
-  doc.setFont('helvetica', 'normal');
-  doc.text(order.incoterm || 'N/A', 35, cardY + 27);
-
-  // Right Column
-  doc.setFont('helvetica', 'bold');
-  doc.text('Nro. BL:', 110, cardY + 15);
-  doc.setFont('helvetica', 'normal');
-  doc.text(order.nroBL || 'N/A', 128, cardY + 15);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Nro. DAM:', 110, cardY + 22);
-  doc.setFont('helvetica', 'normal');
-  doc.text(order.nroDAM || 'N/A', 128, cardY + 22);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Modalidad:', 110, cardY + 27);
-  doc.setFont('helvetica', 'normal');
-  doc.text(order.modalidad || 'N/A', 128, cardY + 27);
-
-  // --- COLLECTIONS TABLE ---
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text('Cobros Recaudados', 15, cardY + 40);
-
-  const tableRows = cobros.map((c: any) => {
-    const fecha = c.fechaPago ? new Date(c.fechaPago).toLocaleDateString() : (c.fechaCobro ? new Date(c.fechaCobro).toLocaleDateString() : '-');
-    const monto = Number(c.monto) || 0;
-    const tc = Number(c.tipoCambio) || 1;
-    const totalPEN = c.moneda === 'PEN' ? monto : monto * tc;
-
-    return [
-      fecha,
-      c.modalidad || '-',
-      c.referencia || '-',
-      c.banco || '-',
-      c.moneda,
-      `${c.moneda === 'PEN' ? 'S/' : c.moneda === 'EUR' ? '€' : '$'} ${formatNum(monto)}`,
-      formatNum(tc),
-      `S/ ${formatNum(totalPEN)}`
-    ];
+  lines.forEach((l: any) => {
+    const val = Number(l.precioVenta) || 0;
+    if (l.moneda === 'USD') usdTotal += val;
+    else if (l.moneda === 'PEN') penTotal += val;
+    else if (l.moneda === 'EUR') eurTotal += val;
   });
 
-  autoTable(doc, {
-    startY: cardY + 44,
-    margin: { left: 15, right: 15 },
-    head: [['Fecha', 'Modalidad', 'Referencia', 'Banco', 'Moneda', 'Monto', 'T.C.', 'Total PEN']],
-    body: tableRows,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [79, 70, 229], // Indigo-600
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 8.5,
-      halign: 'center'
-    },
-    styles: {
-      fontSize: 8,
-      textColor: [15, 23, 42],
-      halign: 'center'
-    },
-    columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 25 },
-      4: { cellWidth: 15 },
-      5: { cellWidth: 25, halign: 'right' },
-      6: { cellWidth: 15, halign: 'right' },
-      7: { cellWidth: 35, halign: 'right' }
+  let totalTributosPEN = 0;
+  if (order.costeo) {
+    const tcCosteo = Number(order.costeo.tipoCambio) || 1;
+    const adValorem = (Number(order.costeo.adValoremGlobal) || 0) * tcCosteo;
+    const igv = (Number(order.costeo.igv) || 0) * tcCosteo;
+    const ipm = (Number(order.costeo.ipm) || 0) * tcCosteo;
+    const percepcion = (Number(order.costeo.percepcionMonto) || 0) * tcCosteo;
+    totalTributosPEN = adValorem + igv + ipm + percepcion;
+  }
+  penTotal += totalTributosPEN;
+
+  let usdCobrado = 0;
+  let penCobrado = 0;
+  let eurCobrado = 0;
+
+  cobros.forEach((c: any) => {
+    const val = Number(c.monto) || 0;
+    if (c.moneda === 'USD') usdCobrado += val;
+    else if (c.moneda === 'PEN') penCobrado += val;
+    else if (c.moneda === 'EUR') eurCobrado += val;
+  });
+
+  const legacyPayments = order.pagos?.reduce((acc: number, p: any) => acc + (Number(p.monto) || 0), 0) || 0;
+  penCobrado += legacyPayments;
+
+  const usdPending = Math.max(0, usdTotal - usdCobrado);
+  const penPending = Math.max(0, penTotal - penCobrado);
+
+  // --- SECTION 1: SALDOS SEGREGADOS POR MONEDA ---
+  const sec1Y = startY + 18;
+  doc.setFillColor(79, 70, 229); // Indigo-600
+  doc.rect(15, sec1Y - 3, 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(79, 70, 229);
+  doc.text('SALDOS SEGREGADOS POR MONEDA', 20, sec1Y - 0.5);
+
+  // Cards layout: side by side
+  // Left: USD Card
+  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(15, sec1Y + 3, 87, 26, 1, 1, 'FD');
+  // Card Header Fill
+  doc.setFillColor(239, 246, 255); // blue-50
+  doc.roundedRect(15.1, 41.1 + (sec1Y - 38), 86.8, 6.5, 1, 1, 'F');
+  // Header line
+  doc.setDrawColor(219, 234, 254); // blue-100
+  doc.line(15, sec1Y + 9.5, 102, sec1Y + 9.5);
+  // Header text
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(29, 78, 216); // blue-700
+  doc.text('USD ($)', 19, sec1Y + 7.5);
+
+  // USD Values
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139); // slate-500
+  doc.setFont('helvetica', 'normal');
+  doc.text('Total:', 19, sec1Y + 14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`$ ${formatNum(usdTotal)}`, 98, sec1Y + 14, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Cobrado:', 19, sec1Y + 19);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(37, 99, 235); // blue-600
+  doc.text(`$ ${formatNum(usdCobrado)}`, 98, sec1Y + 19, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Pendiente:', 19, sec1Y + 24);
+  doc.setFont('helvetica', 'bold');
+  if (usdPending > 0.01) {
+    doc.setTextColor(239, 68, 68); // red-500
+  } else {
+    doc.setTextColor(15, 23, 42);
+  }
+  doc.text(`$ ${formatNum(usdPending)}`, 98, sec1Y + 24, { align: 'right' });
+
+  // Right: PEN Card
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(108, sec1Y + 3, 87, 26, 1, 1, 'FD');
+  // Card Header Fill
+  doc.setFillColor(239, 246, 255);
+  doc.roundedRect(108.1, 41.1 + (sec1Y - 38), 86.8, 6.5, 1, 1, 'F');
+  // Header line
+  doc.setDrawColor(219, 234, 254);
+  doc.line(108, sec1Y + 9.5, 195, sec1Y + 9.5);
+  // Header text
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(29, 78, 216);
+  doc.text('PEN (S/)', 112, sec1Y + 7.5);
+
+  // PEN Values
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Total:', 112, sec1Y + 14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`S/ ${formatNum(penTotal)}`, 191, sec1Y + 14, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Cobrado:', 112, sec1Y + 19);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(37, 99, 235);
+  doc.text(`S/ ${formatNum(penCobrado)}`, 191, sec1Y + 19, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Pendiente:', 112, sec1Y + 24);
+  doc.setFont('helvetica', 'bold');
+  if (penPending > 0.01) {
+    doc.setTextColor(239, 68, 68);
+  } else {
+    doc.setTextColor(15, 23, 42);
+  }
+  doc.text(`S/ ${formatNum(penPending)}`, 191, sec1Y + 24, { align: 'right' });
+
+  // --- SECTION 2: CONCEPTOS DEL DESPACHO A COBRAR ---
+  const sec2Y = sec1Y + 38;
+  doc.setFillColor(79, 70, 229);
+  doc.rect(15, sec2Y - 3, 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(79, 70, 229);
+  doc.text('CONCEPTOS DEL DESPACHO A COBRAR', 20, sec2Y - 0.5);
+
+  // Table Header
+  doc.setFillColor(248, 250, 252); // slate-50
+  doc.rect(15, sec2Y + 2, 180, 7.5, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.line(15, sec2Y + 2, 195, sec2Y + 2);
+  doc.line(15, sec2Y + 9.5, 195, sec2Y + 9.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('COBRAR', 23, sec2Y + 7, { align: 'center' });
+  doc.text('CONCEPTO / DOCUMENTO', 35, sec2Y + 7);
+  doc.text('VENTA', 191, sec2Y + 7, { align: 'right' });
+
+  // Parse billing documents from cobros
+  const lineDocs: Record<string, { tipoDocumento: string, nroDocumento: string, fechaDocumento: string }> = {};
+  cobros.forEach((c: any) => {
+    if (c.detallesLineas) {
+      try {
+        const parsed = typeof c.detallesLineas === 'string' ? JSON.parse(c.detallesLineas) : c.detallesLineas;
+        Object.assign(lineDocs, parsed);
+      } catch (e) {
+        console.error('Error parsing detallesLineas:', e);
+      }
     }
   });
 
-  // --- TOTALS CALCULATION & BOX ---
-  const finalY = (doc as any).lastAutoTable.finalY + 8;
+  // Concept Rows
+  let currentY = sec2Y + 9.5;
+  const rowHeight = 16.5;
 
-  // Compute totals
-  const currencyTotals: Record<string, number> = {};
-  let grandTotalPEN = 0;
+  lines.forEach((l: any) => {
+    // Bottom line
+    doc.setDrawColor(241, 245, 249);
+    doc.line(15, currentY + rowHeight, 195, currentY + rowHeight);
 
-  cobros.forEach((c: any) => {
-    const monto = Number(c.monto) || 0;
-    const tc = Number(c.tipoCambio) || 1;
-    const totalPEN = c.moneda === 'PEN' ? monto : monto * tc;
-    
-    grandTotalPEN += totalPEN;
-    currencyTotals[c.moneda] = (currencyTotals[c.moneda] || 0) + monto;
-  });
+    // Draw Checked Checkbox
+    doc.setDrawColor(37, 99, 235); // blue-600
+    doc.setFillColor(239, 246, 255); // blue-50
+    doc.roundedRect(21, currentY + 4, 4.5, 4.5, 0.5, 0.5, 'FD');
 
-  // Right-aligned totals summary card
-  const totalBoxW = 90;
-  const totalBoxH = 12 + (Object.keys(currencyTotals).length * 5);
-  const totalBoxX = pageWidth - 15 - totalBoxW;
+    // Checkmark SVG path mapped to lines
+    doc.setLineWidth(0.65);
+    doc.setDrawColor(37, 99, 235);
+    doc.line(22.2, currentY + 6.2, 23.2, currentY + 7.2);
+    doc.line(23.2, currentY + 7.2, 24.6, currentY + 5.0);
+    doc.setLineWidth(0.2); // reset
 
-  doc.setFillColor(248, 250, 252); // slate-50
-  doc.setDrawColor(79, 70, 229); // Indigo-600
-  doc.roundedRect(totalBoxX, finalY, totalBoxW, totalBoxH, 1, 1, 'FD');
-
-  let currentTotalY = finalY + 5;
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(100, 116, 139);
-  doc.text('RESUMEN DE RECAUDACIÓN', totalBoxX + 4, currentTotalY);
-  doc.line(totalBoxX + 4, currentTotalY + 1.5, totalBoxX + totalBoxW - 4, currentTotalY + 1.5);
-
-  currentTotalY += 5;
-  doc.setFont('helvetica', 'semibold');
-  doc.setTextColor(15, 23, 42);
-
-  // Print subtotal for each currency present
-  Object.entries(currencyTotals).forEach(([curr, sum]) => {
-    const symbol = curr === 'PEN' ? 'S/' : curr === 'EUR' ? '€' : '$';
-    doc.text(`Total en ${curr}:`, totalBoxX + 4, currentTotalY);
+    // Concept text
     doc.setFont('helvetica', 'bold');
-    doc.text(`${symbol} ${formatNum(sum)}`, totalBoxX + totalBoxW - 4, currentTotalY, { align: 'right' });
-    doc.setFont('helvetica', 'semibold');
-    currentTotalY += 5;
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(l.concepto?.nombre || 'Concepto General', 35, currentY + 5.5);
+
+    // Cot reference
+    const conceptW = doc.getTextWidth(l.concepto?.nombre || 'Concepto General');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184); // slate-400
+    doc.text(`Cot: ${String(l.cotizacionNumero).padStart(5, '0')}`, 35 + conceptW + 2.5, currentY + 5.5);
+
+    // Document Pill
+    const docInfo = lineDocs[l.id] || { tipoDocumento: 'Factura', nroDocumento: '-', fechaDocumento: '-' };
+    const formattedDate = docInfo.fechaDocumento && docInfo.fechaDocumento !== '-' 
+      ? new Date(docInfo.fechaDocumento).toLocaleDateString('es-PE') 
+      : '-';
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(35, currentY + 8, 92, 6, 0.5, 0.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('TIPO:', 38, currentY + 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.text(docInfo.tipoDocumento || 'Factura', 46, currentY + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('DOC:', 71, currentY + 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.text(docInfo.nroDocumento || '-', 78, currentY + 12);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('FECHA:', 102, currentY + 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.text(formattedDate, 113, currentY + 12);
+
+    // Amount
+    const symbol = l.moneda === 'PEN' ? 'S/' : l.moneda === 'EUR' ? '€' : '$';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(37, 99, 235);
+    doc.text(`${symbol} ${formatNum(l.precioVenta)}`, 191, currentY + 9, { align: 'right' });
+
+    currentY += rowHeight;
   });
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(79, 70, 229); // Indigo-600
-  doc.text('TOTAL GENERAL (PEN):', totalBoxX + 4, currentTotalY + 1);
-  doc.text(`S/ ${formatNum(grandTotalPEN)}`, totalBoxX + totalBoxW - 4, currentTotalY + 1, { align: 'right' });
+  // --- SECTION 3: HISTORIAL DE TRANSACCIONES ---
+  const sec3Y = currentY + 8;
+  
+  // Helper to draw the transaction table header
+  const drawTransHeader = (y: number) => {
+    doc.setFillColor(248, 250, 252);
+    doc.rect(15, y + 2, 180, 7.5, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.line(15, y + 2, 195, y + 2);
+    doc.line(15, y + 9.5, 195, y + 9.5);
 
-  // --- FOOTER ---
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
-  doc.text('© 2026 Forwarderly Systems. Este documento es un reporte consolidado oficial de cobranzas.', pageWidth / 2, 285, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('FECHA', 18, y + 7);
+    doc.text('MÉTODO / REFERENCIA', 50, y + 7);
+    doc.text('COBRADO', 165, y + 7, { align: 'right' });
+    doc.text('T.C.', 191, y + 7, { align: 'right' });
+  };
 
+  // Helper to draw a single transaction row
+  const drawTransRow = (c: any, y: number) => {
+    doc.setDrawColor(241, 245, 249);
+    doc.line(15, y + 18, 195, y + 18);
+
+    // Date
+    const cDate = c.createdAt 
+      ? new Date(c.createdAt).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '-';
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    doc.text(cDate, 18, y + 10);
+
+    // Badge Method
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.roundedRect(50, y + 3, 28, 4.5, 0.5, 0.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.2);
+    doc.setTextColor(255, 255, 255);
+    doc.text(c.metodo || 'TRANSFERENCIA', 64, y + 6.2, { align: 'center' });
+
+    // Ref and Bank
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.8);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Ref: ${c.referencia || '-'}`, 50, y + 11.5);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Banco: ${c.banco || '-'}`, 50, y + 15.5);
+
+    // Amount Cobrado
+    const symbol = c.moneda === 'PEN' ? 'S/' : c.moneda === 'EUR' ? '€' : '$';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${symbol} ${formatNum(c.monto)}`, 165, y + 10, { align: 'right' });
+
+    // T.C.
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(formatNum(c.tipoCambio || 1), 191, y + 10, { align: 'right' });
+  };
+
+  // Helper to draw bottom notes and signature box
+  const drawNotesAndSignature = (y: number) => {
+    // Top line separator for footer elements
+    doc.setDrawColor(226, 232, 240);
+    doc.line(15, y + 5, 195, y + 5);
+
+    // Notes on the left
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('NOTAS DEL LIQUIDADOR', 15, y + 11);
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.2);
+    doc.setTextColor(148, 163, 184); // slate-400
+    const noteText = `Documento generado automáticamente por el sistema de gestión de cobranzas. Los montos reflejados corresponden a la liquidación final autorizada para el despacho ORD-${order.correlativo}.`;
+    doc.text(noteText, 15, y + 15, { maxWidth: 105 });
+
+    // Signature on the right
+    doc.setDrawColor(148, 163, 184);
+    doc.line(135, y + 21, 191, y + 21);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('FIRMA AUTORIZADA', 163, y + 25, { align: 'center' });
+  };
+
+  // Helper to draw generic footer (run on all pages)
+  const drawPageFooter = (page: number) => {
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text('© 2026 Forwarderly Systems. Este documento es un reporte consolidado oficial de cobranzas.', pageWidth / 2, 285, { align: 'center' });
+  };
+
+  // PAGINATION IMPLEMENTATION
+  const hasMoreThanThree = cobros.length > 3;
+
+  if (!hasMoreThanThree) {
+    // --- ALL FITS ON PAGE 1 ---
+    doc.setFillColor(79, 70, 229);
+    doc.rect(15, sec3Y - 3, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(79, 70, 229);
+    doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS', 20, sec3Y - 0.5);
+
+    drawTransHeader(sec3Y);
+
+    let transY = sec3Y + 9.5;
+    cobros.forEach((c: any) => {
+      drawTransRow(c, transY);
+      transY += 18.5;
+    });
+
+    // Draw notes and signature below
+    drawNotesAndSignature(transY + 3);
+    drawPageFooter(1);
+
+  } else {
+    // --- MULTIPAGE SETUP: FIRST 3 ROWS ON PAGE 1, OTHERS ON PAGE 2 ---
+    // --- PAGE 1 ---
+    doc.setFillColor(79, 70, 229);
+    doc.rect(15, sec3Y - 3, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(79, 70, 229);
+    doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS', 20, sec3Y - 0.5);
+
+    drawTransHeader(sec3Y);
+
+    let transY = sec3Y + 9.5;
+    const page1Cobros = cobros.slice(0, 3);
+    page1Cobros.forEach((c: any) => {
+      drawTransRow(c, transY);
+      transY += 18.5;
+    });
+
+    // "Sigue en la siguiente página" text
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8.5);
+    doc.setTextColor(79, 70, 229);
+    doc.text('Sigue en la siguiente página...', 191, transY + 6, { align: 'right' });
+
+    drawPageFooter(1);
+
+    // --- PAGE 2 ---
+    doc.addPage();
+    
+    // Top mini header
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Forwarderly Financial Systems — Settlement Report', 15, 10);
+    doc.line(15, 12, 195, 12);
+
+    // Title Page 2
+    const page2TitleY = 22;
+    doc.setFillColor(79, 70, 229);
+    doc.rect(15, page2TitleY - 3, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(79, 70, 229);
+    doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS (Continuación)', 20, page2TitleY - 0.5);
+
+    drawTransHeader(page2TitleY);
+
+    let transPage2Y = page2TitleY + 9.5;
+    const page2Cobros = cobros.slice(3);
+    page2Cobros.forEach((c: any) => {
+      drawTransRow(c, transPage2Y);
+      transPage2Y += 18.5;
+    });
+
+    // Draw notes and signature at the end of page 2
+    drawNotesAndSignature(transPage2Y + 4);
+    drawPageFooter(2);
+  }
+
+  // --- SAVE DOCUMENT ---
+  const correlativoStr = `ORD-${String(order.correlativo).padStart(4, '0')}-${order.anio}`;
   doc.save(`Liquidacion_${correlativoStr}.pdf`);
 };
