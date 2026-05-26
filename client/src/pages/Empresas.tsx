@@ -169,7 +169,7 @@ const Empresas: React.FC = () => {
                   </td>
                   <td>{new Date(e.fechaInicio).toLocaleDateString()}</td>
                   <td>
-                    <div style={{ fontWeight: 700, color: 'var(--text-dark)' }}>S/ {e.montoSuscripcion.toFixed(2)}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-dark)' }}>$ {e.montoSuscripcion.toFixed(2)} USD</div>
                     <small className="text-light uppercase font-semibold" style={{ fontSize: '0.7rem', display: 'block' }}>
                       {e.periodicidad} (Día {e.diaPagoSuscripcion})
                     </small>
@@ -294,7 +294,7 @@ const Empresas: React.FC = () => {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Monto Suscripción (Soles - PEN)</label>
+                    <label>Monto Suscripción (USD - $)</label>
                     <input 
                       type="number" 
                       step="0.01"

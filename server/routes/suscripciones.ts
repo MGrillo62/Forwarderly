@@ -300,7 +300,7 @@ router.post('/:id/stripe-checkout', authenticate, async (req: AuthRequest, res) 
       line_items: [
         {
           price_data: {
-            currency: 'pen',
+            currency: 'usd',
             product_data: {
               name: `Suscripción Forwarderly - ${mesNombre} ${sub.anio}`,
               description: `Facturación para ${sub.empresa.razonSocial} (${sub.empresa.periodicidad})`,
