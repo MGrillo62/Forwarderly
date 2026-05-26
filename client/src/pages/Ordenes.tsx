@@ -268,13 +268,13 @@ const Ordenes: React.FC = () => {
     setReferenciaInput('');
     setIncluirTributos(true);
     
-    // Initialize concept document details mapping
+    // Initialize concept document details mapping from database values
     const initialDocs: any = {};
     lines.forEach((l: any) => {
       initialDocs[l.id] = {
-        tipoDocumento: 'FACTURA',
-        nroDocumento: '',
-        fechaDocumento: new Date().toISOString().split('T')[0]
+        tipoDocumento: l.tipoDocumento || 'FACTURA',
+        nroDocumento: l.nroDocumento || '',
+        fechaDocumento: l.fechaDocumento ? l.fechaDocumento.split('T')[0] : ''
       };
     });
     setLineasDocs(initialDocs);
@@ -303,10 +303,30 @@ const Ordenes: React.FC = () => {
     setLineasDocs(prev => ({
       ...prev,
       [lineaId]: {
-        ...(prev[lineaId] || { tipoDocumento: 'FACTURA', nroDocumento: '', fechaDocumento: new Date().toISOString().split('T')[0] }),
+        ...(prev[lineaId] || { tipoDocumento: 'FACTURA', nroDocumento: '', fechaDocumento: '' }),
         [field]: value
       }
     }));
+  };
+
+  const handleSaveLineasDocs = async () => {
+    if (!selectedOrden) return;
+    try {
+      await api.put(`/ordenes/${selectedOrden.id}/lineas-documentos`, { detallesLineas: lineasDocs });
+      alert('Comprobantes de pago guardados exitosamente en los conceptos.');
+      
+      // Update selectedOrden reference with refreshed data
+      const response = await api.get('/ordenes');
+      const updatedList = response.data;
+      setOrdenes(updatedList);
+      const updatedOrder = updatedList.find((o: any) => o.id === selectedOrden.id);
+      if (updatedOrder) {
+        setSelectedOrden(updatedOrder);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Error al guardar los comprobantes de pago.');
+    }
   };
 
   const handleRegisterCobro = async (e: React.FormEvent) => {
@@ -938,13 +958,23 @@ const Ordenes: React.FC = () => {
                   
                   {/* Left Column: Grid of Concepts & Tributos */}
                   <div>
-                    <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5 text-sm uppercase tracking-wider">
-                      📋 Conceptos del Despacho a Cobrar
-                    </h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <h4 className="font-bold text-slate-800 mb-0 flex items-center gap-1.5 text-sm uppercase tracking-wider">
+                        📋 Conceptos del Despacho
+                      </h4>
+                      <button 
+                        type="button" 
+                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-bold text-xxs transition shadow-sm"
+                        onClick={handleSaveLineasDocs}
+                        title="Guardar los comprobantes de pago asociados a cada concepto de forma independiente"
+                      >
+                        💾 Guardar Comprobantes
+                      </button>
+                    </div>
                     <p className="text-xs text-slate-400 mb-3">
-                      Marque los conceptos comerciales que incluye en esta cobranza y defina sus documentos específicos.
+                      Marque los conceptos comerciales que incluye en esta cobranza y asocie sus comprobantes de pago libremente.
                     </p>
-                    <div className="table-container" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                    <div className="table-container" style={{ maxHeight: '320px', overflowY: 'auto' }}>
                       <table className="dense-table" style={{ width: '100%' }}>
                         <thead>
                           <tr>
@@ -979,46 +1009,44 @@ const Ordenes: React.FC = () => {
                                     {currencySign} {l.precioVenta.toFixed(2)}
                                   </td>
                                 </tr>
-                                {checkedLineas.includes(l.id) && (
-                                  <tr className="bg-slate-50 border-b border-slate-200">
-                                    <td colSpan={3} style={{ padding: '0.5rem 0.75rem' }}>
-                                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                        <div className="form-group mb-0" style={{ flex: '1 1 100px', marginBottom: 0 }}>
-                                          <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Tipo Doc.</label>
-                                          <select 
-                                            style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                            value={lineasDocs[l.id]?.tipoDocumento || 'FACTURA'}
-                                            onChange={(e) => handleLineaDocChange(l.id, 'tipoDocumento', e.target.value)}
-                                          >
-                                            <option value="FACTURA">Factura</option>
-                                            <option value="BOLETA">Boleta</option>
-                                            <option value="RECIBO">Recibo de Caja</option>
-                                            <option value="NINGUNO">Ninguno</option>
-                                          </select>
-                                        </div>
-                                        <div className="form-group mb-0" style={{ flex: '2 1 140px', marginBottom: 0 }}>
-                                          <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Documento (Serie-Nro)</label>
-                                          <input 
-                                            type="text" 
-                                            placeholder="F001-000214"
-                                            style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                            value={lineasDocs[l.id]?.nroDocumento || ''}
-                                            onChange={(e) => handleLineaDocChange(l.id, 'nroDocumento', e.target.value)}
-                                          />
-                                        </div>
-                                        <div className="form-group mb-0" style={{ flex: '1.5 1 110px', marginBottom: 0 }}>
-                                          <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Fecha Doc.</label>
-                                          <input 
-                                            type="date" 
-                                            style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                            value={lineasDocs[l.id]?.fechaDocumento || ''}
-                                            onChange={(e) => handleLineaDocChange(l.id, 'fechaDocumento', e.target.value)}
-                                          />
-                                        </div>
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                  <td colSpan={3} style={{ padding: '0.5rem 0.75rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                      <div className="form-group mb-0" style={{ flex: '1 1 100px', marginBottom: 0 }}>
+                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Tipo Doc.</label>
+                                        <select 
+                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                          value={lineasDocs[l.id]?.tipoDocumento || 'FACTURA'}
+                                          onChange={(e) => handleLineaDocChange(l.id, 'tipoDocumento', e.target.value)}
+                                        >
+                                          <option value="FACTURA">Factura</option>
+                                          <option value="BOLETA">Boleta</option>
+                                          <option value="RECIBO">Recibo de Caja</option>
+                                          <option value="NINGUNO">Ninguno</option>
+                                        </select>
                                       </div>
-                                    </td>
-                                  </tr>
-                                )}
+                                      <div className="form-group mb-0" style={{ flex: '2 1 140px', marginBottom: 0 }}>
+                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Documento (Serie-Nro)</label>
+                                        <input 
+                                          type="text" 
+                                          placeholder="F001-000214"
+                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                          value={lineasDocs[l.id]?.nroDocumento || ''}
+                                          onChange={(e) => handleLineaDocChange(l.id, 'nroDocumento', e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="form-group mb-0" style={{ flex: '1.5 1 110px', marginBottom: 0 }}>
+                                        <label className="text-xxs uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Fecha Doc.</label>
+                                        <input 
+                                          type="date" 
+                                          style={{ fontSize: '11px', padding: '3px 6px', height: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}
+                                          value={lineasDocs[l.id]?.fechaDocumento || ''}
+                                          onChange={(e) => handleLineaDocChange(l.id, 'fechaDocumento', e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
                               </React.Fragment>
                             );
                           })}

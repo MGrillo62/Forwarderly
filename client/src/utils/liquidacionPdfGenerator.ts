@@ -37,7 +37,7 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42); // slate-900
-  doc.text(`GESTIÓN INTEGRAL DE COBROS — ORD-${order.correlativo}`, 15, startY);
+  doc.text(`LIQUIDACIÓN DE COBRANZA — ORD-${order.correlativo}`, 15, startY);
 
   // Client info below title (Large client name)
   doc.setFontSize(9.5);
@@ -236,7 +236,7 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
   doc.setTextColor(79, 70, 229);
   doc.text('CONCEPTOS DEL DESPACHO A COBRAR', 20, sec2Y - 0.5);
 
-  // Table Header
+  // Table Header (Removed COBRAR column)
   doc.setFillColor(248, 250, 252); // slate-50
   doc.rect(15, sec2Y + 2, 180, 7.5, 'F');
   doc.setDrawColor(226, 232, 240);
@@ -246,11 +246,10 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('COBRAR', 23, sec2Y + 7, { align: 'center' });
-  doc.text('CONCEPTO / DOCUMENTO', 35, sec2Y + 7);
+  doc.text('CONCEPTO / DOCUMENTO', 15, sec2Y + 7);
   doc.text('VENTA', 191, sec2Y + 7, { align: 'right' });
 
-  // Parse billing documents from cobros
+  // Parse billing documents from cobros as fallback
   const lineDocs: Record<string, { tipoDocumento: string, nroDocumento: string, fechaDocumento: string }> = {};
   cobros.forEach((c: any) => {
     if (c.detallesLineas) {
@@ -263,78 +262,54 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
     }
   });
 
-  // Concept Rows
+  // Concept Rows (Single line representation)
   let currentY = sec2Y + 9.5;
-  const rowHeight = 16.5;
+  const rowHeight = 9.5;
 
   lines.forEach((l: any) => {
     // Bottom line
     doc.setDrawColor(241, 245, 249);
     doc.line(15, currentY + rowHeight, 195, currentY + rowHeight);
 
-    // Draw Checked Checkbox
-    doc.setDrawColor(37, 99, 235); // blue-600
-    doc.setFillColor(239, 246, 255); // blue-50
-    doc.roundedRect(21, currentY + 4, 4.5, 4.5, 0.5, 0.5, 'FD');
-
-    // Checkmark SVG path mapped to lines
-    doc.setLineWidth(0.65);
-    doc.setDrawColor(37, 99, 235);
-    doc.line(22.2, currentY + 6.2, 23.2, currentY + 7.2);
-    doc.line(23.2, currentY + 7.2, 24.6, currentY + 5.0);
-    doc.setLineWidth(0.2); // reset
-
-    // Concept text
+    // Concept text (bold)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(15, 23, 42);
-    doc.text(l.concepto?.nombre || 'Concepto General', 35, currentY + 5.5);
-
-    // Cot reference
+    doc.text(l.concepto?.nombre || 'Concepto General', 15, currentY + 6.2);
     const conceptW = doc.getTextWidth(l.concepto?.nombre || 'Concepto General');
+
+    // Cot reference (normal slate-400)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184); // slate-400
-    doc.text(`Cot: ${String(l.cotizacionNumero).padStart(5, '0')}`, 35 + conceptW + 2.5, currentY + 5.5);
+    const cotLabel = `Cot: ${String(l.cotizacionNumero).padStart(5, '0')}`;
+    doc.text(cotLabel, 15 + conceptW + 2.5, currentY + 6.2);
+    const cotW = doc.getTextWidth(cotLabel);
 
-    // Document Pill
-    const docInfo = lineDocs[l.id] || { tipoDocumento: 'Factura', nroDocumento: '-', fechaDocumento: '-' };
-    const formattedDate = docInfo.fechaDocumento && docInfo.fechaDocumento !== '-' 
-      ? new Date(docInfo.fechaDocumento).toLocaleDateString('es-PE') 
-      : '-';
+    // Fetch document details (saved on concept line directly, fallback to cobros history)
+    const docTipo = l.tipoDocumento || lineDocs[l.id]?.tipoDocumento || 'FACTURA';
+    const docNro = l.nroDocumento || lineDocs[l.id]?.nroDocumento || '';
+    const docFecha = l.fechaDocumento || lineDocs[l.id]?.fechaDocumento || '';
 
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(35, currentY + 8, 92, 6, 0.5, 0.5, 'FD');
+    let docStr = '';
+    if (docNro) {
+      const formattedDate = docFecha ? new Date(docFecha).toLocaleDateString('es-PE') : '';
+      docStr = `  |  ${docTipo}: ${docNro}${formattedDate ? ` (${formattedDate})` : ''}`;
+    }
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
-    doc.setTextColor(100, 116, 139);
-    doc.text('TIPO:', 38, currentY + 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(15, 23, 42);
-    doc.text(docInfo.tipoDocumento || 'Factura', 46, currentY + 12);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 116, 139);
-    doc.text('DOC:', 71, currentY + 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(15, 23, 42);
-    doc.text(docInfo.nroDocumento || '-', 78, currentY + 12);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 116, 139);
-    doc.text('FECHA:', 102, currentY + 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(15, 23, 42);
-    doc.text(formattedDate, 113, currentY + 12);
+    if (docStr) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105); // slate-600
+      doc.text(docStr, 15 + conceptW + 2.5 + cotW + 2.5, currentY + 6.2);
+    }
 
     // Amount
     const symbol = l.moneda === 'PEN' ? 'S/' : l.moneda === 'EUR' ? '€' : '$';
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(37, 99, 235);
-    doc.text(`${symbol} ${formatNum(l.precioVenta)}`, 191, currentY + 9, { align: 'right' });
+    doc.text(`${symbol} ${formatNum(l.precioVenta)}`, 191, currentY + 6.2, { align: 'right' });
 
     currentY += rowHeight;
   });

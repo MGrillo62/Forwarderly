@@ -336,4 +336,34 @@ router.delete('/cobros/:cobroId', authenticate, async (req: AuthRequest, res) =>
   }
 });
 
+// Update concept lines document details for an order
+router.put('/:id/lineas-documentos', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { detallesLineas } = req.body;
+
+  try {
+    if (!detallesLineas || typeof detallesLineas !== 'object') {
+      return res.status(400).json({ message: 'detallesLineas es requerido y debe ser un objeto' });
+    }
+
+    const updates = Object.entries(detallesLineas).map(async ([lineId, doc]: any) => {
+      const fecha = doc.fechaDocumento ? new Date(doc.fechaDocumento) : null;
+      return prisma.cotizacionLinea.update({
+        where: { id: lineId },
+        data: {
+          tipoDocumento: doc.tipoDocumento || null,
+          nroDocumento: doc.nroDocumento || null,
+          fechaDocumento: fecha
+        }
+      });
+    });
+
+    await Promise.all(updates);
+    res.json({ message: 'Comprobantes de pago guardados exitosamente.' });
+  } catch (error: any) {
+    console.error('Error al guardar comprobantes de pago:', error);
+    res.status(500).json({ message: 'Error al guardar comprobantes de pago: ' + error.message });
+  }
+});
+
 export default router;

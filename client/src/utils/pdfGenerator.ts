@@ -162,16 +162,13 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   const tableRows = cotizacion.lineas.map((l: any) => [
     `${(l.concepto?.categoria?.nombre || l.categoriaNombre || 'S/C').toUpperCase()}\n${l.concepto?.nombre || l.conceptoNombre || '—'}`,
     (l.proveedor?.razonSocial || l.proveedor?.contacto || '—').toUpperCase(),
-    `${symbol} ${l.costo.toFixed(2)}`,
     `${symbol} ${l.precioVenta.toFixed(2)}`,
-    `${symbol} ${l.valorVenta.toFixed(2)}`,
-    `${symbol} ${l.utilidad.toFixed(2)}`,
-    `${l.margen.toFixed(1)}%`
+    `${symbol} ${l.valorVenta.toFixed(2)}`
   ]);
 
   autoTable(doc, {
     startY: yCards + 37,
-    head: [['CATEGORÍA / CONCEPTO', 'PROVEEDOR', 'COSTO', 'PRECIO VENTA', 'VALOR VENTA', 'UTILIDAD', 'MARGEN']],
+    head: [['CATEGORÍA / CONCEPTO', 'PROVEEDOR', 'PRECIO VENTA', 'VALOR VENTA']],
     body: tableRows,
     theme: 'grid',
     styles: {
@@ -190,19 +187,10 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
       halign: 'left'
     },
     columnStyles: {
-      0: { cellWidth: 35, halign: 'left' },  // Category / Concept
-      1: { cellWidth: 30, halign: 'left' },  // Provider
-      2: { cellWidth: 23, halign: 'right' }, // Cost
-      3: { cellWidth: 25, halign: 'right' }, // Sale Price
-      4: { cellWidth: 25, halign: 'right' }, // Sale Value
-      5: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }, // Profit
-      6: { cellWidth: 20, halign: 'right' }  // Margin
-    },
-    didParseCell: (data) => {
-      // Style Utilidad column text blue to match the template
-      if (data.column.index === 5 && data.section === 'body') {
-        data.cell.styles.textColor = [37, 99, 235]; // Blue
-      }
+      0: { cellWidth: 80, halign: 'left' },  // Category / Concept
+      1: { cellWidth: 40, halign: 'left' },  // Provider
+      2: { cellWidth: 30, halign: 'right' }, // Sale Price
+      3: { cellWidth: 30, halign: 'right' }  // Sale Value
     }
   });
 
@@ -236,36 +224,25 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
 
   // Col 1: TOTAL VALOR VENTA
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('TOTAL VALOR VENTA', 20, totalsY + 8);
+  doc.text('TOTAL VALOR VENTA', 25, totalsY + 11);
   
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(14);
   doc.setTextColor(15, 23, 42);
-  doc.text(`${symbol} ${cotizacion.totalVenta.toFixed(2)}`, 20, totalsY + 19);
+  doc.text(`${symbol} ${cotizacion.totalVenta.toFixed(2)}`, 25, totalsY + 22);
 
   // Col 2: IGV (18%)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('IGV (18%)', 55, totalsY + 8);
+  doc.text('IGV (18%)', 75, totalsY + 11);
   
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(14);
   doc.setTextColor(15, 23, 42);
-  doc.text(`${symbol} ${cotizacion.igv.toFixed(2)}`, 55, totalsY + 19);
-
-  // Col 3: UTILIDAD TOTAL
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(37, 99, 235); // Blue
-  doc.text('UTILIDAD TOTAL', 90, totalsY + 8);
-  
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(37, 99, 235); // Blue
-  doc.text(`${symbol} ${cotizacion.utilidad.toFixed(2)}`, 90, totalsY + 19);
+  doc.text(`${symbol} ${cotizacion.igv.toFixed(2)}`, 75, totalsY + 22);
 
   // Draw Right Card (Precio Total)
   doc.setFillColor(15, 23, 42); // Dark slate blue
@@ -273,24 +250,15 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
 
   // Label: PRECIO TOTAL
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
-  doc.text('PRECIO TOTAL', 160, totalsY + 8, { align: 'center' });
+  doc.text('PRECIO TOTAL', 160, totalsY + 13, { align: 'center' });
 
   // Value: Symbol and amount on the same line
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(17);
+  doc.setFontSize(18);
   doc.setTextColor(255, 255, 255);
-  doc.text(`${symbol} ${cotizacion.precioTotal.toFixed(2)}`, 160, totalsY + 19, { align: 'center' });
-
-  // Inner Margen box (white text on slate gray rounded tag)
-  doc.setFillColor(71, 85, 105);
-  doc.roundedRect(135, totalsY + 22, 50, 7.5, 1.5, 1.5, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(255, 255, 255);
-  doc.text(`MARGEN: ${cotizacion.porcentajeUtilidad.toFixed(1)}%`, 160, totalsY + 27, { align: 'center' });
+  doc.text(`${symbol} ${cotizacion.precioTotal.toFixed(2)}`, 160, totalsY + 23, { align: 'center' });
 
   // Footer Section
   const footerY = totalsY + 40;
