@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
@@ -17,6 +17,8 @@ import Leads from './pages/Leads';
 import DashboardComercial from './pages/DashboardComercial';
 import DashboardOperativo from './pages/DashboardOperativo';
 import Suscripciones from './pages/Suscripciones';
+import { AlertTriangle, Lock, CreditCard } from 'lucide-react';
+import api from './api/axios';
 
 const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles: string[] }) => {
   const { token, user, loading } = useAuth();
@@ -28,20 +30,19 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode, roles:
   return <>{children}</>;
 };
 
-import api from './api/axios';
-
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { user, selectedEmpresaId, setSelectedEmpresaId, activeEmpresa } = useAuth();
   const [empresas, setEmpresas] = useState<any[]>([]);
+  const [estadoSuscripcion, setEstadoSuscripcion] = useState<any>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   React.useEffect(() => {
     if (user?.rol === 'SUPER_ADMIN') {
       api.get('/empresas').then(res => {
         setEmpresas(res.data);
         
-        // Si el Super Admin no tiene una empresa seleccionada por defecto,
-        // asignamos automáticamente la primera empresa de la lista para evitar errores.
         const currentSaved = localStorage.getItem('selectedEmpresaId');
         if (!currentSaved && res.data.length > 0) {
           setSelectedEmpresaId(res.data[0].id);
@@ -51,12 +52,47 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, selectedEmpresaId, setSelectedEmpresaId]);
 
+  React.useEffect(() => {
+    if (user && user.rol !== 'SUPER_ADMIN') {
+      api.get('/suscripciones/estado-actual')
+        .then(res => {
+          setEstadoSuscripcion(res.data);
+        })
+        .catch(err => console.error(err));
+    }
+  }, [user, location.pathname]);
+
   if (!user) return <>{children}</>;
+
+  const isBillingPage = location.pathname === '/suscripciones';
+  const isProfilePage = location.pathname === '/perfil';
+  const requiresPayment = estadoSuscripcion && estadoSuscripcion.tieneAcceso === false;
+  const isBlocked = requiresPayment && !isBillingPage && !isProfilePage;
+
+  const showBanner = estadoSuscripcion && 
+                     estadoSuscripcion.motivo === 'TRIAL_ACTIVO' && 
+                     estadoSuscripcion.diasRestantesTrial <= 5 &&
+                     !isBillingPage;
 
   return (
     <div className="app-container">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} rol={user.rol} />
       <main className={`main-content ${collapsed ? 'collapsed' : ''}`}>
+        {/* Trial Ending Banner */}
+        {showBanner && (
+          <div className="trial-warning-banner animate-slide-in">
+            <div className="banner-content">
+              <AlertTriangle size={18} className="icon-pulse" />
+              <span>
+                ⏳ Tu periodo de prueba vencerá en <strong>{estadoSuscripcion.diasRestantesTrial} días</strong> ({new Date(estadoSuscripcion.fechaFinPrueba).toLocaleDateString()}). Realiza tu pago de suscripción para evitar interrupciones.
+              </span>
+            </div>
+            <button className="banner-btn" onClick={() => navigate('/suscripciones')}>
+              <CreditCard size={14} /> Pagar Ahora
+            </button>
+          </div>
+        )}
+
         <header className="app-header">
           <div className="header-actions">
             {activeEmpresa?.logoUrl && (
@@ -83,7 +119,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
                   value={selectedEmpresaId || ''} 
                   onChange={(e) => {
                     setSelectedEmpresaId(e.target.value);
-                    window.location.reload(); // Reload to refresh data with new header
+                    window.location.reload();
                   }}
                 >
                   <option value="">-- Seleccione Empresa --</option>
@@ -99,7 +135,28 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             <small>{user.rol === 'SUPER_ADMIN' ? 'Super Administrador' : (user.empresa?.razonSocial || 'Sistema')}</small>
           </div>
         </header>
-        {children}
+        
+        {/* Main page content or Blocked overlay */}
+        {isBlocked ? (
+          <div className="blocked-view-container animate-fade-in">
+            <div className="blocked-card">
+              <div className="lock-icon-wrapper">
+                <Lock size={32} />
+              </div>
+              <h2>Acceso Restringido 💳</h2>
+              <p>
+                Tu periodo de prueba o suscripción mensual ha finalizado y el acceso a los módulos operativos se encuentra suspendido temporalmente.
+              </p>
+              <div className="blocked-action-wrapper">
+                <button className="primary font-bold flex-align" onClick={() => navigate('/suscripciones')} style={{ gap: '0.5rem', width: '100%', justifyContent: 'center', padding: '0.75rem', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                  <CreditCard size={18} /> Ir a Facturación y Pago
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
       </main>
 
       <style>{`
@@ -173,6 +230,94 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           border: 1px solid rgba(226, 232, 240, 0.5);
           display: inline-block;
         }
+
+        /* Trial Ending Banner */
+        .trial-warning-banner {
+          background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+          border-radius: 0.5rem;
+          padding: 0.75rem 1.25rem;
+          margin-bottom: 1.5rem;
+          color: white;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 1rem;
+          box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+        
+        .banner-content {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+        }
+        
+        .banner-btn {
+          background: white;
+          color: #D97706;
+          border: none;
+          font-weight: 700;
+          font-size: 0.75rem;
+          padding: 0.4rem 0.8rem;
+          border-radius: 0.375rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          transition: all 0.2s ease;
+        }
+        
+        .banner-btn:hover {
+          background: #FEF3C7;
+          transform: translateY(-1px);
+        }
+
+        /* Blocked Access Overlay */
+        .blocked-view-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 3rem 1rem;
+          min-height: 50vh;
+        }
+        
+        .blocked-card {
+          background: white;
+          border: 1px solid rgba(226, 232, 240, 0.8);
+          border-radius: 1rem;
+          max-width: 450px;
+          width: 100%;
+          padding: 2.25rem;
+          text-align: center;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .lock-icon-wrapper {
+          background: rgba(239, 68, 68, 0.08);
+          color: #EF4444;
+          width: 64px;
+          height: 64px;
+          border-radius: 9999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 1.5rem auto;
+          box-shadow: 0 4px 10px rgba(239, 68, 68, 0.1);
+        }
+        
+        .blocked-card h2 {
+          color: var(--text-dark);
+          font-size: 1.35rem;
+          font-weight: 800;
+          margin-bottom: 0.75rem;
+        }
+        
+        .blocked-card p {
+          color: var(--text-light);
+          font-size: 0.875rem;
+          line-height: 1.5;
+          margin-bottom: 1.75rem;
+        }
       `}</style>
     </div>
   );
@@ -224,7 +369,7 @@ function App() {
           } />
 
           <Route path="/suscripciones" element={
-            <ProtectedRoute roles={['SUPER_ADMIN']}>
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN']}>
               <Layout><Suscripciones /></Layout>
             </ProtectedRoute>
           } />

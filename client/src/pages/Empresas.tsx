@@ -19,7 +19,8 @@ const Empresas: React.FC = () => {
     logoUrl: '',
     diaPagoSuscripcion: 5,
     periodicidad: 'MENSUAL',
-    montoSuscripcion: 0
+    montoSuscripcion: 0,
+    diasPrueba: 14
   });
 
   useEffect(() => {
@@ -42,7 +43,8 @@ const Empresas: React.FC = () => {
         ...formData,
         fechaInicio: new Date(formData.fechaInicio),
         diaPagoSuscripcion: parseInt(String(formData.diaPagoSuscripcion)) || 5,
-        montoSuscripcion: parseFloat(String(formData.montoSuscripcion)) || 0
+        montoSuscripcion: parseFloat(String(formData.montoSuscripcion)) || 0,
+        diasPrueba: parseInt(String(formData.diasPrueba)) || 0
       };
       
       if (editingEmpresa) {
@@ -71,7 +73,8 @@ const Empresas: React.FC = () => {
       logoUrl: empresa.logoUrl || '',
       diaPagoSuscripcion: empresa.diaPagoSuscripcion ?? 5,
       periodicidad: empresa.periodicidad || 'MENSUAL',
-      montoSuscripcion: empresa.montoSuscripcion ?? 0
+      montoSuscripcion: empresa.montoSuscripcion ?? 0,
+      diasPrueba: empresa.diasPrueba ?? 14
     });
     setShowModal(true);
   };
@@ -89,7 +92,8 @@ const Empresas: React.FC = () => {
       logoUrl: '',
       diaPagoSuscripcion: 5,
       periodicidad: 'MENSUAL',
-      montoSuscripcion: 0
+      montoSuscripcion: 0,
+      diasPrueba: 14
     });
     setShowModal(true);
   };
@@ -166,9 +170,12 @@ const Empresas: React.FC = () => {
                   <td>{new Date(e.fechaInicio).toLocaleDateString()}</td>
                   <td>
                     <div style={{ fontWeight: 700, color: 'var(--text-dark)' }}>S/ {e.montoSuscripcion.toFixed(2)}</div>
-                    <small className="text-light uppercase font-semibold" style={{ fontSize: '0.7rem' }}>
+                    <small className="text-light uppercase font-semibold" style={{ fontSize: '0.7rem', display: 'block' }}>
                       {e.periodicidad} (Día {e.diaPagoSuscripcion})
                     </small>
+                    <span className="status-badge status-pending" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', marginTop: '4px', display: 'inline-block' }}>
+                      Prueba: {e.diasPrueba ?? 14} días
+                    </span>
                   </td>
                   <td>
                     <span className={`status-badge ${e.estado === 'ACTIVO' ? 'status-approved' : e.estado === 'SUSPENDIDO' ? 'status-pending' : 'status-rejected'}`}>
@@ -295,6 +302,16 @@ const Empresas: React.FC = () => {
                       required 
                       value={formData.montoSuscripcion}
                       onChange={(e) => setFormData({...formData, montoSuscripcion: parseFloat(e.target.value) || 0})} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Días de Periodo de Prueba</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      required 
+                      value={formData.diasPrueba}
+                      onChange={(e) => setFormData({...formData, diasPrueba: parseInt(e.target.value) || 0})} 
                     />
                   </div>
                 </div>

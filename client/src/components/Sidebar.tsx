@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
     
     // Configuración
     { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'], group: 'Configuración' },
-    { name: 'Cobros Suscripción', icon: CreditCard, path: '/suscripciones', roles: ['SUPER_ADMIN'], group: 'Configuración' },
+    { name: rol === 'SUPER_ADMIN' ? 'Cobros Suscripción' : 'Mi Suscripción', icon: CreditCard, path: '/suscripciones', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Configuración' },
     { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },

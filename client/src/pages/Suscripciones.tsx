@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { CreditCard, Filter, ChevronUp, ChevronDown, Check, DollarSign, X, Calendar } from 'lucide-react';
+import { CreditCard, Filter, ChevronUp, ChevronDown, Check, DollarSign, X, Calendar, AlertTriangle, ShieldCheck, Clock } from 'lucide-react';
 
 const Suscripciones: React.FC = () => {
-  const { token } = useAuth();
+  const { user, activeEmpresa } = useAuth();
   
   // Data States
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
+  const [estadoActual, setEstadoActual] = useState<any>(null);
   
   // Filter States
   const [filterCompany, setFilterCompany] = useState('');
@@ -17,10 +18,11 @@ const Suscripciones: React.FC = () => {
   const [filterYear, setFilterYear] = useState('');
   
   // Sorting States
-  const [sortField, setSortField] = useState('fecha'); // 'empresa', 'fecha', 'monto', 'estado', 'diaPago'
+  const [sortField, setSortField] = useState('fecha');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // Modal States
+  // Loading & Action States
+  const [loadingCheckout, setLoadingCheckout] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedSub, setSelectedSub] = useState<any>(null);
   const [paymentForm, setPaymentForm] = useState({
@@ -31,8 +33,24 @@ const Suscripciones: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchCompanies();
+    if (user?.rol === 'SUPER_ADMIN') {
+      fetchCompanies();
+    }
     fetchSubscriptions();
+    fetchEstadoActual();
+
+    // Check for Stripe Checkout return params
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const cancel = params.get('cancel');
+    const sessionId = params.get('session_id');
+
+    if (success && sessionId) {
+      confirmStripePayment(sessionId);
+    } else if (cancel) {
+      alert('El pago con Stripe fue cancelado o no se pudo completar.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
@@ -51,7 +69,9 @@ const Suscripciones: React.FC = () => {
   const fetchSubscriptions = async () => {
     try {
       const params: any = {};
-      if (filterCompany) params.empresaId = filterCompany;
+      if (user?.rol === 'SUPER_ADMIN') {
+        if (filterCompany) params.empresaId = filterCompany;
+      }
       if (filterStatus) params.estadoPago = filterStatus;
       if (filterMonth) params.mes = filterMonth;
       if (filterYear) params.anio = filterYear;
@@ -60,6 +80,46 @@ const Suscripciones: React.FC = () => {
       setSubscriptions(res.data);
     } catch (err) {
       console.error('Error fetching subscriptions:', err);
+    }
+  };
+
+  const fetchEstadoActual = async () => {
+    try {
+      const res = await api.get('/suscripciones/estado-actual');
+      setEstadoActual(res.data);
+    } catch (err) {
+      console.error('Error fetching subscription status:', err);
+    }
+  };
+
+  const confirmStripePayment = async (sessionId: string) => {
+    try {
+      const res = await api.post('/suscripciones/stripe-confirm', { sessionId });
+      if (res.data.success) {
+        alert('¡Pago completado con éxito a través de Stripe! Tu suscripción se encuentra al día.');
+        fetchSubscriptions();
+        fetchEstadoActual();
+      }
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (err: any) {
+      alert('Error al verificar el pago con Stripe: ' + (err.response?.data?.message || err.message));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
+  const handleStripePay = async (sub: any) => {
+    try {
+      setLoadingCheckout(sub.id);
+      const res = await api.post(`/suscripciones/${sub.id}/stripe-checkout`);
+      if (res.data.url) {
+        window.location.href = res.data.url;
+      } else {
+        alert('No se pudo generar la sesión de pago.');
+      }
+    } catch (err: any) {
+      alert('Error al iniciar el pago con Stripe: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoadingCheckout(null);
     }
   };
 
@@ -89,6 +149,7 @@ const Suscripciones: React.FC = () => {
       await api.put(`/suscripciones/${selectedSub.id}/pagar`, paymentForm);
       setShowModal(false);
       fetchSubscriptions();
+      fetchEstadoActual();
     } catch (err) {
       alert('Error al registrar el pago de suscripción');
       console.error(err);
@@ -141,68 +202,137 @@ const Suscripciones: React.FC = () => {
   return (
     <div>
       <div className="page-header">
-        <h1>💳 Recaudación de Suscripciones</h1>
+        <h1>{user?.rol === 'SUPER_ADMIN' ? '💳 Recaudación de Suscripciones' : '💳 Mi Suscripción y Plan'}</h1>
         <p className="subtitle">
-          Administración de cobros mensuales y anuales de la plataforma Forwarderly.
+          {user?.rol === 'SUPER_ADMIN' 
+            ? 'Administración de cobros mensuales y anuales de la plataforma Forwarderly.' 
+            : 'Gestiona tu plan de facturación, periodos de prueba y pagos en línea de forma segura.'}
         </p>
       </div>
 
-      {/* Filter Card */}
-      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
-        <div className="flex-align" style={{ gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-dark)', fontWeight: 'bold' }}>
-          <Filter size={18} /> Filtros de Búsqueda
+      {/* ADMIN Panel Summary Card */}
+      {user?.rol !== 'SUPER_ADMIN' && estadoActual && (
+        <div className="billing-summary-card animate-slide-in">
+          <div className="billing-summary-content">
+            <div className="billing-info">
+              <span className="billing-label">Estado de la cuenta</span>
+              <div className="billing-status-wrapper">
+                {estadoActual.motivo === 'TRIAL_ACTIVO' ? (
+                  <span className="status-badge status-pending flex-align" style={{ gap: '0.25rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                    <Clock size={16} /> Periodo de Prueba Activo
+                  </span>
+                ) : estadoActual.tieneAcceso ? (
+                  <span className="status-badge status-approved flex-align" style={{ gap: '0.25rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                    <ShieldCheck size={16} /> Cuenta Activa y al Día
+                  </span>
+                ) : (
+                  <span className="status-badge status-rejected flex-align animate-pulse" style={{ gap: '0.25rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                    <AlertTriangle size={16} /> Pago Requerido (Acceso Bloqueado)
+                  </span>
+                )}
+              </div>
+              
+              <div className="billing-details-grid">
+                <div>
+                  <small>Plan de Suscripción</small>
+                  <strong>S/ {activeEmpresa?.montoSuscripcion?.toFixed(2)} PEN</strong>
+                </div>
+                <div>
+                  <small>Periodicidad</small>
+                  <strong>{activeEmpresa?.periodicidad}</strong>
+                </div>
+                <div>
+                  <small>Día de Pago</small>
+                  <strong>Día {activeEmpresa?.diaPagoSuscripcion} de cada ciclo</strong>
+                </div>
+                {estadoActual.motivo === 'TRIAL_ACTIVO' && (
+                  <div>
+                    <small>Fin de Periodo de Prueba</small>
+                    <strong style={{ color: 'var(--primary)' }}>
+                      {new Date(estadoActual.fechaFinPrueba).toLocaleDateString()} (Quedan {estadoActual.diasRestantesTrial} días)
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="billing-card-right">
+              {estadoActual.tieneAcceso ? (
+                <div className="billing-alert-info">
+                  <ShieldCheck size={36} style={{ color: 'var(--success)', marginBottom: '0.5rem' }} />
+                  <p>¡Gracias por usar Forwarderly! Tu plan está al día y cuentas con acceso total a todos los módulos.</p>
+                </div>
+              ) : (
+                <div className="billing-alert-danger">
+                  <AlertTriangle size={36} style={{ color: 'var(--danger)', marginBottom: '0.5rem' }} />
+                  <p>Tu acceso ha sido restringido por falta de pago. Por favor, cancela la suscripción pendiente a continuación para restaurar el servicio inmediatamente.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Empresa</label>
-            <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
-              <option value="">-- Todas las empresas --</option>
-              {companies.map(c => (
-                <option key={c.id} value={c.id}>{c.razonSocial}</option>
-              ))}
-            </select>
+      )}
+
+      {/* Filter Card (Superadmin only) */}
+      {user?.rol === 'SUPER_ADMIN' && (
+        <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
+          <div className="flex-align" style={{ gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-dark)', fontWeight: 'bold' }}>
+            <Filter size={18} /> Filtros de Búsqueda
           </div>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Estado de Pago</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-              <option value="">-- Todos los estados --</option>
-              <option value="PENDIENTE">PENDIENTE</option>
-              <option value="PAGADO">PAGADO</option>
-              <option value="VENCIDO">VENCIDO</option>
-            </select>
-          </div>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Mes</label>
-            <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
-              <option value="">-- Todos los meses --</option>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                <option key={m} value={m}>{getMonthName(m)}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Año</label>
-            <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
-              <option value="">-- Todos los años --</option>
-              {years.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Empresa</label>
+              <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
+                <option value="">-- Todas las empresas --</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.razonSocial}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Estado de Pago</label>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">-- Todos los estados --</option>
+                <option value="PENDIENTE">PENDIENTE</option>
+                <option value="PAGADO">PAGADO</option>
+                <option value="VENCIDO">VENCIDO</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Mes</label>
+              <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
+                <option value="">-- Todos los meses --</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <option key={m} value={m}>{getMonthName(m)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Año</label>
+              <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
+                <option value="">-- Todos los años --</option>
+                {years.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Grid Card */}
-      <div className="card">
+      <div className="card animate-fade-in">
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th onClick={() => handleSort('empresa')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                  <div className="flex-align" style={{ gap: '0.25rem' }}>
-                    Empresa {getSortIcon('empresa')}
-                  </div>
-                </th>
+                {user?.rol === 'SUPER_ADMIN' && (
+                  <th onClick={() => handleSort('empresa')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div className="flex-align" style={{ gap: '0.25rem' }}>
+                      Empresa {getSortIcon('empresa')}
+                    </div>
+                  </th>
+                )}
                 <th onClick={() => handleSort('fecha')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                   <div className="flex-align" style={{ gap: '0.25rem' }}>
                     Periodo {getSortIcon('fecha')}
@@ -230,36 +360,38 @@ const Suscripciones: React.FC = () => {
             <tbody>
               {sortedSubscriptions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No se encontraron cobros de suscripción para los filtros especificados.
+                  <td colSpan={user?.rol === 'SUPER_ADMIN' ? 7 : 6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-light)' }}>
+                    No se encontraron cobros de suscripción registrados.
                   </td>
                 </tr>
               ) : (
                 sortedSubscriptions.map(s => (
                   <tr key={s.id}>
-                    <td>
-                      <div className="flex-align" style={{ gap: '0.75rem' }}>
-                        {s.empresa?.logoUrl ? (
-                          <img 
-                            src={s.empresa.logoUrl} 
-                            alt="Logo" 
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              objectFit: 'contain',
-                              borderRadius: '4px',
-                              border: '1px solid rgba(226, 232, 240, 0.8)',
-                              backgroundColor: '#fff',
-                              padding: '1px'
-                            }}
-                          />
-                        ) : null}
-                        <div>
-                          <strong>{s.empresa?.razonSocial || 'Desconocida'}</strong>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>RUC: {s.empresa?.ruc}</div>
+                    {user?.rol === 'SUPER_ADMIN' && (
+                      <td>
+                        <div className="flex-align" style={{ gap: '0.75rem' }}>
+                          {s.empresa?.logoUrl ? (
+                            <img 
+                              src={s.empresa.logoUrl} 
+                              alt="Logo" 
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                objectFit: 'contain',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(226, 232, 240, 0.8)',
+                                backgroundColor: '#fff',
+                                padding: '1px'
+                              }}
+                            />
+                          ) : null}
+                          <div>
+                            <strong>{s.empresa?.razonSocial || 'Desconocida'}</strong>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>RUC: {s.empresa?.ruc}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
+                    )}
                     <td>
                       <div style={{ fontWeight: 600 }}>{getMonthName(s.mes)} {s.anio}</div>
                     </td>
@@ -295,13 +427,25 @@ const Suscripciones: React.FC = () => {
                     </td>
                     <td>
                       {s.estadoPago !== 'PAGADO' ? (
-                        <button 
-                          className="success btn-glow font-bold flex-align" 
-                          style={{ gap: '0.25rem', padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
-                          onClick={() => handleOpenPayment(s)}
-                        >
-                          <Check size={14} /> Registrar Pago
-                        </button>
+                        user?.rol === 'SUPER_ADMIN' ? (
+                          <button 
+                            className="success btn-glow font-bold flex-align" 
+                            style={{ gap: '0.25rem', padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
+                            onClick={() => handleOpenPayment(s)}
+                          >
+                            <Check size={14} /> Registrar Pago
+                          </button>
+                        ) : (
+                          <button 
+                            className="primary btn-glow font-bold flex-align" 
+                            style={{ gap: '0.35rem', padding: '0.5rem 0.9rem', fontSize: '0.75rem', borderRadius: '6px' }}
+                            onClick={() => handleStripePay(s)}
+                            disabled={loadingCheckout === s.id}
+                          >
+                            <CreditCard size={14} /> 
+                            {loadingCheckout === s.id ? 'Cargando...' : 'Pagar con Stripe'}
+                          </button>
+                        )
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--success)', fontWeight: 'bold', fontSize: '0.75rem' }}>
                           <Check size={16} /> Cobrado
@@ -316,7 +460,7 @@ const Suscripciones: React.FC = () => {
         </div>
       </div>
 
-      {/* Registrar Pago Modal */}
+      {/* Registrar Pago Modal (Superadmin only) */}
       {showModal && selectedSub && (
         <div className="modal-overlay">
           <div className="modal-content animate-slide-in" style={{ maxWidth: '450px', width: '95%' }}>
@@ -392,6 +536,122 @@ const Suscripciones: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Styled components custom CSS */}
+      <style>{`
+        .billing-summary-card {
+          background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 1rem;
+          padding: 1.75rem;
+          color: #E2E8F0;
+          margin-bottom: 2rem;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+          backdrop-filter: blur(10px);
+        }
+        
+        .billing-summary-content {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: 2rem;
+          align-items: center;
+        }
+        
+        @media (max-width: 768px) {
+          .billing-summary-content {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+          }
+        }
+        
+        .billing-info {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        
+        .billing-label {
+          font-size: 0.725rem;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          color: #94A3B8;
+          font-weight: 700;
+        }
+        
+        .billing-status-wrapper {
+          display: flex;
+          margin: 0.25rem 0 1rem 0;
+        }
+        
+        .billing-details-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+          gap: 1.25rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          padding-top: 1.25rem;
+        }
+        
+        .billing-details-grid div {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        
+        .billing-details-grid small {
+          font-size: 0.7rem;
+          color: #94A3B8;
+          font-weight: 600;
+          text-transform: uppercase;
+        }
+        
+        .billing-details-grid strong {
+          font-size: 0.95rem;
+          color: #FFFFFF;
+          font-weight: 700;
+        }
+        
+        .billing-card-right {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 0.75rem;
+          padding: 1.25rem;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .billing-alert-info {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          color: #94A3B8;
+          font-size: 0.8rem;
+          line-height: 1.4;
+        }
+        
+        .billing-alert-info p {
+          margin: 0;
+          color: #CBD5E1;
+        }
+        
+        .billing-alert-danger {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          color: #FCA5A5;
+          font-size: 0.8rem;
+          line-height: 1.4;
+        }
+        
+        .billing-alert-danger p {
+          margin: 0;
+          color: #F87171;
+          font-weight: 600;
+        }
+      `}</style>
     </div>
   );
 };
