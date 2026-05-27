@@ -138,7 +138,7 @@ const Suscripciones: React.FC = () => {
       (window as any)._activePagoSuscripcionId = sub.id;
 
       // Initialize Culqi (will fallback to test public key if VITE_CULQI_PUBLIC_KEY is not defined)
-      Culqi.publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY || 'pk_test_7f16f5c5b4d75d27';
+      Culqi.publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY || 'pk_test_PUCWnl5khqdKd4GH';
 
       Culqi.settings({
         title: 'Forwarderly',
