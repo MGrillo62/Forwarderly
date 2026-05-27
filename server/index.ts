@@ -29,9 +29,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-empresa-id']
 }));
 
-// Stripe webhook needs raw body parser for signature verification
-app.use('/api/suscripciones/webhook', express.raw({ type: 'application/json' }));
-
 app.use(express.json());
 
 // Ruta de prueba para verificar que el servidor está vivo

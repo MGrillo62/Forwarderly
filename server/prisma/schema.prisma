@@ -178,7 +178,7 @@ model Empresa {
   periodicidad       String             @default("MENSUAL")
   montoSuscripcion   Float              @default(0.0)
   diasPrueba         Int                @default(14)
-  stripeCustomerId   String?
+  culqiCustomerId    String?
   pagosSuscripcion   PagoSuscripcion[]
   usuarios           Usuario[]
   clientes           Cliente[]

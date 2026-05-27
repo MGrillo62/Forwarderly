@@ -39,18 +39,36 @@ const Suscripciones: React.FC = () => {
     fetchSubscriptions();
     fetchEstadoActual();
 
-    // Check for Stripe Checkout return params
-    const params = new URLSearchParams(window.location.search);
-    const success = params.get('success');
-    const cancel = params.get('cancel');
-    const sessionId = params.get('session_id');
+    // Configure Culqi global callback
+    (window as any).culqi = async () => {
+      const Culqi = (window as any).Culqi;
+      if (Culqi && Culqi.token) {
+        const token = Culqi.token.id;
+        const subId = (window as any)._activePagoSuscripcionId;
+        if (subId) {
+          try {
+            Culqi.close();
+            const res = await api.post('/suscripciones/culqi-charge', {
+              token,
+              pagoSuscripcionId: subId
+            });
+            if (res.data.success) {
+              alert('¡Pago completado con éxito a través de Culqi! Tu suscripción se encuentra al día.');
+              fetchSubscriptions();
+              fetchEstadoActual();
+            }
+          } catch (err: any) {
+            alert('Error al verificar el pago con Culqi: ' + (err.response?.data?.message || err.message));
+          }
+        }
+      } else if (Culqi && Culqi.error) {
+        alert('Error en Culqi Checkout: ' + Culqi.error.user_message);
+      }
+    };
 
-    if (success && sessionId) {
-      confirmStripePayment(sessionId);
-    } else if (cancel) {
-      alert('El pago con Stripe fue cancelado o no se pudo completar.');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    return () => {
+      delete (window as any).culqi;
+    };
   }, []);
 
   useEffect(() => {
@@ -92,32 +110,58 @@ const Suscripciones: React.FC = () => {
     }
   };
 
-  const confirmStripePayment = async (sessionId: string) => {
-    try {
-      const res = await api.post('/suscripciones/stripe-confirm', { sessionId });
-      if (res.data.success) {
-        alert('¡Pago completado con éxito a través de Stripe! Tu suscripción se encuentra al día.');
-        fetchSubscriptions();
-        fetchEstadoActual();
+  const loadCulqiScript = () => {
+    return new Promise<void>((resolve) => {
+      if ((window as any).Culqi) {
+        resolve();
+        return;
       }
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } catch (err: any) {
-      alert('Error al verificar el pago con Stripe: ' + (err.response?.data?.message || err.message));
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.culqi.com/js/v4';
+      script.onload = () => resolve();
+      document.body.appendChild(script);
+    });
   };
 
-  const handleStripePay = async (sub: any) => {
+  const handleCulqiPay = async (sub: any) => {
     try {
       setLoadingCheckout(sub.id);
-      const res = await api.post(`/suscripciones/${sub.id}/stripe-checkout`);
-      if (res.data.url) {
-        window.location.href = res.data.url;
-      } else {
-        alert('No se pudo generar la sesión de pago.');
+      await loadCulqiScript();
+      
+      const Culqi = (window as any).Culqi;
+      if (!Culqi) {
+        alert('No se pudo cargar la pasarela de pagos Culqi.');
+        return;
       }
+
+      // Set the active subscription ID globally so the window.culqi callback can read it
+      (window as any)._activePagoSuscripcionId = sub.id;
+
+      // Initialize Culqi (will fallback to test public key if VITE_CULQI_PUBLIC_KEY is not defined)
+      Culqi.publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY || 'pk_test_7f16f5c5b4d75d27';
+
+      Culqi.settings({
+        title: 'Forwarderly',
+        currency: 'USD',
+        amount: Math.round(sub.monto * 100), // Culqi receives cents
+        description: `Suscripción ${getMonthName(sub.mes)} ${sub.anio}`,
+      });
+
+      Culqi.options({
+        lang: 'auto',
+        installments: false,
+        paymentMethods: {
+          tarjeta: true,
+          yape: true,
+          bancaMovil: false,
+          agente: false,
+          pagoEfectivo: false
+        }
+      });
+
+      Culqi.open();
     } catch (err: any) {
-      alert('Error al iniciar el pago con Stripe: ' + (err.response?.data?.message || err.message));
+      alert('Error al iniciar el pago con Culqi: ' + err.message);
     } finally {
       setLoadingCheckout(null);
     }
@@ -439,11 +483,11 @@ const Suscripciones: React.FC = () => {
                           <button 
                             className="primary btn-glow font-bold flex-align" 
                             style={{ gap: '0.35rem', padding: '0.5rem 0.9rem', fontSize: '0.75rem', borderRadius: '6px' }}
-                            onClick={() => handleStripePay(s)}
+                            onClick={() => handleCulqiPay(s)}
                             disabled={loadingCheckout === s.id}
                           >
                             <CreditCard size={14} /> 
-                            {loadingCheckout === s.id ? 'Cargando...' : 'Pagar con Stripe'}
+                            {loadingCheckout === s.id ? 'Cargando...' : 'Pagar en Línea (Culqi)'}
                           </button>
                         )
                       ) : (

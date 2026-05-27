@@ -1,15 +1,12 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize, AuthRequest } from '../middlewares/auth';
-import Stripe from 'stripe';
-
 const router = Router();
 const prisma = new PrismaClient();
 
-// Initialize Stripe (will fail gracefully if key is not configured)
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
-  apiVersion: '2023-10-16' as any,
-});
+// Initialize Culqi configuration
+const CULQI_API_URL = 'https://api.culqi.com/v2';
+const CULQI_SECRET_KEY = process.env.CULQI_SECRET_KEY || 'sk_test_mock';
 
 // Helper to get all months between two dates inclusive
 function getMonthsRange(start: Date, end: Date) {
@@ -261,17 +258,21 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/suscripciones/:id/stripe-checkout - Create Stripe Checkout Session
-router.post('/:id/stripe-checkout', authenticate, async (req: AuthRequest, res) => {
-  const { id } = req.params;
+// POST /api/suscripciones/culqi-charge - Charge Culqi Token and confirm payment
+router.post('/culqi-charge', authenticate, async (req: AuthRequest, res) => {
+  const { token, pagoSuscripcionId } = req.body;
   const userRol = req.user?.rol;
   const userEmpresaId = req.user?.empresaId;
 
   try {
+    if (!token || !pagoSuscripcionId) {
+      return res.status(400).json({ message: 'Token y pagoSuscripcionId son requeridos' });
+    }
+
     const sub = await prisma.pagoSuscripcion.findUnique({
-      where: { id: id as string },
+      where: { id: pagoSuscripcionId },
       include: { empresa: true }
-    }) as any;
+    });
 
     if (!sub) {
       return res.status(404).json({ message: 'Cobro de suscripción no encontrado' });
@@ -283,156 +284,128 @@ router.post('/:id/stripe-checkout', authenticate, async (req: AuthRequest, res) 
     }
 
     if (sub.estadoPago === 'PAGADO') {
-      return res.status(400).json({ message: 'Esta suscripción ya se encuentra pagada' });
+      return res.json({ success: true, message: 'Esta suscripción ya se encuentra pagada', sub });
     }
 
-    const months = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    const mesNombre = months[sub.mes - 1] || '';
+    const userEmail = sub.empresa.correo || 'cliente@forwarderly.com';
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-
-    // Create Stripe checkout session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `Suscripción Forwarderly - ${mesNombre} ${sub.anio}`,
-              description: `Facturación para ${sub.empresa.razonSocial} (${sub.empresa.periodicidad})`,
-            },
-            unit_amount: Math.round(sub.monto * 100), // in cents
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'payment',
-      success_url: `${clientUrl}/suscripciones?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${clientUrl}/suscripciones?cancel=true`,
-      metadata: {
-        pagoSuscripcionId: sub.id,
-        empresaId: sub.empresaId
-      }
-    });
-
-    res.json({ url: session.url });
-  } catch (error: any) {
-    console.error('Error creating Stripe session:', error);
-    res.status(500).json({ message: 'Error al iniciar pago con Stripe: ' + error.message });
-  }
-});
-
-// POST /api/suscripciones/stripe-confirm - Confirm checkout payment directly
-router.post('/stripe-confirm', authenticate, async (req: AuthRequest, res) => {
-  const { sessionId } = req.body;
-  const userRol = req.user?.rol;
-  const userEmpresaId = req.user?.empresaId;
-
-  try {
-    if (!sessionId) {
-      return res.status(400).json({ message: 'Session ID es requerido' });
-    }
-
-    const session = await stripe.checkout.sessions.retrieve(sessionId) as any;
-    
-    if (session.payment_status !== 'paid') {
-      return res.status(400).json({ message: 'El pago no ha sido completado en Stripe' });
-    }
-
-    const subId = session.metadata?.pagoSuscripcionId;
-
-    if (!subId) {
-      return res.status(400).json({ message: 'ID de suscripción ausente en los metadatos' });
-    }
-
-    const sub = await prisma.pagoSuscripcion.findUnique({
-      where: { id: subId }
-    });
-
-    if (!sub) {
-      return res.status(404).json({ message: 'Suscripción no encontrada' });
-    }
-
-    if (userRol !== 'SUPER_ADMIN' && sub.empresaId !== userEmpresaId) {
-      return res.status(403).json({ message: 'No autorizado para esta suscripción' });
-    }
-
-    if (sub.estadoPago === 'PAGADO') {
-      return res.json({ message: 'Suscripción ya estaba pagada', sub });
-    }
-
-    const updatedSub = await prisma.pagoSuscripcion.update({
-      where: { id: subId },
-      data: {
-        estadoPago: 'PAGADO',
-        modalidad: 'Stripe',
-        referencia: session.payment_intent as string || session.id,
-        fechaPago: new Date()
+    // Create charge in Culqi using native fetch
+    const culqiResponse = await fetch(`${CULQI_API_URL}/charges`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CULQI_SECRET_KEY}`,
+        'Content-Type': 'application/json'
       },
-      include: {
-        empresa: true
-      }
+      body: JSON.stringify({
+        amount: Math.round(sub.monto * 100), // in cents
+        currency_code: 'USD',
+        email: userEmail,
+        source_id: token,
+        metadata: {
+          pagoSuscripcionId: sub.id,
+          empresaId: sub.empresaId
+        }
+      })
     });
 
-    res.json({ success: true, message: 'Pago verificado correctamente', sub: updatedSub });
+    const culqiData = await culqiResponse.json() as any;
+
+    if (!culqiResponse.ok) {
+      const errorMsg = culqiData.user_message || culqiData.merchant_message || 'Error en la pasarela Culqi';
+      console.error('Culqi error response:', culqiData);
+      return res.status(400).json({ message: `Error al procesar el cobro: ${errorMsg}` });
+    }
+
+    // Culqi successful charges have state 'captured' or similar, check outcome
+    if (culqiData.outcome && culqiData.outcome.type === 'venta_exitosa') {
+      const updatedSub = await prisma.pagoSuscripcion.update({
+        where: { id: sub.id },
+        data: {
+          estadoPago: 'PAGADO',
+          modalidad: 'Culqi',
+          referencia: culqiData.id,
+          fechaPago: new Date()
+        },
+        include: {
+          empresa: true
+        }
+      });
+
+      return res.json({ success: true, message: 'Pago verificado y procesado correctamente', sub: updatedSub });
+    } else {
+      return res.status(400).json({ message: 'El pago no pudo ser capturado por Culqi' });
+    }
   } catch (error: any) {
-    console.error('Error confirming payment:', error);
-    res.status(500).json({ message: 'Error al confirmar pago: ' + error.message });
+    console.error('Error confirming payment with Culqi:', error);
+    res.status(500).json({ message: 'Error al procesar el pago con Culqi: ' + error.message });
   }
 });
 
-// POST /api/suscripciones/webhook - Stripe Webhook handler
+// POST /api/suscripciones/webhook - Culqi Webhook handler
 router.post('/webhook', async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  let event;
-
   try {
-    if (endpointSecret && sig) {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } else {
-      // Fallback for development if signature is not configured
-      event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    }
-  } catch (err: any) {
-    console.error(`Webhook Error: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+    const event = req.body;
+    console.log('[Culqi Webhook] Recibido evento:', event?.type || event?.object);
 
-  // Handle the event
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as any;
-    
-    if (session.payment_status === 'paid') {
-      const subId = session.metadata?.pagoSuscripcionId;
-      if (subId) {
-        try {
+    if (!event) {
+      return res.status(400).send('Cuerpo de petición vacío');
+    }
+
+    // We listen to "charge.creation.succeeded" or other successful charge events
+    const isChargeSuccess = event.type === 'charge.creation.succeeded' || event.object === 'charge';
+
+    if (isChargeSuccess) {
+      // Extract charge details
+      const chargeData = event.data ? (typeof event.data === 'string' ? JSON.parse(event.data) : event.data) : event;
+      const chargeId = chargeData.id;
+      
+      if (!chargeId) {
+        return res.status(400).send('ID de cargo no encontrado en el evento');
+      }
+
+      // Double-check verification: fetch the charge directly from Culqi API using our private key
+      // to prevent webhook spoofing
+      const verifyResponse = await fetch(`${CULQI_API_URL}/charges/${chargeId}`, {
+        headers: {
+          'Authorization': `Bearer ${CULQI_SECRET_KEY}`
+        }
+      });
+
+      if (!verifyResponse.ok) {
+        console.error(`[Culqi Webhook] Error al verificar cargo ${chargeId} con la API de Culqi`);
+        return res.status(400).send('No se pudo verificar la autenticidad del cargo');
+      }
+
+      const verifiedCharge = await verifyResponse.json() as any;
+
+      // Ensure charge is successful and outcomes match a successful sale
+      const isCaptured = verifiedCharge.outcome && verifiedCharge.outcome.type === 'venta_exitosa';
+      
+      if (isCaptured) {
+        const subId = verifiedCharge.metadata?.pagoSuscripcionId;
+        if (subId) {
           const sub = await prisma.pagoSuscripcion.findUnique({ where: { id: subId } });
           if (sub && sub.estadoPago !== 'PAGADO') {
             await prisma.pagoSuscripcion.update({
               where: { id: subId },
               data: {
                 estadoPago: 'PAGADO',
-                modalidad: 'Stripe',
-                referencia: session.payment_intent as string || session.id,
+                modalidad: 'Culqi',
+                referencia: chargeId,
                 fechaPago: new Date()
               }
             });
-            console.log(`[Stripe Webhook] Suscripción ${subId} marcada como PAGADA con éxito.`);
+            console.log(`[Culqi Webhook] Suscripción ${subId} marcada como PAGADA con éxito.`);
           }
-        } catch (error) {
-          console.error('[Stripe Webhook] Error al actualizar suscripción:', error);
         }
       }
     }
-  }
 
-  res.json({ received: true });
+    res.json({ received: true });
+  } catch (error: any) {
+    console.error('[Culqi Webhook] Error:', error.message);
+    res.status(500).send(`Webhook Error: ${error.message}`);
+  }
 });
 
 // PUT /api/suscripciones/:id/pagar - Register subscription payment (Manual by SUPER_ADMIN)
