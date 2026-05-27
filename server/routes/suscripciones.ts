@@ -389,7 +389,8 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
 
       if (!customerResponse.ok) {
         console.error('Error creating Culqi customer:', customerData);
-        return res.status(400).json({ message: `Error al registrar cliente en Culqi: ${customerData.user_message || 'Error desconocido'}` });
+        const detailedError = customerData.user_message || customerData.merchant_message || JSON.stringify(customerData);
+        return res.status(400).json({ message: `Error al registrar cliente en Culqi: ${detailedError}` });
       }
 
       customerId = customerData.id;
@@ -418,7 +419,8 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
 
     if (!cardResponse.ok) {
       console.error('Error creating Culqi card:', cardData);
-      return res.status(400).json({ message: `Error al registrar tarjeta en Culqi: ${cardData.user_message || 'Error desconocido'}` });
+      const detailedError = cardData.user_message || cardData.merchant_message || JSON.stringify(cardData);
+      return res.status(400).json({ message: `Error al registrar tarjeta en Culqi: ${detailedError}` });
     }
 
     const cardId = cardData.id;
@@ -462,7 +464,8 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
 
     if (!subscriptionResponse.ok) {
       console.error('Error creating Culqi subscription:', subscriptionData);
-      return res.status(400).json({ message: `Error al crear suscripción en Culqi: ${subscriptionData.user_message || 'Error de plan'}` });
+      const detailedError = subscriptionData.user_message || subscriptionData.merchant_message || JSON.stringify(subscriptionData);
+      return res.status(400).json({ message: `Error al crear suscripción en Culqi: ${detailedError}` });
     }
 
     const subscriptionId = subscriptionData.id;
