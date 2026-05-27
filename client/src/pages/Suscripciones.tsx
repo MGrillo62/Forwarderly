@@ -142,7 +142,7 @@ const Suscripciones: React.FC = () => {
 
       Culqi.settings({
         title: 'Forwarderly',
-        currency: 'USD',
+        currency: 'PEN',
         amount: Math.round(sub.monto * 100), // Culqi receives cents
         description: `Suscripción ${getMonthName(sub.mes)} ${sub.anio}`,
       });
@@ -279,7 +279,7 @@ const Suscripciones: React.FC = () => {
               <div className="billing-details-grid">
                 <div>
                   <small>Plan de Suscripción</small>
-                  <strong>$ {activeEmpresa?.montoSuscripcion?.toFixed(2)} USD</strong>
+                  <strong>S/ {activeEmpresa?.montoSuscripcion?.toFixed(2)} PEN</strong>
                 </div>
                 <div>
                   <small>Periodicidad</small>
@@ -384,7 +384,7 @@ const Suscripciones: React.FC = () => {
                 </th>
                 <th onClick={() => handleSort('monto')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                   <div className="flex-align" style={{ gap: '0.25rem' }}>
-                    Monto (USD) {getSortIcon('monto')}
+                    Monto (PEN) {getSortIcon('monto')}
                   </div>
                 </th>
                 <th onClick={() => handleSort('diaPago')} style={{ cursor: 'pointer', userSelect: 'none' }}>
@@ -440,7 +440,7 @@ const Suscripciones: React.FC = () => {
                       <div style={{ fontWeight: 600 }}>{getMonthName(s.mes)} {s.anio}</div>
                     </td>
                     <td>
-                      <strong style={{ color: 'var(--text-dark)' }}>$ {s.monto.toFixed(2)} USD</strong>
+                      <strong style={{ color: 'var(--text-dark)' }}>S/ {s.monto.toFixed(2)} PEN</strong>
                     </td>
                     <td>
                       <div>Día {s.empresa?.diaPagoSuscripcion || 5}</div>
@@ -522,7 +522,7 @@ const Suscripciones: React.FC = () => {
                     {selectedSub.empresa?.razonSocial}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 'bold', marginTop: '0.25rem' }}>
-                    {getMonthName(selectedSub.mes)} {selectedSub.anio} — $ {selectedSub.monto.toFixed(2)} USD
+                    {getMonthName(selectedSub.mes)} {selectedSub.anio} — S/ {selectedSub.monto.toFixed(2)} PEN
                   </div>
                 </div>
 

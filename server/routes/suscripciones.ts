@@ -298,7 +298,7 @@ router.post('/culqi-charge', authenticate, async (req: AuthRequest, res) => {
       },
       body: JSON.stringify({
         amount: Math.round(sub.monto * 100), // in cents
-        currency_code: 'USD',
+        currency_code: 'PEN',
         email: userEmail,
         source_id: token,
         metadata: {
