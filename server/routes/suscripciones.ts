@@ -286,7 +286,7 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
 // GET /api/suscripciones/planes - Get active plans from Culqi
 router.get('/planes', authenticate, async (req: AuthRequest, res) => {
   try {
-    const culqiResponse = await fetch(`${CULQI_API_URL}/plans`, {
+    const culqiResponse = await fetch(`${CULQI_API_URL}/recurrent/plans`, {
       headers: {
         'Authorization': `Bearer ${CULQI_SECRET_KEY}`
       }
@@ -423,8 +423,30 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
 
     const cardId = cardData.id;
 
+    // Resolve Culqi Plan ID dynamically from planCodigo
+    let culqiPlanId = planCodigo === 'anual' ? 'pln_test_fMmMr4PRbjBOMU8B' : 'pln_test_unJdU3vzGbQTdpK1';
+    try {
+      const plansResponse = await fetch(`${CULQI_API_URL}/recurrent/plans`, {
+        headers: {
+          'Authorization': `Bearer ${CULQI_SECRET_KEY}`
+        }
+      });
+      if (plansResponse.ok) {
+        const plansData = await plansResponse.json() as any;
+        if (plansData && plansData.data && Array.isArray(plansData.data)) {
+          const matchedPlan = plansData.data.find((p: any) => p.short_name === planCodigo || p.id === planCodigo);
+          if (matchedPlan) {
+            culqiPlanId = matchedPlan.id;
+            console.log(`[Culqi Subscribe] Resolved plan ID dynamically: ${planCodigo} -> ${culqiPlanId}`);
+          }
+        }
+      }
+    } catch (plansErr) {
+      console.error('[Culqi Subscribe] Error resolving plan ID dynamically, using fallback test ID:', plansErr);
+    }
+
     // 3. Subscribe Customer to Plan
-    const subscriptionResponse = await fetch(`${CULQI_API_URL}/subscriptions`, {
+    const subscriptionResponse = await fetch(`${CULQI_API_URL}/recurrent/subscriptions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${CULQI_SECRET_KEY}`,
@@ -432,7 +454,7 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
       },
       body: JSON.stringify({
         card_id: cardId,
-        plan_id: planCodigo
+        plan_id: culqiPlanId
       })
     });
 
