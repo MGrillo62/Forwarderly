@@ -6,7 +6,30 @@ const prisma = new PrismaClient();
 
 // Initialize Culqi configuration
 const CULQI_API_URL = 'https://api.culqi.com/v2';
-const CULQI_SECRET_KEY = process.env.CULQI_SECRET_KEY || 'sk_test_mock';
+const CULQI_SECRET_KEY = (process.env.CULQI_SECRET_KEY || 'sk_test_QqfPfNGIsmZWrIoJ').replace(/['"]/g, '').trim();
+
+// Sanitizer helpers for robust Culqi Customer registration
+const sanitizeName = (name: string): string => {
+  return (name || '')
+    .replace(/[^a-zA-Z0-9\s.\-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const sanitizePhone = (phone: string): string => {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length < 7) return '999999999';
+  return digits;
+};
+
+const sanitizeEmail = (email: string): string => {
+  const trimmed = (email || '').trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(trimmed)) {
+    return 'factura@forwarderly.com';
+  }
+  return trimmed;
+};
 
 // Helper to get all months between two dates inclusive
 function getMonthsRange(start: Date, end: Date) {
@@ -353,12 +376,12 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
         },
         body: JSON.stringify({
           first_name: 'Empresa',
-          last_name: empresa.razonSocial,
-          email: empresa.correo || 'factura@forwarderly.com',
+          last_name: sanitizeName(empresa.razonSocial),
+          email: sanitizeEmail(empresa.correo),
           address: 'Av. Principal 123',
           address_city: 'Lima',
           country_code: 'PE',
-          phone_number: empresa.celular || '999999999'
+          phone_number: sanitizePhone(empresa.celular)
         })
       });
 
