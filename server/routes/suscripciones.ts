@@ -211,33 +211,21 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
     const diasRestantesTrial = Math.ceil(msRestantes / (1000 * 60 * 60 * 24));
     const isTrialActive = today < trialEnd;
 
-    // Check if there are VENCIDO subscriptions
-    const subVencida = await prisma.pagoSuscripcion.findFirst({
-      where: {
-        empresaId: userEmpresaId,
-        estadoPago: 'VENCIDO'
-      }
-    });
+    // Check if they have an active Culqi subscription
+    const hasCulqiSubscription = !!empresa.culqiSubscriptionId;
 
-    if (subVencida) {
-      return res.json({ 
-        tieneAcceso: false, 
-        motivo: 'SUSCRIPCION_VENCIDA', 
-        diasRestantesTrial: 0,
-        fechaFinPrueba: trialEnd
-      });
+    // Check if subscription has expired
+    let isExpired = false;
+    let diasRestantesSuscripcion = 0;
+
+    if (empresa.fechaFin) {
+      const msSuscripcion = new Date(empresa.fechaFin).getTime() - today.getTime();
+      diasRestantesSuscripcion = Math.ceil(msSuscripcion / (1000 * 60 * 60 * 24));
+      isExpired = today > new Date(empresa.fechaFin);
     }
 
-    // Check if they have ever paid
-    const totalPagadas = await prisma.pagoSuscripcion.count({
-      where: {
-        empresaId: userEmpresaId,
-        estadoPago: 'PAGADO'
-      }
-    });
-
-    // If trial is over and they have never paid, they must pay the first subscription
-    if (totalPagadas === 0 && !isTrialActive) {
+    // New Client: trial over and never subscribed
+    if (!isTrialActive && !hasCulqiSubscription) {
       return res.json({ 
         tieneAcceso: false, 
         motivo: 'REQUIERE_PRIMER_PAGO', 
@@ -246,98 +234,240 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
+    // Renewal: trial over, subscribed, but expired
+    if (!isTrialActive && hasCulqiSubscription && isExpired) {
+      return res.json({
+        tieneAcceso: false,
+        motivo: 'SUSCRIPCION_VENCIDA',
+        diasRestantesTrial: 0,
+        fechaFinPrueba: trialEnd,
+        fechaFinSuscripcion: empresa.fechaFin
+      });
+    }
+
     return res.json({ 
       tieneAcceso: true, 
       motivo: isTrialActive ? 'TRIAL_ACTIVO' : 'AL_DIA', 
       diasRestantesTrial: isTrialActive ? Math.max(0, diasRestantesTrial) : 0,
       fechaFinPrueba: trialEnd,
-      totalPagadas
+      diasRestantesSuscripcion: empresa.fechaFin ? Math.max(0, diasRestantesSuscripcion) : 0,
+      fechaFinSuscripcion: empresa.fechaFin,
+      planActual: empresa.periodicidad,
+      hasCulqiSubscription
     });
   } catch (error: any) {
     res.status(500).json({ message: 'Error al verificar acceso: ' + error.message });
   }
 });
 
-// POST /api/suscripciones/culqi-charge - Charge Culqi Token and confirm payment
-router.post('/culqi-charge', authenticate, async (req: AuthRequest, res) => {
-  const { token, pagoSuscripcionId } = req.body;
-  const userRol = req.user?.rol;
+// GET /api/suscripciones/planes - Get active plans from Culqi
+router.get('/planes', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const culqiResponse = await fetch(`${CULQI_API_URL}/plans`, {
+      headers: {
+        'Authorization': `Bearer ${CULQI_SECRET_KEY}`
+      }
+    });
+
+    if (culqiResponse.ok) {
+      const culqiData = await culqiResponse.json() as any;
+      if (culqiData.data) {
+        return res.json(culqiData.data);
+      }
+    }
+
+    // Fallback: list of plans in case Culqi API is down or in mock environment
+    return res.json([
+      {
+        id: 'codigo',
+        name: 'Plan Solopreneur',
+        amount: 15500, // S/ 155.00
+        currency_code: 'PEN',
+        interval: 'months',
+        interval_count: 1
+      },
+      {
+        id: 'anual',
+        name: 'Plan Solopreneur Anual',
+        amount: 148800, // S/ 1,488.00
+        currency_code: 'PEN',
+        interval: 'months',
+        interval_count: 12
+      }
+    ]);
+  } catch (error: any) {
+    console.error('Error fetching Culqi plans:', error);
+    // Return fallback plans rather than failing completely
+    res.json([
+      {
+        id: 'codigo',
+        name: 'Plan Solopreneur',
+        amount: 15500,
+        currency_code: 'PEN',
+        interval: 'months',
+        interval_count: 1
+      },
+      {
+        id: 'anual',
+        name: 'Plan Solopreneur Anual',
+        amount: 148800,
+        currency_code: 'PEN',
+        interval: 'months',
+        interval_count: 12
+      }
+    ]);
+  }
+});
+
+// POST /api/suscripciones/culqi-subscribe - Create native subscription in Culqi
+router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
+  const { token, planCodigo } = req.body;
   const userEmpresaId = req.user?.empresaId;
 
   try {
-    if (!token || !pagoSuscripcionId) {
-      return res.status(400).json({ message: 'Token y pagoSuscripcionId son requeridos' });
+    if (!token || !planCodigo) {
+      return res.status(400).json({ message: 'Token y planCodigo son requeridos' });
     }
 
-    const sub = await prisma.pagoSuscripcion.findUnique({
-      where: { id: pagoSuscripcionId },
-      include: { empresa: true }
+    if (!userEmpresaId) {
+      return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
+    }
+
+    const empresa = await prisma.empresa.findUnique({
+      where: { id: userEmpresaId }
     });
 
-    if (!sub) {
-      return res.status(404).json({ message: 'Cobro de suscripción no encontrado' });
+    if (!empresa) {
+      return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
-    // Security check: normal user can only pay their own company's subscription
-    if (userRol !== 'SUPER_ADMIN' && sub.empresaId !== userEmpresaId) {
-      return res.status(403).json({ message: 'No tienes permiso para pagar esta suscripción' });
+    let customerId = empresa.culqiCustomerId;
+
+    // 1. Create Culqi Customer if they don't have one
+    if (!customerId) {
+      const customerResponse = await fetch(`${CULQI_API_URL}/customers`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CULQI_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          first_name: 'Empresa',
+          last_name: empresa.razonSocial,
+          email: empresa.correo || 'factura@forwarderly.com',
+          address: 'Av. Principal 123',
+          address_city: 'Lima',
+          country_code: 'PE',
+          phone_number: empresa.celular || '999999999'
+        })
+      });
+
+      const customerData = await customerResponse.json() as any;
+
+      if (!customerResponse.ok) {
+        console.error('Error creating Culqi customer:', customerData);
+        return res.status(400).json({ message: `Error al registrar cliente en Culqi: ${customerData.user_message || 'Error desconocido'}` });
+      }
+
+      customerId = customerData.id;
+      
+      // Save customer ID in database
+      await prisma.empresa.update({
+        where: { id: empresa.id },
+        data: { culqiCustomerId: customerId }
+      });
     }
 
-    if (sub.estadoPago === 'PAGADO') {
-      return res.json({ success: true, message: 'Esta suscripción ya se encuentra pagada', sub });
-    }
-
-    const userEmail = sub.empresa.correo || 'cliente@forwarderly.com';
-
-    // Create charge in Culqi using native fetch
-    const culqiResponse = await fetch(`${CULQI_API_URL}/charges`, {
+    // 2. Associate card token to customer (Create Card)
+    const cardResponse = await fetch(`${CULQI_API_URL}/cards`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${CULQI_SECRET_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        amount: Math.round(sub.monto * 100), // in cents
-        currency_code: 'PEN',
-        email: userEmail,
-        source_id: token,
-        metadata: {
-          pagoSuscripcionId: sub.id,
-          empresaId: sub.empresaId
-        }
+        customer_id: customerId,
+        token_id: token
       })
     });
 
-    const culqiData = await culqiResponse.json() as any;
+    const cardData = await cardResponse.json() as any;
 
-    if (!culqiResponse.ok) {
-      const errorMsg = culqiData.user_message || culqiData.merchant_message || 'Error en la pasarela Culqi';
-      console.error('Culqi error response:', culqiData);
-      return res.status(400).json({ message: `Error al procesar el cobro: ${errorMsg}` });
+    if (!cardResponse.ok) {
+      console.error('Error creating Culqi card:', cardData);
+      return res.status(400).json({ message: `Error al registrar tarjeta en Culqi: ${cardData.user_message || 'Error desconocido'}` });
     }
 
-    // Culqi successful charges have state 'captured' or similar, check outcome
-    if (culqiData.outcome && culqiData.outcome.type === 'venta_exitosa') {
-      const updatedSub = await prisma.pagoSuscripcion.update({
-        where: { id: sub.id },
-        data: {
-          estadoPago: 'PAGADO',
-          modalidad: 'Culqi',
-          referencia: culqiData.id,
-          fechaPago: new Date()
-        },
-        include: {
-          empresa: true
-        }
-      });
+    const cardId = cardData.id;
 
-      return res.json({ success: true, message: 'Pago verificado y procesado correctamente', sub: updatedSub });
+    // 3. Subscribe Customer to Plan
+    const subscriptionResponse = await fetch(`${CULQI_API_URL}/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CULQI_SECRET_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        card_id: cardId,
+        plan_id: planCodigo
+      })
+    });
+
+    const subscriptionData = await subscriptionResponse.json() as any;
+
+    if (!subscriptionResponse.ok) {
+      console.error('Error creating Culqi subscription:', subscriptionData);
+      return res.status(400).json({ message: `Error al crear suscripción en Culqi: ${subscriptionData.user_message || 'Error de plan'}` });
+    }
+
+    const subscriptionId = subscriptionData.id;
+
+    // Determine plan price and periodicity
+    const planAmount = planCodigo === 'anual' ? 1488.0 : 155.0;
+    const periodicidad = planCodigo === 'anual' ? 'ANUAL' : 'MENSUAL';
+
+    // Calculate new expiration date (fechaFin)
+    const today = new Date();
+    const nextBillingDate = new Date(today);
+    if (planCodigo === 'anual') {
+      nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
     } else {
-      return res.status(400).json({ message: 'El pago no pudo ser capturado por Culqi' });
+      nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
     }
+
+    // 4. Update Empresa database model
+    await prisma.empresa.update({
+      where: { id: empresa.id },
+      data: {
+        culqiSubscriptionId: subscriptionId,
+        montoSuscripcion: planAmount,
+        periodicidad,
+        fechaFin: nextBillingDate,
+        estado: 'ACTIVO'
+      }
+    });
+
+    // 5. Register initial payment cycle as PAGADO
+    const updatedSub = await prisma.pagoSuscripcion.create({
+      data: {
+        empresaId: empresa.id,
+        mes: today.getMonth() + 1,
+        anio: today.getFullYear(),
+        monto: planAmount,
+        estadoPago: 'PAGADO',
+        modalidad: 'Culqi',
+        referencia: subscriptionId,
+        fechaPago: today
+      },
+      include: {
+        empresa: true
+      }
+    });
+
+    res.json({ success: true, message: 'Suscripción recurrente iniciada correctamente', sub: updatedSub });
   } catch (error: any) {
-    console.error('Error confirming payment with Culqi:', error);
-    res.status(500).json({ message: 'Error al procesar el pago con Culqi: ' + error.message });
+    console.error('Error creating Culqi subscription:', error);
+    res.status(500).json({ message: 'Error al procesar la suscripción: ' + error.message });
   }
 });
 
@@ -382,6 +512,7 @@ router.post('/webhook', async (req, res) => {
       const isCaptured = verifiedCharge.outcome && verifiedCharge.outcome.type === 'venta_exitosa';
       
       if (isCaptured) {
+        // Option A: Single charge confirmation (has pagoSuscripcionId in metadata)
         const subId = verifiedCharge.metadata?.pagoSuscripcionId;
         if (subId) {
           const sub = await prisma.pagoSuscripcion.findUnique({ where: { id: subId } });
@@ -396,6 +527,67 @@ router.post('/webhook', async (req, res) => {
               }
             });
             console.log(`[Culqi Webhook] Suscripción ${subId} marcada como PAGADA con éxito.`);
+          }
+        } 
+        // Option B: Recurring Subscription Renewal (has subscription_id in charge details)
+        else if (verifiedCharge.subscription_id) {
+          const subscriptionId = verifiedCharge.subscription_id;
+          
+          // Find the company associated with this subscription
+          const empresa = await prisma.empresa.findFirst({
+            where: { culqiSubscriptionId: subscriptionId }
+          });
+
+          if (empresa) {
+            const today = new Date();
+            
+            // Calculate next billing date based on periodicity
+            const nextBillingDate = new Date(today);
+            if (empresa.periodicidad === 'ANUAL') {
+              nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
+            } else {
+              nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+            }
+
+            // Update company's expiration date (extend access)
+            await prisma.empresa.update({
+              where: { id: empresa.id },
+              data: {
+                fechaFin: nextBillingDate,
+                estado: 'ACTIVO'
+              }
+            });
+
+            // Register the renewal payment period in the database automatically
+            const month = today.getMonth() + 1;
+            const year = today.getFullYear();
+
+            // Check if it already exists to prevent duplicate entries
+            const exists = await prisma.pagoSuscripcion.findUnique({
+              where: {
+                empresaId_mes_anio: {
+                  empresaId: empresa.id,
+                  mes: month,
+                  anio: year
+                }
+              }
+            });
+
+            if (!exists) {
+              await prisma.pagoSuscripcion.create({
+                data: {
+                  empresaId: empresa.id,
+                  mes: month,
+                  anio: year,
+                  monto: empresa.montoSuscripcion || 155.0,
+                  estadoPago: 'PAGADO',
+                  modalidad: 'Culqi',
+                  referencia: chargeId,
+                  fechaPago: today
+                }
+              });
+              console.log(`[Culqi Webhook] Renovación procesada y registrada de forma PAGADA para la empresa ${empresa.razonSocial}.`);
+            }
           }
         }
       }

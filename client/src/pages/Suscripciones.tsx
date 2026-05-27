@@ -10,6 +10,9 @@ const Suscripciones: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [estadoActual, setEstadoActual] = useState<any>(null);
+  const [planes, setPlanes] = useState<any[]>([]);
+  const [loadingPlanes, setLoadingPlanes] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>('codigo');
   
   // Filter States
   const [filterCompany, setFilterCompany] = useState('');
@@ -38,27 +41,28 @@ const Suscripciones: React.FC = () => {
     }
     fetchSubscriptions();
     fetchEstadoActual();
+    fetchPlanes();
 
     // Configure Culqi global callback
     (window as any).culqi = async () => {
       const Culqi = (window as any).Culqi;
       if (Culqi && Culqi.token) {
         const token = Culqi.token.id;
-        const subId = (window as any)._activePagoSuscripcionId;
-        if (subId) {
+        const planCodigo = (window as any)._activePlanCodigo;
+        if (planCodigo) {
           try {
             Culqi.close();
-            const res = await api.post('/suscripciones/culqi-charge', {
+            const res = await api.post('/suscripciones/culqi-subscribe', {
               token,
-              pagoSuscripcionId: subId
+              planCodigo
             });
             if (res.data.success) {
-              alert('¡Pago completado con éxito a través de Culqi! Tu suscripción se encuentra al día.');
+              alert('¡Suscripción recurrente activada con éxito a través de Culqi! Tu cuenta se encuentra al día.');
               fetchSubscriptions();
               fetchEstadoActual();
             }
           } catch (err: any) {
-            alert('Error al verificar el pago con Culqi: ' + (err.response?.data?.message || err.message));
+            alert('Error al verificar la suscripción con Culqi: ' + (err.response?.data?.message || err.message));
           }
         }
       } else if (Culqi && Culqi.error) {
@@ -70,6 +74,13 @@ const Suscripciones: React.FC = () => {
       delete (window as any).culqi;
     };
   }, []);
+
+  useEffect(() => {
+    if (estadoActual?.planActual) {
+      const currentPlanCode = estadoActual.planActual === 'ANUAL' ? 'anual' : 'codigo';
+      setSelectedPlan(currentPlanCode);
+    }
+  }, [estadoActual]);
 
   useEffect(() => {
     fetchSubscriptions();
@@ -110,6 +121,18 @@ const Suscripciones: React.FC = () => {
     }
   };
 
+  const fetchPlanes = async () => {
+    try {
+      setLoadingPlanes(true);
+      const res = await api.get('/suscripciones/planes');
+      setPlanes(res.data);
+    } catch (err) {
+      console.error('Error fetching plans:', err);
+    } finally {
+      setLoadingPlanes(false);
+    }
+  };
+
   const loadCulqiScript = () => {
     return new Promise<void>((resolve) => {
       if ((window as any).Culqi) {
@@ -123,9 +146,9 @@ const Suscripciones: React.FC = () => {
     });
   };
 
-  const handleCulqiPay = async (sub: any) => {
+  const handleCulqiPay = async (planCodigo: string, amount: number) => {
     try {
-      setLoadingCheckout(sub.id);
+      setLoadingCheckout(planCodigo);
       await loadCulqiScript();
       
       const Culqi = (window as any).Culqi;
@@ -134,8 +157,8 @@ const Suscripciones: React.FC = () => {
         return;
       }
 
-      // Set the active subscription ID globally so the window.culqi callback can read it
-      (window as any)._activePagoSuscripcionId = sub.id;
+      // Set the active plan code globally so the window.culqi callback can read it
+      (window as any)._activePlanCodigo = planCodigo;
 
       // Initialize Culqi (will fallback to test public key if VITE_CULQI_PUBLIC_KEY is not defined)
       Culqi.publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY || 'pk_test_PUCWnl5khqdKd4GH';
@@ -143,8 +166,8 @@ const Suscripciones: React.FC = () => {
       Culqi.settings({
         title: 'Forwarderly',
         currency: 'PEN',
-        amount: Math.round(sub.monto * 100), // Culqi receives cents
-        description: `Suscripción ${getMonthName(sub.mes)} ${sub.anio}`,
+        amount: Math.round(amount), // Plan amount in cents
+        description: `Plan Forwarderly - ${planCodigo === 'anual' ? 'Anual' : 'Mensual'}`,
       });
 
       Culqi.options({
@@ -254,66 +277,151 @@ const Suscripciones: React.FC = () => {
         </p>
       </div>
 
-      {/* ADMIN Panel Summary Card */}
+      {/* Mi Suscripción y Planes de Pago (Solo para Empresas, no para SUPER_ADMIN) */}
       {user?.rol !== 'SUPER_ADMIN' && estadoActual && (
-        <div className="billing-summary-card animate-slide-in">
-          <div className="billing-summary-content">
-            <div className="billing-info">
-              <span className="billing-label">Estado de la cuenta</span>
-              <div className="billing-status-wrapper">
-                {estadoActual.motivo === 'TRIAL_ACTIVO' ? (
-                  <span className="status-badge status-pending flex-align" style={{ gap: '0.25rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                    <Clock size={16} /> Periodo de Prueba Activo
-                  </span>
-                ) : estadoActual.tieneAcceso ? (
-                  <span className="status-badge status-approved flex-align" style={{ gap: '0.25rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                    <ShieldCheck size={16} /> Cuenta Activa y al Día
-                  </span>
-                ) : (
-                  <span className="status-badge status-rejected flex-align animate-pulse" style={{ gap: '0.25rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                    <AlertTriangle size={16} /> Pago Requerido (Acceso Bloqueado)
-                  </span>
-                )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
+          
+          {/* Fila de Estado Rápido */}
+          <div className="billing-summary-card animate-slide-in" style={{ padding: '1.25rem 1.75rem', marginBottom: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <span className="billing-label" style={{ fontSize: '0.65rem' }}>Estado de la Cuenta</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                  {estadoActual.motivo === 'TRIAL_ACTIVO' ? (
+                    <span className="status-badge status-pending flex-align" style={{ gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}>
+                      <Clock size={14} /> Periodo de Prueba (Quedan {estadoActual.diasRestantesTrial} días)
+                    </span>
+                  ) : estadoActual.tieneAcceso ? (
+                    <span className="status-badge status-approved flex-align" style={{ gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}>
+                      <ShieldCheck size={14} /> Cuenta Activa y al Día
+                    </span>
+                  ) : (
+                    <span className="status-badge status-rejected flex-align animate-pulse" style={{ gap: '0.25rem', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}>
+                      <AlertTriangle size={14} /> Pago Requerido (Acceso Bloqueado)
+                    </span>
+                  )}
+                  {estadoActual.fechaFinSuscripcion && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-light)', fontWeight: 500 }}>
+                      Vence el: <strong>{new Date(estadoActual.fechaFinSuscripcion).toLocaleDateString()}</strong>
+                    </span>
+                  )}
+                </div>
               </div>
               
-              <div className="billing-details-grid">
-                <div>
-                  <small>Plan de Suscripción</small>
-                  <strong>S/ {activeEmpresa?.montoSuscripcion?.toFixed(2)} PEN</strong>
-                </div>
-                <div>
-                  <small>Periodicidad</small>
-                  <strong>{activeEmpresa?.periodicidad}</strong>
-                </div>
-                <div>
-                  <small>Día de Pago</small>
-                  <strong>Día {activeEmpresa?.diaPagoSuscripcion} de cada ciclo</strong>
-                </div>
-                {estadoActual.motivo === 'TRIAL_ACTIVO' && (
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
+                {estadoActual.planActual && (
                   <div>
-                    <small>Fin de Periodo de Prueba</small>
-                    <strong style={{ color: 'var(--primary)' }}>
-                      {new Date(estadoActual.fechaFinPrueba).toLocaleDateString()} (Quedan {estadoActual.diasRestantesTrial} días)
+                    <span className="billing-label" style={{ fontSize: '0.65rem' }}>Plan Contratado</span>
+                    <strong style={{ display: 'block', fontSize: '0.9rem', color: '#FFFFFF', marginTop: '0.25rem' }}>
+                      {estadoActual.planActual === 'ANUAL' ? 'Solopreneur Anual' : 'Solopreneur Mensual'}
+                    </strong>
+                  </div>
+                )}
+                {activeEmpresa?.diaPagoSuscripcion && (
+                  <div>
+                    <span className="billing-label" style={{ fontSize: '0.65rem' }}>Día de Pago</span>
+                    <strong style={{ display: 'block', fontSize: '0.9rem', color: '#FFFFFF', marginTop: '0.25rem' }}>
+                      Día {activeEmpresa.diaPagoSuscripcion} de cada ciclo
                     </strong>
                   </div>
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Pricing Grid */}
+          <div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-dark)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              ⚡ Planes y Suscripción Directa en Culqi
+            </h3>
             
-            <div className="billing-card-right">
-              {estadoActual.tieneAcceso ? (
-                <div className="billing-alert-info">
-                  <ShieldCheck size={36} style={{ color: 'var(--success)', marginBottom: '0.5rem' }} />
-                  <p>¡Gracias por usar Forwarderly! Tu plan está al día y cuentas con acceso total a todos los módulos.</p>
+            <div className="pricing-grid">
+              
+              {/* Plan Mensual */}
+              <div className={`pricing-card ${selectedPlan === 'codigo' ? 'active-plan' : ''}`}>
+                {selectedPlan === 'codigo' && estadoActual.hasCulqiSubscription && (
+                  <div className="current-badge">Tu Plan Actual</div>
+                )}
+                <div className="pricing-header">
+                  <h4>Plan Solopreneur</h4>
+                  <div className="price">
+                    <span className="currency">S/</span>
+                    <span className="amount">155.00</span>
+                    <span className="period">/ mes</span>
+                  </div>
+                  <p className="description">Ideal para medianos y pequeños importadores que inician en el rubro.</p>
                 </div>
-              ) : (
-                <div className="billing-alert-danger">
-                  <AlertTriangle size={36} style={{ color: 'var(--danger)', marginBottom: '0.5rem' }} />
-                  <p>Tu acceso ha sido restringido por falta de pago. Por favor, cancela la suscripción pendiente a continuación para restaurar el servicio inmediatamente.</p>
+                
+                <div className="pricing-features">
+                  <div className="feature-item"><Check size={16} /> <span>Acceso total a Costeos de Importación</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Gestión de Órdenes y Proveedores</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Módulo de Cotizaciones y Clientes</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>1 Empresa y Usuarios ilimitados</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Soporte estándar de integración</span></div>
                 </div>
-              )}
+
+                <div className="pricing-footer">
+                  {selectedPlan === 'codigo' && estadoActual.hasCulqiSubscription ? (
+                    <button className="success" style={{ width: '100%' }} disabled>
+                      <ShieldCheck size={16} /> Plan Activo
+                    </button>
+                  ) : (
+                    <button 
+                      className="primary btn-glow" 
+                      style={{ width: '100%', fontWeight: 700 }}
+                      onClick={() => handleCulqiPay('codigo', 15500)}
+                      disabled={loadingCheckout !== null}
+                    >
+                      {loadingCheckout === 'codigo' ? 'Cargando...' : selectedPlan === 'anual' ? 'Cambiar a Plan Mensual' : 'Contratar Plan Mensual'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Plan Anual */}
+              <div className={`pricing-card highlighted-plan ${selectedPlan === 'anual' ? 'active-plan' : ''}`}>
+                <div className="save-badge">¡Ahorra más del 20%!</div>
+                {selectedPlan === 'anual' && estadoActual.hasCulqiSubscription && (
+                  <div className="current-badge">Tu Plan Actual</div>
+                )}
+                <div className="pricing-header">
+                  <h4>Plan Solopreneur Anual</h4>
+                  <div className="price">
+                    <span className="currency">S/</span>
+                    <span className="amount">1,488.00</span>
+                    <span className="period">/ año</span>
+                  </div>
+                  <p className="description">Para importadores consolidados que buscan asegurar su software anual.</p>
+                </div>
+                
+                <div className="pricing-features">
+                  <div className="feature-item"><Check size={16} /> <span>Todos los beneficios del plan Mensual</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Soporte prioritario 24/7 y capacitaciones</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Ahorro del 20% en comparación mensual</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Backup y reportes anuales exclusivos</span></div>
+                </div>
+
+                <div className="pricing-footer">
+                  {selectedPlan === 'anual' && estadoActual.hasCulqiSubscription ? (
+                    <button className="success" style={{ width: '100%' }} disabled>
+                      <ShieldCheck size={16} /> Plan Activo
+                    </button>
+                  ) : (
+                    <button 
+                      className="primary btn-glow" 
+                      style={{ width: '100%', fontWeight: 700 }}
+                      onClick={() => handleCulqiPay('anual', 148800)}
+                      disabled={loadingCheckout !== null}
+                    >
+                      {loadingCheckout === 'anual' ? 'Cargando...' : selectedPlan === 'codigo' ? 'Cambiar a Plan Anual' : 'Contratar Plan Anual'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
             </div>
           </div>
+
         </div>
       )}
 
@@ -483,11 +591,11 @@ const Suscripciones: React.FC = () => {
                           <button 
                             className="primary btn-glow font-bold flex-align" 
                             style={{ gap: '0.35rem', padding: '0.5rem 0.9rem', fontSize: '0.75rem', borderRadius: '6px' }}
-                            onClick={() => handleCulqiPay(s)}
-                            disabled={loadingCheckout === s.id}
+                            onClick={() => handleCulqiPay(Math.round(s.monto) === 1488 ? 'anual' : 'codigo', s.monto * 100)}
+                            disabled={loadingCheckout !== null}
                           >
                             <CreditCard size={14} /> 
-                            {loadingCheckout === s.id ? 'Cargando...' : 'Pagar en Línea (Culqi)'}
+                            {loadingCheckout !== null ? 'Cargando...' : 'Pagar en Línea (Culqi)'}
                           </button>
                         )
                       ) : (
@@ -583,6 +691,144 @@ const Suscripciones: React.FC = () => {
 
       {/* Styled components custom CSS */}
       <style>{`
+        .pricing-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 2rem;
+          margin-bottom: 2rem;
+        }
+        
+        .pricing-card {
+          background: rgba(30, 41, 59, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 1.25rem;
+          padding: 2.25rem 2rem;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          backdrop-filter: blur(12px);
+        }
+        
+        .pricing-card:hover {
+          transform: translateY(-5px);
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .pricing-card.active-plan {
+          border-color: var(--primary, #4f46e5);
+          box-shadow: 0 0 25px rgba(79, 70, 229, 0.15);
+        }
+        
+        .pricing-card.highlighted-plan {
+          background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);
+          border-color: rgba(79, 70, 229, 0.3);
+        }
+        
+        .pricing-card.highlighted-plan:hover {
+          border-color: var(--primary, #4f46e5);
+          box-shadow: 0 20px 25px -5px rgba(79, 70, 229, 0.2), 0 10px 10px -5px rgba(79, 70, 229, 0.1);
+        }
+        
+        .current-badge {
+          position: absolute;
+          top: -12px;
+          right: 20px;
+          background: #10B981;
+          color: white;
+          padding: 4px 12px;
+          border-radius: 99px;
+          font-size: 0.725rem;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+        }
+        
+        .save-badge {
+          position: absolute;
+          top: -12px;
+          left: 20px;
+          background: #6366F1;
+          color: white;
+          padding: 4px 12px;
+          border-radius: 99px;
+          font-size: 0.725rem;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+        }
+        
+        .pricing-header h4 {
+          font-size: 1.25rem;
+          font-weight: 800;
+          color: #FFFFFF;
+          margin: 0 0 1rem 0;
+        }
+        
+        .pricing-header .price {
+          display: flex;
+          align-items: baseline;
+          margin-bottom: 0.75rem;
+        }
+        
+        .pricing-header .price .currency {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #94A3B8;
+          margin-right: 0.25rem;
+        }
+        
+        .pricing-header .price .amount {
+          font-size: 2.5rem;
+          font-weight: 900;
+          color: #FFFFFF;
+          line-height: 1;
+        }
+        
+        .pricing-header .price .period {
+          font-size: 0.875rem;
+          color: #94A3B8;
+          margin-left: 0.25rem;
+        }
+        
+        .pricing-header .description {
+          font-size: 0.875rem;
+          color: #94A3B8;
+          line-height: 1.5;
+          margin: 0 0 1.75rem 0;
+          min-height: 2.75rem;
+        }
+        
+        .pricing-features {
+          display: flex;
+          flex-direction: column;
+          gap: 0.875rem;
+          margin-bottom: 2rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        
+        .feature-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          font-size: 0.875rem;
+          color: #CBD5E1;
+          line-height: 1.4;
+        }
+        
+        .feature-item svg {
+          color: #34D399;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+        
+        .pricing-footer {
+          margin-top: auto;
+        }
+
         .billing-summary-card {
           background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
           border: 1px solid rgba(255, 255, 255, 0.08);
