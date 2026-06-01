@@ -17,6 +17,8 @@ import Leads from './pages/Leads';
 import DashboardComercial from './pages/DashboardComercial';
 import DashboardOperativo from './pages/DashboardOperativo';
 import Suscripciones from './pages/Suscripciones';
+import LibroReclamaciones from './pages/LibroReclamaciones';
+import ReclamacionesAdmin from './pages/ReclamacionesAdmin';
 import { AlertTriangle, Lock, CreditCard } from 'lucide-react';
 import api from './api/axios';
 
@@ -419,6 +421,14 @@ function App() {
           <Route path="/costeos" element={
             <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR']}>
               <Layout><Costeos /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/libro-reclamaciones" element={<LibroReclamaciones />} />
+
+          <Route path="/reclamaciones-admin" element={
+            <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN']}>
+              <Layout><ReclamacionesAdmin /></Layout>
             </ProtectedRoute>
           } />
 

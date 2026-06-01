@@ -14,7 +14,8 @@ import {
   Calculator,
   TrendingUp,
   UserCheck,
-  CreditCard
+  CreditCard,
+  BookOpen
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -41,6 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
     { name: 'Cotizaciones', icon: FileText, path: '/cotizaciones', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Módulo Operativo' },
     { name: 'Órdenes', icon: Package, path: '/ordenes', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Módulo Operativo' },
     { name: 'Costeos', icon: Calculator, path: '/costeos', roles: ['SUPER_ADMIN', 'ADMIN', 'IMPORTADOR'], group: 'Módulo Operativo' },
+    { name: 'Libro Reclamaciones', icon: BookOpen, path: '/libro-reclamaciones', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'], group: 'Módulo Operativo' },
     
     // Configuración
     { name: 'Empresas', icon: Building2, path: '/empresas', roles: ['SUPER_ADMIN'], group: 'Configuración' },
@@ -48,6 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
     { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Configuración' },
     { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
+    { name: 'Administrar Reclamos', icon: BookOpen, path: '/reclamaciones-admin', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'], group: 'Configuración' },
   ];
 

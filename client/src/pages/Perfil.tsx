@@ -2,9 +2,16 @@ import React, { useState } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { User, Phone, Mail, Lock, Save } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const Perfil: React.FC = () => {
   const { token, user, login } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryParams = new URLSearchParams(location.search);
+  const isNewUser = queryParams.get('new') === 'true';
+  
+  const [showWelcomeModal, setShowWelcomeModal] = useState(isNewUser);
   const [formData, setFormData] = useState({
     nombres: user?.nombres || '',
     apellidos: user?.apellidos || '',
@@ -87,6 +94,44 @@ const Perfil: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* Welcome / Registration Step Modal */}
+      {showWelcomeModal && (
+        <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 9999 }}>
+          <div className="modal-content animate-slide-in" style={{ background: '#ffffff', borderRadius: '1rem', border: '1px solid rgba(226,232,240,0.8)', maxWidth: '480px', width: '95%', textAlign: 'center', padding: '2.5rem', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div className="welcome-icon-wrapper" style={{ margin: '0 auto 1.5rem auto', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(79, 70, 229, 0.08)', color: '#4f46e5' }}>
+              <User size={32} style={{ margin: 'auto' }} />
+            </div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem' }}>
+              ¡Bienvenido a Forwarderly! 🎉
+            </h2>
+            <p style={{ fontSize: '0.875rem', color: '#64748b', lineHeight: '1.6', marginBottom: '1.75rem', padding: '0 0.5rem' }}>
+              Tu usuario ha sido creado de forma exitosa y cuentas con un periodo de <strong>Prueba Gratuito de 14 días</strong> activo para tu empresa.
+            </p>
+            
+            <div style={{ background: '#f8fafc', border: '1px solid rgba(226,232,240,0.8)', padding: '1rem', borderRadius: '0.5rem', fontSize: '0.8rem', color: '#475569', marginBottom: '2rem', textAlign: 'left', lineHeight: '1.4' }}>
+              <strong>Próximo Paso:</strong> Para asegurar la continuidad de tus operaciones de importación y elegir el plan ideal, te invitamos a seleccionar tu membresía.
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button 
+                className="primary font-bold flex-align" 
+                style={{ width: '100%', justifyContent: 'center', padding: '0.8rem 1rem', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
+                onClick={() => navigate('/suscripciones')}
+              >
+                💳 Elegir Mi Suscripción
+              </button>
+              <button 
+                className="btn-outline font-semibold" 
+                style={{ width: '100%', padding: '0.8rem 1rem', background: 'none', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', color: '#64748b', fontSize: '0.9rem' }}
+                onClick={() => setShowWelcomeModal(false)}
+              >
+                Completar Perfil Primero
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .perfil-container { max-width: 800px; margin: 0 auto; }

@@ -6,6 +6,7 @@ import {
   User, CheckCircle, AlertTriangle, FileText, ChevronRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getRemainingBusinessDays } from './ReclamacionesAdmin';
 
 const STAGE_LABELS: Record<string, string> = {
   NUEVO_CONTACTO: 'Nuevo Contacto',
@@ -28,10 +29,21 @@ const DashboardComercial: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  
+  // Alertas de Reclamaciones (solo SUPER_ADMIN o ADMIN)
+  const [reclamacionesAlerts, setReclamacionesAlerts] = useState<any[]>([]);
 
   useEffect(() => {
     fetchCommercialData();
-  }, []);
+    if (user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') {
+      api.get('/reclamaciones')
+        .then(res => {
+          const pending = res.data.filter((c: any) => c.estado === 'PENDIENTE');
+          setReclamacionesAlerts(pending);
+        })
+        .catch(err => console.error('Error fetching claims for alerts:', err));
+    }
+  }, [user]);
 
   const fetchCommercialData = async () => {
     try {
@@ -53,6 +65,13 @@ const DashboardComercial: React.FC = () => {
     return <div className="text-center py-12 text-slate-500 font-semibold">No se pudieron cargar los datos del dashboard.</div>;
   }
 
+  const criticalClaims = reclamacionesAlerts.map(c => ({
+    ...c,
+    remaining: getRemainingBusinessDays(c.createdAt)
+  })).sort((a, b) => a.remaining - b.remaining);
+
+  const criticalCount = criticalClaims.filter(c => c.remaining <= 3).length;
+
   return (
     <div>
       <div className="mb-6">
@@ -63,6 +82,61 @@ const DashboardComercial: React.FC = () => {
           Métricas de conversión de prospectos, rendimiento del equipo de ventas y cotizaciones para {user?.empresa?.razonSocial || 'Super Admin'}.
         </p>
       </div>
+
+      {/* Alerta de Libro de Reclamaciones */}
+      {(user?.rol === 'SUPER_ADMIN' || user?.rol === 'ADMIN') && criticalClaims.length > 0 && (
+        <div className="mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50/50 backdrop-blur text-rose-900 shadow-sm animate-slide-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-rose-600 shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h4 className="font-bold text-sm text-rose-800">
+                Alerta de Respuestas Pendientes a Reclamos (INDECOPI)
+              </h4>
+              <p className="text-xs text-rose-700 mt-0.5">
+                Tiene <strong>{reclamacionesAlerts.length} hojas de reclamación pendientes</strong> de respuesta oficial.
+                {criticalCount > 0 && ` ¡Atención! ${criticalCount} de ellas están en estado Crítico (≤ 3 días hábiles).`}
+              </p>
+              
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {criticalClaims.slice(0, 4).map(c => {
+                  const isOverdue = c.remaining < 0;
+                  const isCritical = c.remaining <= 3;
+                  return (
+                    <div 
+                      key={c.id} 
+                      className={`text-xs p-2 rounded-lg border flex justify-between items-center ${
+                        isOverdue 
+                          ? 'bg-rose-100/80 border-rose-200 text-rose-800 font-semibold' 
+                          : isCritical 
+                            ? 'bg-amber-100/80 border-amber-200 text-amber-800 font-semibold animate-pulse'
+                            : 'bg-slate-100/80 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <span className="font-bold">{c.numeroReclamacion}</span>
+                        <span className="mx-1.5 opacity-50">|</span>
+                        <span>{c.nombres} {c.apellidos.charAt(0)}.</span>
+                      </div>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-white/60">
+                        {isOverdue 
+                          ? `VENCIDO hace ${Math.abs(c.remaining)}d` 
+                          : `${c.remaining}d hábiles`
+                        }
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <button 
+              onClick={() => navigate('/reclamaciones-admin')} 
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shrink-0 transition"
+            >
+              Atender Reclamos
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grid de KPIs principales */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

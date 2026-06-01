@@ -16,6 +16,7 @@ import dashboardRoutes from './routes/dashboards';
 import girosNegocioRoutes from './routes/girosNegocio';
 import bancosRoutes from './routes/bancos';
 import suscripcionesRoutes from './routes/suscripciones';
+import reclamacionesRoutes from './routes/reclamaciones';
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ app.use('/api/dashboards', dashboardRoutes);
 app.use('/api/giros-negocio', girosNegocioRoutes);
 app.use('/api/bancos', bancosRoutes);
 app.use('/api/suscripciones', suscripcionesRoutes);
+app.use('/api/reclamaciones', reclamacionesRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -474,3 +474,30 @@ model PagoSuscripcion {
   @@unique([empresaId, mes, anio])
 }
 
+model Reclamacion {
+  id                 String   @id @default(uuid())
+  correlativo        Int      // Número secuencial por año
+  anio               Int      // Año del reclamo (ej. 2026)
+  numeroReclamacion  String   @unique // Código legible (ej. RECLAMO-2026-0001)
+  nombres            String
+  apellidos          String
+  tipoDocumento      String   // DNI, CE, PASAPORTE, RUC
+  nroDocumento       String
+  domicilio          String
+  telefono           String
+  correo             String
+  representante      String?  // Nombre de padre/madre si es menor de edad
+  tipoBien           String   // PRODUCTO o SERVICIO
+  montoReclamado     Float
+  descripcionBien    String
+  tipoReclamacion    String   // RECLAMO or QUEJA
+  detalle            String
+  pedido             String   // Lo que solicita el consumidor
+  estado             String   @default("PENDIENTE") // PENDIENTE, EN_PROCESO, ATENDIDO
+  respuesta          String?  // Respuesta del proveedor
+  fechaRespuesta     DateTime? // Fecha de la respuesta
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+
