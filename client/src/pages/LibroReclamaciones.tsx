@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BookOpen, User, Briefcase, FileText, CheckCircle, Printer, ArrowLeft, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, User, Briefcase, FileText, CheckCircle, Printer, ArrowLeft, Send, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
@@ -13,8 +13,6 @@ const LibroReclamaciones: React.FC = () => {
     domicilio: '',
     telefono: '',
     correo: '',
-    esMenor: false,
-    representante: '',
     tipoBien: 'SERVICIO',
     montoReclamado: '',
     descripcionBien: '',
@@ -24,19 +22,42 @@ const LibroReclamaciones: React.FC = () => {
     declaroVerdad: false
   });
 
+  // Anti-bot Protection State
+  const [captcha, setCaptcha] = useState({ num1: 0, num2: 0, answer: '' });
   const [loading, setLoading] = useState(false);
   const [successData, setSuccessData] = useState<any>(null);
   const [error, setError] = useState('');
 
+  // Generate new math challenge
+  const generateCaptcha = () => {
+    const n1 = Math.floor(Math.random() * 9) + 2; // 2 to 10
+    const n2 = Math.floor(Math.random() * 8) + 2; // 2 to 9
+    setCaptcha({ num1: n1, num2: n2, answer: '' });
+  };
+
+  useEffect(() => {
+    generateCaptcha();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    // Check declaration
     if (!formData.declaroVerdad) {
       setError('Debe declarar bajo juramento que la información ingresada es verdadera.');
       return;
     }
 
+    // Validate Math Captcha
+    const expected = captcha.num1 + captcha.num2;
+    if (parseInt(captcha.answer.trim()) !== expected) {
+      setError('Respuesta del filtro anti-bot incorrecta. Por favor intente de nuevo.');
+      generateCaptcha();
+      return;
+    }
+
     setLoading(true);
-    setError('');
 
     try {
       const response = await api.post('/reclamaciones', {
@@ -46,6 +67,7 @@ const LibroReclamaciones: React.FC = () => {
       setSuccessData(response.data);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al enviar la reclamación. Por favor intente de nuevo.');
+      generateCaptcha();
     } finally {
       setLoading(false);
     }
@@ -85,9 +107,9 @@ const LibroReclamaciones: React.FC = () => {
               <div className="summary-grid">
                 <div><strong>Fecha:</strong> {new Date(successData.createdAt).toLocaleDateString()}</div>
                 <div><strong>Tipo:</strong> {successData.tipoReclamacion}</div>
-                <div><strong>Bien:</strong> {successData.tipoBien === 'PRODUCTO' ? 'Producto' : 'Servicio'}</div>
+                <div><strong>Bien:</strong> Servicio (SaaS Forwarderly)</div>
                 <div><strong>Monto:</strong> S/ {successData.montoReclamado.toFixed(2)} PEN</div>
-                <div className="full-width"><strong>Detalle:</strong> {successData.detalle}</div>
+                <div className="full-width"><strong>Detalle (Membresía):</strong> {successData.detalle}</div>
                 <div className="full-width"><strong>Pedido del Consumidor:</strong> {successData.pedido}</div>
               </div>
             </div>
@@ -242,7 +264,7 @@ const LibroReclamaciones: React.FC = () => {
 
           <div className="company-info-card">
             <h2>Optimus Systems & Process EIRL</h2>
-            <p><strong>RUC:</strong> 20608552311 | <strong>Dirección:</strong> Calle Españoleto 141 Dpto 102, San Borja, Lima-Perú</p>
+            <p><strong>RUC:</strong> 20600259751 | <strong>Dirección:</strong> Calle Españoleto 141 Dpto 102, San Borja, Lima-Perú</p>
           </div>
           <p className="legal-disclaimer">
             Conforme a lo establecido en el Código de Protección y Defensa del Consumidor, esta institución cuenta con un Libro de Reclamaciones Virtual a su disposición.
@@ -337,30 +359,6 @@ const LibroReclamaciones: React.FC = () => {
                 />
               </div>
             </div>
-
-            {/* Menor de edad checkbox */}
-            <div className="form-checkbox-wrapper" style={{ marginTop: '1rem' }}>
-              <input 
-                type="checkbox"
-                id="esMenor"
-                checked={formData.esMenor}
-                onChange={(e) => setFormData({ ...formData, esMenor: e.target.checked })}
-              />
-              <label htmlFor="esMenor">El consumidor reclamante es menor de edad</label>
-            </div>
-
-            {formData.esMenor && (
-              <div className="form-group animate-slide-in" style={{ marginTop: '1rem' }}>
-                <label>Nombre del Padre, Madre o Apoderado *</label>
-                <input 
-                  type="text" 
-                  required={formData.esMenor}
-                  placeholder="Nombres y Apellidos del tutor legal"
-                  value={formData.representante}
-                  onChange={(e) => setFormData({ ...formData, representante: e.target.value })}
-                />
-              </div>
-            )}
           </section>
 
           {/* SECCIÓN 2: IDENTIFICACIÓN DEL BIEN CONTRATADO */}
@@ -372,26 +370,11 @@ const LibroReclamaciones: React.FC = () => {
             
             <div className="grid-2">
               <div className="form-group">
-                <label>Tipo de Bien *</label>
-                <div className="radio-group">
-                  <label className="radio-label">
-                    <input 
-                      type="radio" 
-                      name="tipoBien"
-                      checked={formData.tipoBien === 'SERVICIO'}
-                      onChange={() => setFormData({ ...formData, tipoBien: 'SERVICIO' })}
-                    />
-                    Servicio
-                  </label>
-                  <label className="radio-label">
-                    <input 
-                      type="radio" 
-                      name="tipoBien"
-                      checked={formData.tipoBien === 'PRODUCTO'}
-                      onChange={() => setFormData({ ...formData, tipoBien: 'PRODUCTO' })}
-                    />
-                    Producto
-                  </label>
+                <label>Tipo de Bien</label>
+                <div style={{ padding: '0.65rem 0' }}>
+                  <span className="badge-bien" style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '0.4rem 1rem', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                    Servicio (SaaS Forwarderly)
+                  </span>
                 </div>
               </div>
               <div className="form-group">
@@ -408,11 +391,11 @@ const LibroReclamaciones: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label>Descripción del Producto o Servicio Contratado *</label>
+              <label>Descripción detallada de la Membresía contratada *</label>
               <textarea 
                 rows={3}
                 required
-                placeholder="Indique detalles de la cotización, orden, o servicio de importación..."
+                placeholder="Indique detalles de la membresía en línea del SaaS (Ej. Plan Solopreneur Mensual / Anual) respecto al cual se presenta la disconformidad..."
                 value={formData.descripcionBien}
                 onChange={(e) => setFormData({ ...formData, descripcionBien: e.target.value })}
               />
@@ -439,7 +422,7 @@ const LibroReclamaciones: React.FC = () => {
                   <div>
                     <strong>Reclamo</strong>
                     <small style={{ display: 'block', color: 'var(--text-light)', fontWeight: 400, fontSize: '0.75rem' }}>
-                      Disconformidad relacionada a los productos o servicios contratados.
+                      Disconformidad relacionada a los planes de membresía contratados.
                     </small>
                   </div>
                 </label>
@@ -453,7 +436,7 @@ const LibroReclamaciones: React.FC = () => {
                   <div>
                     <strong>Queja</strong>
                     <small style={{ display: 'block', color: 'var(--text-light)', fontWeight: 400, fontSize: '0.75rem' }}>
-                      Descontento o insatisfacción respecto a la atención recibida.
+                      Descontento o insatisfacción respecto al soporte o la atención del SaaS.
                     </small>
                   </div>
                 </label>
@@ -461,11 +444,11 @@ const LibroReclamaciones: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label>Detalle y Sustento del Reclamo o Queja *</label>
+              <label>Detalle y Sustento del Reclamo o Queja (Plan de Membresía) *</label>
               <textarea 
                 rows={4}
                 required
-                placeholder="Describa de forma clara los hechos ocurridos..."
+                placeholder="Describa de forma clara los inconvenientes experimentados con su plan o pago de membresía..."
                 value={formData.detalle}
                 onChange={(e) => setFormData({ ...formData, detalle: e.target.value })}
               />
@@ -476,15 +459,44 @@ const LibroReclamaciones: React.FC = () => {
               <textarea 
                 rows={3}
                 required
-                placeholder="Escriba la solución concreta que solicita..."
+                placeholder="Escriba la solución concreta o ajuste de membresía que solicita..."
                 value={formData.pedido}
                 onChange={(e) => setFormData({ ...formData, pedido: e.target.value })}
               />
             </div>
           </section>
 
+          {/* CAPTCHA ANTI-BOT PROTECTION */}
+          <section className="form-section" style={{ border: '1px solid rgba(56, 189, 248, 0.25)', background: 'rgba(56, 189, 248, 0.02)' }}>
+            <div className="section-header" style={{ color: '#38bdf8' }}>
+              <ShieldCheck size={18} />
+              <h3>Seguridad Anti-Bots</h3>
+            </div>
+            
+            <div className="grid-2">
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '0.85rem', color: '#f1f5f9' }}>
+                  Resuelva este desafío matemático simple para confirmar que es humano:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8', letterSpacing: '2px', background: 'rgba(0,0,0,0.4)', padding: '0.4rem 1.2rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    {captcha.num1} + {captcha.num2} =
+                  </span>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="?"
+                    value={captcha.answer}
+                    onChange={(e) => setCaptcha({ ...captcha, answer: e.target.value })}
+                    style={{ width: '80px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 700, padding: '0.45rem' }}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* DECLARACIÓN JURADA */}
-          <div className="form-checkbox-wrapper statement-box">
+          <div className="form-checkbox-wrapper statement-box" style={{ marginTop: '2rem' }}>
             <input 
               type="checkbox"
               id="declaroVerdad"
@@ -493,7 +505,7 @@ const LibroReclamaciones: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, declaroVerdad: e.target.checked })}
             />
             <label htmlFor="declaroVerdad" style={{ fontSize: '0.8rem', lineHeight: '1.4', cursor: 'pointer' }}>
-              <strong>Declaración bajo juramento:</strong> Declaro ser el titular del reclamo y que los datos consignados en la presente hoja de reclamación son verdaderos y de total conformidad con el Código de Protección y Defensa del Consumidor de Perú.
+              <strong>Declaración bajo juramento:</strong> Declaro ser el titular del reclamo respecto al SaaS Forwarderly y que los datos consignados en la presente hoja de reclamación son verdaderos y de total conformidad con el Código de Protección y Defensa del Consumidor de Perú.
             </label>
           </div>
 

@@ -126,7 +126,7 @@ export const sendClaimEmail = async (claim: SendClaimEmailParams) => {
         </div>
         <div class="footer">
           Este correo ha sido enviado automáticamente desde el Libro de Reclamaciones integrado de Forwarderly.<br>
-          Optimus Systems & Process EIRL - RUC: 20608552311<br>
+          Optimus Systems & Process EIRL - RUC: 20600259751<br>
           Calle Españoleto 141 Dpto 102, San Borja, Lima-Perú.
         </div>
       </div>

@@ -357,8 +357,8 @@ const Suscripciones: React.FC = () => {
                   <div className="feature-item"><Check size={16} /> <span>Acceso total a Costeos de Importación</span></div>
                   <div className="feature-item"><Check size={16} /> <span>Gestión de Órdenes y Proveedores</span></div>
                   <div className="feature-item"><Check size={16} /> <span>Módulo de Cotizaciones y Clientes</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>1 Empresa y Usuarios ilimitados</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Soporte estándar de integración</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Una empresa, dos usuarios</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Soporte remoto en horario de oficina</span></div>
                 </div>
 
                 <div className="pricing-footer">
@@ -397,9 +397,9 @@ const Suscripciones: React.FC = () => {
                 
                 <div className="pricing-features">
                   <div className="feature-item"><Check size={16} /> <span>Todos los beneficios del plan Mensual</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Soporte prioritario 24/7 y capacitaciones</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Una empresa, cuatro usuarios</span></div>
+                  <div className="feature-item"><Check size={16} /> <span>Soporte remoto prioritario en horario de oficina</span></div>
                   <div className="feature-item"><Check size={16} /> <span>Ahorro del 20% en comparación mensual</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Backup y reportes anuales exclusivos</span></div>
                 </div>
 
                 <div className="pricing-footer">
