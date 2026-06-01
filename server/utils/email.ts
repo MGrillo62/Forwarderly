@@ -156,7 +156,7 @@ export const sendClaimEmail = async (claim: SendClaimEmailParams) => {
       // Send to business email
       await transporter.sendMail({
         from: `"Libro de Reclamaciones" <${smtpUser}>`,
-        to: 'martin.grillo@optimussp.com',
+        to: 'martin.grillo@gmail.com',
         cc: claim.correo, // Copy to customer
         subject: `[Libro de Reclamaciones] Nueva Hoja de Reclamación N° ${claim.numeroReclamacion}`,
         html: htmlContent
