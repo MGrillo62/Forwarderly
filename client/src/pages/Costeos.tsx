@@ -516,9 +516,11 @@ const Costeos = () => {
                         <button onClick={() => handleExportPDF(c)} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Exportar PDF">
                           <FileDown size={16} className="text-[#64748b] hover:text-indigo-500" />
                         </button>
-                        <button onClick={() => { if (window.confirm('¿Eliminar costeo?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Eliminar">
-                          <Trash2 size={16} className="text-[#64748b] hover:text-rose-600" />
-                        </button>
+                        {user?.rol === 'SUPER_ADMIN' && (
+                          <button onClick={() => { if (window.confirm('¿Eliminar costeo?')) api.delete(`/costeos/${c.id}`).then(fetchCosteos) }} style={{ padding: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Eliminar">
+                            <Trash2 size={16} className="text-[#64748b] hover:text-rose-600" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

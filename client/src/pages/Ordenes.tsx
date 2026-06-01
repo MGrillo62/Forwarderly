@@ -19,7 +19,7 @@ import { generateLiquidacionPDF } from '../utils/liquidacionPdfGenerator';
 import { getBase64ImageFromUrl } from '../utils/logoHelper';
 
 const Ordenes: React.FC = () => {
-  const { token, activeEmpresa } = useAuth();
+  const { token, activeEmpresa, user } = useAuth();
   const [ordenes, setOrdenes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrden, setSelectedOrden] = useState<any>(null);
@@ -220,6 +220,18 @@ const Ordenes: React.FC = () => {
       setSelectedOrden(null);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al actualizar orden');
+    }
+  };
+
+  const handleDeleteOrden = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar permanentemente esta orden de importación? Se eliminarán todos sus pagos, cobros e historial y se desvinculará de las cotizaciones y costeos.')) return;
+
+    try {
+      await api.delete(`/ordenes/${id}`);
+      fetchOrdenes();
+      alert('Orden de importación eliminada con éxito.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al eliminar la orden');
     }
   };
 
@@ -613,6 +625,11 @@ const Ordenes: React.FC = () => {
                         <button title="Liquidación de Cobranza" className="info" onClick={() => handleDownloadLiquidacion(o)}>
                           <FileText size={16} />
                         </button>
+                        {user?.rol === 'SUPER_ADMIN' && (
+                          <button title="Eliminar Orden" className="danger" onClick={() => handleDeleteOrden(o.id)}>
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

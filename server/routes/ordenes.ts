@@ -366,4 +366,51 @@ router.put('/:id/lineas-documentos', authenticate, async (req: AuthRequest, res)
   }
 });
 
+// Eliminar orden
+router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { rol } = req.user!;
+
+  try {
+    if (rol !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'No tiene permisos para eliminar órdenes' });
+    }
+
+    const existing = await prisma.orden.findUnique({
+      where: { id }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    // Explicitly update associated cotizaciones to set ordenId / cotizacionId to null
+    await prisma.cotizacion.updateMany({
+      where: { ordenId: id },
+      data: { ordenId: null }
+    });
+
+    // Clear costeo's ordenId reference if any
+    await prisma.costeoImportacion.updateMany({
+      where: { ordenId: id },
+      data: { ordenId: null }
+    });
+
+    // Delete related records
+    await prisma.ordenEstadoHistorial.deleteMany({ where: { ordenId: id } });
+    await prisma.ordenPago.deleteMany({ where: { ordenId: id } });
+    await prisma.cobro.deleteMany({ where: { ordenId: id } });
+
+    // Finally delete the Orden
+    await prisma.orden.delete({
+      where: { id }
+    });
+
+    res.json({ message: 'Orden eliminada correctamente' });
+  } catch (error: any) {
+    console.error('Error al eliminar orden:', error);
+    res.status(500).json({ message: 'Error al eliminar orden: ' + error.message });
+  }
+});
+
 export default router;

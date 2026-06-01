@@ -310,4 +310,48 @@ router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Eliminar cotización
+router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { rol, empresaId } = req.user!;
+
+  try {
+    if (rol !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'No tiene permisos para eliminar cotizaciones' });
+    }
+
+    const existing = await prisma.cotizacion.findUnique({
+      where: { id }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Cotización no encontrada' });
+    }
+
+    if (existing.empresaId !== empresaId) {
+      return res.status(403).json({ message: 'No pertenece a la misma empresa' });
+    }
+
+    // Set cotizacionId to null on any Orden pointing to this Cotizacion
+    await prisma.orden.updateMany({
+      where: { cotizacionId: id },
+      data: { cotizacionId: null }
+    });
+
+    // Delete lines and history
+    await prisma.cotizacionLinea.deleteMany({ where: { cotizacionId: id } });
+    await prisma.cotizacionEstadoHistorial.deleteMany({ where: { cotizacionId: id } });
+
+    // Finally delete the cotizacion
+    await prisma.cotizacion.delete({
+      where: { id }
+    });
+
+    res.json({ message: 'Cotización eliminada correctamente' });
+  } catch (error: any) {
+    console.error('Error al eliminar cotización:', error);
+    res.status(500).json({ message: 'Error al eliminar cotización: ' + error.message });
+  }
+});
+
 export default router;

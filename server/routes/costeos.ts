@@ -289,7 +289,11 @@ router.patch('/:id/estado', authenticate, async (req: AuthRequest, res) => {
 // Delete costeo
 router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
+  const { rol } = req.user!;
   try {
+    if (rol !== 'SUPER_ADMIN') {
+      return res.status(403).json({ message: 'No tiene permisos para eliminar costeos' });
+    }
     await prisma.$executeRawUnsafe(`DELETE FROM "CosteoImportacionItem" WHERE "costeoId" = $1`, id);
     await prisma.$executeRawUnsafe(`DELETE FROM "CosteoImportacion" WHERE id = $1`, id);
     res.json({ message: 'Costeo eliminado correctamente' });

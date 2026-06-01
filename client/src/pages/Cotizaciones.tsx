@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText, X, Copy, Search, ArrowUpDown } from 'lucide-react';
+import { Plus, Eye, Edit, CheckCircle, XCircle, Send, FileText, X, Copy, Search, ArrowUpDown, Trash2 } from 'lucide-react';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import { getBase64ImageFromUrl } from '../utils/logoHelper';
 import CotizacionForm from '../components/CotizacionForm';
@@ -157,6 +157,18 @@ const Cotizaciones: React.FC = () => {
       alert('Cotización duplicada con éxito como Borrador.');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al duplicar cotización');
+    }
+  };
+
+  const handleDeleteCotizacion = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar permanentemente esta cotización? Esta acción no se puede deshacer y desvinculará las órdenes asociadas.')) return;
+
+    try {
+      await api.delete(`/cotizaciones/${id}`);
+      fetchCotizaciones();
+      alert('Cotización eliminada con éxito.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al eliminar la cotización');
     }
   };
 
@@ -404,6 +416,12 @@ const Cotizaciones: React.FC = () => {
                         <button title="Descargar PDF" className="info" onClick={() => handleDownloadPDF(cot)}>
                           <FileText size={16} />
                         </button>
+
+                        {user?.rol === 'SUPER_ADMIN' && (
+                          <button title="Eliminar Cotización" className="danger" onClick={() => handleDeleteCotizacion(cot.id)}>
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
