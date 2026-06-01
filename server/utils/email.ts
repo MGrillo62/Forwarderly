@@ -136,10 +136,10 @@ export const sendClaimEmail = async (claim: SendClaimEmailParams) => {
 
   console.log(`[EMAIL DISPATCH] Preparando envío para Reclamación ${claim.numeroReclamacion}`);
   
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = (process.env.SMTP_HOST || '').replace(/['"]/g, '').trim();
+  const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT.toString().replace(/['"]/g, '')) : 587;
+  const smtpUser = (process.env.SMTP_USER || '').replace(/['"]/g, '').trim();
+  const smtpPass = (process.env.SMTP_PASS || '').replace(/['"]/g, '').trim();
 
   if (smtpHost && smtpUser && smtpPass) {
     try {
