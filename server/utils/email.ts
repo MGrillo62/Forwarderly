@@ -136,6 +136,45 @@ export const sendClaimEmail = async (claim: SendClaimEmailParams) => {
 
   console.log(`[EMAIL DISPATCH] Preparando envío para Reclamación ${claim.numeroReclamacion}`);
   
+  const resendApiKey = (process.env.RESEND_API_KEY || '').replace(/['"]/g, '').trim();
+
+  if (resendApiKey) {
+    try {
+      console.log(`[RESEND DISPATCH] Enviando correo para ${claim.numeroReclamacion} usando Resend API...`);
+      
+      // En modo Sandbox de Resend, el remitente ('from') debe ser onboarding@resend.dev
+      const fromEmail = 'onboarding@resend.dev';
+      
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: `Libro de Reclamaciones <${fromEmail}>`,
+          to: ['martin.grillo@gmail.com'],
+          cc: [claim.correo],
+          subject: `[Libro de Reclamaciones] Nueva Hoja de Reclamación N° ${claim.numeroReclamacion}`,
+          html: htmlContent
+        })
+      });
+
+      const responseData: any = await response.json();
+
+      if (response.ok) {
+        console.log(`[RESEND SUCCESS] Correo de reclamación ${claim.numeroReclamacion} enviado por Resend API con éxito. ID: ${responseData.id}`);
+        return; // Éxito, salimos de la función
+      } else {
+        console.error(`[RESEND ERROR] Resend API devolvió un error:`, responseData);
+        console.log(`[RESEND FALLBACK] Intentando enviar por SMTP tradicional debido a fallo en Resend...`);
+      }
+    } catch (err: any) {
+      console.error(`[RESEND EXCEPTION] Error al conectar con la API de Resend:`, err.message);
+      console.log(`[RESEND FALLBACK] Intentando enviar por SMTP tradicional debido a excepción en Resend...`);
+    }
+  }
+
   const smtpHost = (process.env.SMTP_HOST || '').replace(/['"]/g, '').trim();
   const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT.toString().replace(/['"]/g, '')) : 587;
   const smtpUser = (process.env.SMTP_USER || '').replace(/['"]/g, '').trim();
