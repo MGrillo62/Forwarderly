@@ -142,8 +142,8 @@ export const sendClaimEmail = async (claim: SendClaimEmailParams) => {
     try {
       console.log(`[RESEND DISPATCH] Enviando correo para ${claim.numeroReclamacion} usando Resend API...`);
       
-      // En modo Sandbox de Resend, el remitente ('from') debe ser onboarding@resend.dev
-      const fromEmail = 'onboarding@resend.dev';
+      // Remitente del correo (configurable por variable de entorno, por defecto onboarding@resend.dev)
+      const fromEmail = (process.env.EMAIL_FROM || 'onboarding@resend.dev').replace(/['"]/g, '').trim();
       
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',

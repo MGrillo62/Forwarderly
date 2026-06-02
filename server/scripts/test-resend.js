@@ -16,6 +16,7 @@ if (!resendApiKey) {
 async function main() {
   try {
     console.log('Attempting to send test email via Resend...');
+    const fromEmail = (process.env.EMAIL_FROM || 'onboarding@resend.dev').replace(/['"]/g, '').trim();
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -23,7 +24,7 @@ async function main() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Libro de Reclamaciones <onboarding@resend.dev>',
+        from: `Libro de Reclamaciones <${fromEmail}>`,
         to: ['martin.grillo@gmail.com'],
         subject: 'Test Email from Resend Diagnostic Script',
         html: '<strong>Resend is working beautifully!</strong> This confirms the integration is 100% correct.'
