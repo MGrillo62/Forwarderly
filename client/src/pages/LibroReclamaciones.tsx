@@ -103,14 +103,186 @@ const LibroReclamaciones: React.FC = () => {
             </div>
 
             <div className="printable-claim-section">
-              <h4>Resumen del Registro</h4>
-              <div className="summary-grid">
-                <div><strong>Fecha:</strong> {new Date(successData.createdAt).toLocaleDateString()}</div>
-                <div><strong>Tipo:</strong> {successData.tipoReclamacion}</div>
-                <div><strong>Bien:</strong> Servicio (SaaS Forwarderly)</div>
-                <div><strong>Monto:</strong> S/ {successData.montoReclamado.toFixed(2)} PEN</div>
-                <div className="full-width"><strong>Detalle (Membresía):</strong> {successData.detalle}</div>
-                <div className="full-width"><strong>Pedido del Consumidor:</strong> {successData.pedido}</div>
+              {/* CABECERA PRINCIPAL */}
+              <div className="print-header-top">
+                <div className="print-brand-title">LIBRO DE RECLAMACIONES VIRTUAL</div>
+                <div className="print-company-details">
+                  <strong>Optimus Systems & Process EIRL</strong><br />
+                  RUC: 20600259751
+                </div>
+              </div>
+
+              <div className="print-divider"></div>
+
+              {/* TÍTULO Y NUMERACIÓN */}
+              <div className="print-title-section">
+                <div className="print-title-left">
+                  <h2>HOJA DE RECLAMACIÓN</h2>
+                  <p className="print-address-sub">Calle Españoleto 141 Dpto 102, San Borja, Lima-Perú</p>
+                </div>
+                <div className="print-title-right">
+                  <div className="print-number-box">
+                    <div><strong>N° RECLAMO:</strong> {successData.numeroReclamacion}</div>
+                    <div style={{ marginTop: '3px' }}>
+                      <strong>Fecha:</strong> {String(new Date(successData.createdAt).getDate()).padStart(2, '0')}/{String(new Date(successData.createdAt).getMonth() + 1).padStart(2, '0')}/{new Date(successData.createdAt).getFullYear()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p className="print-legal-italic">
+                Conforme a lo establecido en el Código de Protección y Defensa del Consumidor, esta institución cuenta con un Libro de Reclamaciones a su disposición.
+              </p>
+
+              {/* SECCIÓN 1: IDENTIFICACIÓN DEL CONSUMIDOR RECLAMANTE */}
+              <div className="print-section-title">
+                👤 1. IDENTIFICACIÓN DEL CONSUMIDOR RECLAMANTE
+              </div>
+              <div className="print-fields-container">
+                <div className="print-row-2">
+                  <div className="print-cell">
+                    <label>NOMBRES</label>
+                    <div className="print-value">{successData.nombres}</div>
+                  </div>
+                  <div className="print-cell">
+                    <label>APELLIDOS</label>
+                    <div className="print-value">{successData.apellidos}</div>
+                  </div>
+                </div>
+                <div className="print-row-2">
+                  <div className="print-cell">
+                    <label>TIPO DOCUMENTO</label>
+                    <div className="print-value">{successData.tipoDocumento}</div>
+                  </div>
+                  <div className="print-cell">
+                    <label>NÚMERO DOCUMENTO</label>
+                    <div className="print-value">{successData.nroDocumento}</div>
+                  </div>
+                </div>
+                <div className="print-row-1">
+                  <div className="print-cell">
+                    <label>DOMICILIO</label>
+                    <div className="print-value">{successData.domicilio}</div>
+                  </div>
+                </div>
+                {successData.representante && (
+                  <div className="print-row-1">
+                    <div className="print-cell">
+                      <label>REPRESENTANTE LEGAL (Padre/Madre/Apoderado)</label>
+                      <div className="print-value">{successData.representante}</div>
+                    </div>
+                  </div>
+                )}
+                <div className="print-row-2">
+                  <div className="print-cell">
+                    <label>TELÉFONO / CELULAR</label>
+                    <div className="print-value">{successData.telefono}</div>
+                  </div>
+                  <div className="print-cell">
+                    <label>CORREO ELECTRÓNICO</label>
+                    <div className="print-value">{successData.correo}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECCIÓN 2: IDENTIFICACIÓN DEL BIEN CONTRATADO */}
+              <div className="print-section-title">
+                👜 2. IDENTIFICACIÓN DEL BIEN CONTRATADO
+              </div>
+              <div className="print-fields-container">
+                <div className="print-row-2">
+                  <div className="print-cell print-radio-cell">
+                    <label>TIPO DE BIEN</label>
+                    <div className="print-radio-options">
+                      <span className="print-radio-item">
+                        <span className={"print-radio-dot " + (successData.tipoBien === 'PRODUCTO' ? 'selected' : '')}></span>
+                        PRODUCTO
+                      </span>
+                      <span className="print-radio-item" style={{ marginLeft: '20px' }}>
+                        <span className={"print-radio-dot " + (successData.tipoBien === 'SERVICIO' ? 'selected' : '')}></span>
+                        SERVICIO
+                      </span>
+                    </div>
+                  </div>
+                  <div className="print-cell">
+                    <label>MONTO RECLAMADO (S/.)</label>
+                    <div className="print-value">S/ {successData.montoReclamado.toFixed(2)}</div>
+                  </div>
+                </div>
+                <div className="print-row-1">
+                  <div className="print-cell">
+                    <label>DESCRIPCIÓN DEL BIEN</label>
+                    <div className="print-value textarea-style">{successData.descripcionBien}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECCIÓN 3: DETALLE DE LA RECLAMACIÓN Y PEDIDO */}
+              <div className="print-section-title">
+                📄 3. DETALLE DE LA RECLAMACIÓN Y PEDIDO
+              </div>
+              <div className="print-fields-container">
+                <div className="print-row-1">
+                  <div className="print-cell print-radio-cell">
+                    <label>TIPO DE REGISTRO</label>
+                    <div className="print-radio-options-desc">
+                      <div className="print-radio-desc-item">
+                        <span className={"print-radio-dot " + (successData.tipoReclamacion === 'RECLAMO' ? 'selected' : '')}></span>
+                        <div>
+                          <strong>RECLAMO</strong>
+                          <span className="print-desc-small">Disconformidad relacionada a los productos o servicios.</span>
+                        </div>
+                      </div>
+                      <div className="print-radio-desc-item" style={{ marginTop: '5px' }}>
+                        <span className={"print-radio-dot " + (successData.tipoReclamacion === 'QUEJA' ? 'selected' : '')}></span>
+                        <div>
+                          <strong>QUEJA</strong>
+                          <span className="print-desc-small">Disconformidad no relacionada a los productos o servicios; malestar o descontento respecto a la atención al público.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="print-row-1">
+                  <div className="print-cell">
+                    <label>DETALLE Y SUSTENTO DE LA RECLAMACIÓN:</label>
+                    <div className="print-value textarea-style" style={{ minHeight: '85px', whiteSpace: 'pre-wrap' }}>{successData.detalle}</div>
+                  </div>
+                </div>
+                <div className="print-row-1">
+                  <div className="print-cell">
+                    <label>PEDIDO O SOLICITUD DEL CONSUMIDOR:</label>
+                    <div className="print-value textarea-style" style={{ minHeight: '65px', whiteSpace: 'pre-wrap' }}>{successData.pedido}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FIRMA Y RECEPCIÓN */}
+              <div className="print-signature-section">
+                <div className="print-sig-col">
+                  <div className="print-sig-line"></div>
+                  <div className="print-sig-label">
+                    <strong>FIRMA DEL CONSUMIDOR</strong><br />
+                    (En caso de presentación física)
+                  </div>
+                </div>
+                <div className="print-date-col">
+                  <div className="print-date-boxes">
+                    <span className="print-date-val">{String(new Date(successData.createdAt).getDate()).padStart(2, '0')}</span> / <span className="print-date-val">{String(new Date(successData.createdAt).getMonth() + 1).padStart(2, '0')}</span> / <span className="print-date-val">{new Date(successData.createdAt).getFullYear()}</span>
+                  </div>
+                  <div className="print-date-label">FECHA DE RECEPCIÓN</div>
+                </div>
+              </div>
+
+              {/* PIE DE PÁGINA */}
+              <div className="print-footer">
+                <div className="print-footer-title">OPTIMUS SYSTEMS</div>
+                <div className="print-footer-address">
+                  Calle Españoleto 141 Dpto 102, San Borja, Lima-Perú | Optimus Systems & Process EIRL
+                </div>
+                <div className="print-footer-bottom">
+                  LIBRO DE RECLAMACIONES CONFORME AL D.S. 011-2011-PCM
+                </div>
               </div>
             </div>
           </div>
@@ -196,50 +368,312 @@ const LibroReclamaciones: React.FC = () => {
             margin-top: 1rem;
             font-weight: 500;
           }
+          /* ESTILOS DE LA HOJA DE RECLAMACIÓN PARA PREVISUALIZACIÓN */
           .printable-claim-section {
-            border: 1px solid #e2e8f0;
-            border-radius: 0.75rem;
-            padding: 1.25rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 2rem;
             margin-bottom: 2rem;
-          }
-          .printable-claim-section h4 {
-            margin: 0 0 1rem 0;
+            background: #ffffff;
             color: #0f172a;
-            font-size: 0.95rem;
-            border-bottom: 1px solid #e2e8f0;
-            padding-bottom: 0.5rem;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            text-align: left;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
           }
-          .summary-grid {
+          .print-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+          }
+          .print-brand-title {
+            font-size: 0.85rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #0f172a;
+          }
+          .print-company-details {
+            text-align: right;
+            font-size: 0.7rem;
+            color: #334155;
+            line-height: 1.3;
+          }
+          .print-divider {
+            height: 1px;
+            background-color: #e2e8f0;
+            margin-bottom: 1.25rem;
+          }
+          .print-title-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+          }
+          .print-title-left h2 {
+            font-size: 1.4rem;
+            font-weight: 850;
+            margin: 0 0 0.25rem 0;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+          }
+          .print-address-sub {
+            font-size: 0.7rem;
+            color: #475569;
+            margin: 0;
+          }
+          .print-title-right {
+            text-align: right;
+          }
+          .print-number-box {
+            border-left: 2px solid #cbd5e1;
+            padding-left: 0.75rem;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            color: #0f172a;
+            text-align: left;
+          }
+          .print-legal-italic {
+            font-size: 0.65rem;
+            font-style: italic;
+            color: #475569;
+            margin: 0 0 1.25rem 0;
+            line-height: 1.4;
+            border-bottom: 1.5px solid #0f172a;
+            padding-bottom: 0.75rem;
+          }
+          .print-section-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #0f172a;
+            border-bottom: 1px solid #94a3b8;
+            padding-bottom: 0.25rem;
+            margin: 1.5rem 0 0.75rem 0;
+            display: flex;
+            align-items: center;
+          }
+          .print-fields-container {
+            border: 1px solid #cbd5e1;
+            border-radius: 0.375rem;
+            overflow: hidden;
+            background: #ffffff;
+            margin-bottom: 1rem;
+          }
+          .print-row-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
-            font-size: 0.85rem;
+            border-bottom: 1px solid #cbd5e1;
           }
-          .summary-grid .full-width {
-            grid-column: span 2;
-            background: #f8fafc;
-            padding: 0.5rem;
-            border-radius: 4px;
-            margin-top: 0.25rem;
+          .print-row-2:last-child {
+            border-bottom: none;
+          }
+          .print-row-1 {
+            border-bottom: 1px solid #cbd5e1;
+          }
+          .print-row-1:last-child {
+            border-bottom: none;
+          }
+          .print-cell {
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #cbd5e1;
+          }
+          .print-cell:last-child {
+            border-right: none;
+          }
+          .print-cell label {
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+            letter-spacing: 0.5px;
+          }
+          .print-value {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #0f172a;
+            min-height: 1.2rem;
+          }
+          .textarea-style {
+            line-height: 1.5;
+            font-size: 0.75rem;
+            color: #1e293b;
+          }
+          .print-radio-cell {
+            justify-content: center;
+          }
+          .print-radio-options {
+            display: flex;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #0f172a;
+            padding: 0.25rem 0;
+          }
+          .print-radio-item {
+            display: inline-flex;
+            align-items: center;
+            cursor: default;
+          }
+          .print-radio-dot {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #0f172a;
+            border-radius: 50%;
+            margin-right: 6px;
+            display: inline-block;
+            position: relative;
+          }
+          .print-radio-dot.selected::after {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: #0f172a;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+          }
+          .print-radio-options-desc {
+            display: flex;
+            flex-direction: column;
+            padding: 0.25rem 0;
+          }
+          .print-radio-desc-item {
+            display: flex;
+            align-items: flex-start;
+            font-size: 0.75rem;
+            color: #0f172a;
+          }
+          .print-radio-desc-item .print-radio-dot {
+            margin-top: 3px;
+            flex-shrink: 0;
+          }
+          .print-desc-small {
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 400;
+            color: #475569;
+            margin-top: 1px;
+            line-height: 1.3;
+          }
+          .print-signature-section {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
+            margin-bottom: 2rem;
+          }
+          .print-sig-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+          }
+          .print-sig-line {
+            width: 80%;
+            height: 1px;
+            background-color: #0f172a;
+            margin-bottom: 0.5rem;
+          }
+          .print-sig-label {
+            text-align: center;
+            font-size: 0.65rem;
+            color: #0f172a;
+            line-height: 1.4;
+          }
+          .print-date-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+          }
+          .print-date-boxes {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 4px;
+            letter-spacing: 1px;
+          }
+          .print-date-val {
+            display: inline-block;
+            min-width: 25px;
+            text-align: center;
+          }
+          .print-date-label {
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: #475569;
+            letter-spacing: 0.5px;
+          }
+          .print-footer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #475569;
+            margin-top: 3rem;
+            border-top: 1.5px solid #0f172a;
+            padding-top: 1rem;
+            line-height: 1.5;
+          }
+          .print-footer-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+          }
+          .print-footer-address {
+            font-size: 0.65rem;
+            color: #334155;
+            margin-bottom: 4px;
+          }
+          .print-footer-bottom {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
           }
           .success-footer {
             display: flex;
             justify-content: flex-end;
             gap: 1rem;
           }
+          
+          /* ESTILOS DE IMPRESIÓN DIRECTA */
           @media print {
-            body * {
-              visibility: hidden;
+            body {
+              background: #ffffff !important;
+              color: #000000 !important;
             }
-            .printable-claim-section, .printable-claim-section * {
-              visibility: visible;
+            .reclamacion-success-page {
+              background: #ffffff !important;
+              padding: 0 !important;
+              min-height: auto !important;
+              display: block !important;
+            }
+            .success-card {
+              box-shadow: none !important;
+              padding: 0 !important;
+              max-width: 100% !important;
+              width: 100% !important;
+              background: #ffffff !important;
+            }
+            .success-header, .success-body > .info-box, .success-footer {
+              display: none !important;
             }
             .printable-claim-section {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-              border: none;
+              border: none !important;
+              box-shadow: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              width: 100% !important;
+              display: block !important;
             }
           }
         `}</style>
