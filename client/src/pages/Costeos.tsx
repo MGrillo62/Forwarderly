@@ -102,6 +102,17 @@ const Costeos = () => {
 
   const formatNum = (val: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
+  const safeFormatDate = (dateVal: any) => {
+    if (!dateVal) return '';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '';
+      return format(d, 'yyyy-MM-dd');
+    } catch {
+      return '';
+    }
+  };
+
   const [formData, setFormData] = useState({
     clienteId: '', clienteNombre: '', clienteDocumento: '', ordenId: '', nroFacturaComercial: '', proveedorExtranjero: '',
     incoterm: 'FOB', moneda: 'USD', tipoCambio: 0, observaciones: '', gastosOrigen: 0, fleteInternacional: 0, seguro: 0,
@@ -125,10 +136,15 @@ const Costeos = () => {
     const orden = ordenes.find(o => o.id === ordenId);
     if (orden) {
       setFormData({
-        ...formData, ordenId, clienteId: orden.cotizacion.clienteId, clienteNombre: orden.cotizacion.cliente.razonSocial,
-        clienteDocumento: orden.cotizacion.cliente.ruc, canal: orden.canal || 'VERDE', nroDAM: orden.nroDAM || '',
-        fechaEmbarque: orden.fechaETD ? format(new Date(orden.fechaETD), 'yyyy-MM-dd') : '',
-        fechaLlegada: orden.fechaETA ? format(new Date(orden.fechaETA), 'yyyy-MM-dd') : '',
+        ...formData,
+        ordenId,
+        clienteId: orden.cotizacion?.clienteId || '',
+        clienteNombre: orden.cotizacion?.cliente?.razonSocial || orden.cotizacion?.lead?.nombre || orden.cotizacion?.lead?.contacto || '',
+        clienteDocumento: orden.cotizacion?.cliente?.ruc || orden.cotizacion?.lead?.ruc || '',
+        canal: orden.canal || 'VERDE',
+        nroDAM: orden.nroDAM || '',
+        fechaEmbarque: safeFormatDate(orden.fechaETD),
+        fechaLlegada: safeFormatDate(orden.fechaETA),
         gastosOrigen: orden.incoterm === 'FOB' ? 0 : formData.gastosOrigen,
         proveedorExtranjero: orden.proveedorExtranjero || '',
         nroFacturaComercial: orden.nroFacturaComercial || '',
@@ -252,8 +268,8 @@ const Costeos = () => {
     } catch (err) { alert('Error al cambiar estado'); }
   };
 
-  const viewCosteo = (c: any) => { setSelectedCosteo(c); setIsViewing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
-  const editCosteo = (c: any) => { setSelectedCosteo(c); setIsEditing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: c.fechaEmbarque ? format(new Date(c.fechaEmbarque), 'yyyy-MM-dd') : '', fechaLlegada: c.fechaLlegada ? format(new Date(c.fechaLlegada), 'yyyy-MM-dd') : '' }); };
+  const viewCosteo = (c: any) => { setSelectedCosteo(c); setIsViewing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: safeFormatDate(c.fechaEmbarque), fechaLlegada: safeFormatDate(c.fechaLlegada) }); };
+  const editCosteo = (c: any) => { setSelectedCosteo(c); setIsEditing(true); setShowModal(true); setItems(c.items || []); setFormData({ ...formData, ...c, fechaEmbarque: safeFormatDate(c.fechaEmbarque), fechaLlegada: safeFormatDate(c.fechaLlegada) }); };
 
   const handleFileUpload = (e: any) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -905,7 +921,9 @@ const Costeos = () => {
                             >
                               <option value="">-- NINGUNA --</option>
                               {ordenes.map(o => (
-                                <option key={o.id} value={o.id}>{o.correlativo}-{o.anio} | {o.cotizacion.cliente.razonSocial}</option>
+                                <option key={o.id} value={o.id}>
+                                  {o.correlativo}-{o.anio} | {o.cotizacion?.cliente?.razonSocial || o.cotizacion?.lead?.nombre || o.cotizacion?.lead?.contacto || 'Sin Cliente'}
+                                </option>
                               ))}
                             </select>
                           </div>
