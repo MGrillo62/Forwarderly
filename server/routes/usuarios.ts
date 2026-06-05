@@ -101,7 +101,17 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     });
 
     res.json(updated);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error al actualizar usuario:", error);
+    if (error.code === 'P2002') {
+      const target = error.meta?.target || [];
+      if (target.includes('correo')) {
+        return res.status(400).json({ message: 'El correo ya está en uso por otro usuario' });
+      }
+      if (target.includes('username')) {
+        return res.status(400).json({ message: 'El nombre de usuario ya está en uso' });
+      }
+    }
     res.status(500).json({ message: 'Error al actualizar usuario' });
   }
 });

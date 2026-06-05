@@ -49,8 +49,9 @@ const Usuarios: React.FC = () => {
       setShowModal(false);
       resetForm();
       fetchUsuarios();
-    } catch (err) {
-      alert('Error al guardar usuario');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Error al guardar usuario';
+      alert(msg);
     }
   };
 

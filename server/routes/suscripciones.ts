@@ -262,8 +262,8 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
       isExpired = today > new Date(empresa.fechaFin);
     }
 
-    // New Client: trial over and never subscribed
-    if (!isTrialActive && !hasCulqiSubscription) {
+    // New Client: trial over and never paid/subscribed
+    if (!isTrialActive && !empresa.fechaFin) {
       return res.json({ 
         tieneAcceso: false, 
         motivo: 'REQUIERE_PRIMER_PAGO', 
@@ -272,8 +272,8 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
-    // Renewal: trial over, subscribed, but expired
-    if (!isTrialActive && hasCulqiSubscription && isExpired) {
+    // Renewal: trial over, paid/subscribed in the past, but subscription has expired
+    if (!isTrialActive && isExpired) {
       return res.json({
         tieneAcceso: false,
         motivo: 'SUSCRIPCION_VENCIDA',
@@ -684,6 +684,30 @@ router.put('/:id/pagar', authenticate, authorize(['SUPER_ADMIN']), async (req, r
       },
       include: {
         empresa: true
+      }
+    });
+
+    // Calculate and extend company's expiration date (fechaFin)
+    const empresa = updated.empresa;
+    let newFechaFin = empresa.fechaFin ? new Date(empresa.fechaFin) : new Date();
+    const today = new Date();
+
+    // If current expiration date is in the past, extend starting from today
+    if (newFechaFin < today) {
+      newFechaFin = today;
+    }
+
+    if (empresa.periodicidad === 'ANUAL') {
+      newFechaFin.setFullYear(newFechaFin.getFullYear() + 1);
+    } else {
+      newFechaFin.setMonth(newFechaFin.getMonth() + 1);
+    }
+
+    await prisma.empresa.update({
+      where: { id: empresa.id },
+      data: {
+        fechaFin: newFechaFin,
+        estado: 'ACTIVO'
       }
     });
 
