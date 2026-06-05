@@ -337,89 +337,80 @@ const Suscripciones: React.FC = () => {
             </h3>
             
             <div className="pricing-grid">
-              
-              {/* Plan Mensual */}
-              <div className={`pricing-card ${selectedPlan === 'codigo' ? 'active-plan' : ''}`}>
-                {selectedPlan === 'codigo' && estadoActual.hasCulqiSubscription && (
-                  <div className="current-badge">Tu Plan Actual</div>
-                )}
-                <div className="pricing-header">
-                  <h4>Plan Solopreneur</h4>
-                  <div className="price">
-                    <span className="currency">S/</span>
-                    <span className="amount">155.00</span>
-                    <span className="period">/ mes</span>
-                  </div>
-                  <p className="description">Ideal para medianos y pequeños importadores que inician en el rubro.</p>
-                </div>
+              {planes.map((plan: any) => {
+                const planCodigo = plan.codigo || plan.id;
+                const planMonto = plan.monto !== undefined ? plan.monto : (plan.amount / 100);
+                const planNombre = plan.nombre || plan.name;
+                const planPeriodicidad = plan.periodicidad || (plan.interval_count === 12 ? 'ANUAL' : 'MENSUAL');
+                const planDiasPrueba = plan.diasPrueba !== undefined ? plan.diasPrueba : 14;
                 
-                <div className="pricing-features">
-                  <div className="feature-item"><Check size={16} /> <span>Acceso total a Costeos de Importación</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Gestión de Órdenes y Proveedores</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Módulo de Cotizaciones y Clientes</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Una empresa, dos usuarios</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Soporte remoto en horario de oficina</span></div>
-                </div>
-
-                <div className="pricing-footer">
-                  {selectedPlan === 'codigo' && estadoActual.hasCulqiSubscription ? (
-                    <button className="success" style={{ width: '100%' }} disabled>
-                      <ShieldCheck size={16} /> Plan Activo
-                    </button>
-                  ) : (
-                    <button 
-                      className="primary btn-glow" 
-                      style={{ width: '100%', fontWeight: 700 }}
-                      onClick={() => handleCulqiPay('codigo', 15500)}
-                      disabled={loadingCheckout !== null}
-                    >
-                      {loadingCheckout === 'codigo' ? 'Cargando...' : selectedPlan === 'anual' ? 'Cambiar a Plan Mensual' : 'Contratar Plan Mensual'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Plan Anual */}
-              <div className={`pricing-card highlighted-plan ${selectedPlan === 'anual' ? 'active-plan' : ''}`}>
-                <div className="save-badge">¡Ahorra más del 20%!</div>
-                {selectedPlan === 'anual' && estadoActual.hasCulqiSubscription && (
-                  <div className="current-badge">Tu Plan Actual</div>
-                )}
-                <div className="pricing-header">
-                  <h4>Plan Solopreneur Anual</h4>
-                  <div className="price">
-                    <span className="currency">S/</span>
-                    <span className="amount">1,488.00</span>
-                    <span className="period">/ año</span>
-                  </div>
-                  <p className="description">Para importadores consolidados que buscan asegurar su software anual.</p>
-                </div>
+                const isActive = selectedPlan === planCodigo;
+                const isAnual = planPeriodicidad === 'ANUAL';
                 
-                <div className="pricing-features">
-                  <div className="feature-item"><Check size={16} /> <span>Todos los beneficios del plan Mensual</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Una empresa, cuatro usuarios</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Soporte remoto prioritario en horario de oficina</span></div>
-                  <div className="feature-item"><Check size={16} /> <span>Ahorro del 20% en comparación mensual</span></div>
-                </div>
+                return (
+                  <div key={plan.id} className={`pricing-card ${isActive ? 'active-plan' : ''} ${isAnual ? 'highlighted-plan' : ''}`}>
+                    {isAnual && <div className="save-badge">¡Ahorra más del 20%!</div>}
+                    {isActive && estadoActual?.hasCulqiSubscription && (
+                      <div className="current-badge">Tu Plan Actual</div>
+                    )}
+                    <div className="pricing-header">
+                      <h4>{planNombre}</h4>
+                      <div className="price">
+                        <span className="currency">S/</span>
+                        <span className="amount">{planMonto.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+                        <span className="period">/ {isAnual ? 'año' : 'mes'}</span>
+                      </div>
+                      <p className="description">
+                        {isAnual 
+                          ? 'Para importadores consolidados que buscan asegurar su software anual.' 
+                          : 'Ideal para medianos y pequeños importadores que inician en el rubro.'
+                        }
+                        {planDiasPrueba > 0 && (
+                          <span style={{ display: 'block', marginTop: '0.35rem', color: '#38BDF8', fontWeight: 600 }}>
+                            ⭐ Incluye {planDiasPrueba} días de prueba gratis.
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    
+                    <div className="pricing-features">
+                      {isAnual ? (
+                        <>
+                          <div className="feature-item"><Check size={16} /> <span>Todos los beneficios del plan Mensual</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Una empresa, cuatro usuarios</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Soporte remoto prioritario en horario de oficina</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Ahorro del 20% en comparación mensual</span></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="feature-item"><Check size={16} /> <span>Acceso total a Costeos de Importación</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Gestión de Órdenes y Proveedores</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Módulo de Cotizaciones y Clientes</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Una empresa, dos usuarios</span></div>
+                          <div className="feature-item"><Check size={16} /> <span>Soporte remoto en horario de oficina</span></div>
+                        </>
+                      )}
+                    </div>
 
-                <div className="pricing-footer">
-                  {selectedPlan === 'anual' && estadoActual.hasCulqiSubscription ? (
-                    <button className="success" style={{ width: '100%' }} disabled>
-                      <ShieldCheck size={16} /> Plan Activo
-                    </button>
-                  ) : (
-                    <button 
-                      className="primary btn-glow" 
-                      style={{ width: '100%', fontWeight: 700 }}
-                      onClick={() => handleCulqiPay('anual', 148800)}
-                      disabled={loadingCheckout !== null}
-                    >
-                      {loadingCheckout === 'anual' ? 'Cargando...' : selectedPlan === 'codigo' ? 'Cambiar a Plan Anual' : 'Contratar Plan Anual'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
+                    <div className="pricing-footer">
+                      {isActive && estadoActual?.hasCulqiSubscription ? (
+                        <button className="success" style={{ width: '100%' }} disabled>
+                          <ShieldCheck size={16} /> Plan Activo
+                        </button>
+                      ) : (
+                        <button 
+                          className="primary btn-glow" 
+                          style={{ width: '100%', fontWeight: 700 }}
+                          onClick={() => handleCulqiPay(planCodigo, planMonto * 100)}
+                          disabled={loadingCheckout !== null}
+                        >
+                          {loadingCheckout === planCodigo ? 'Cargando...' : isActive ? 'Plan Seleccionado' : isAnual ? 'Contratar Plan Anual' : 'Contratar Plan Mensual'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -700,8 +691,8 @@ const Suscripciones: React.FC = () => {
         }
         
         .pricing-card {
-          background: rgba(30, 41, 59, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 1.25rem;
           padding: 2.25rem 2rem;
           position: relative;
@@ -709,7 +700,7 @@ const Suscripciones: React.FC = () => {
           flex-direction: column;
           justify-content: space-between;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          backdrop-filter: blur(12px);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
         }
         
         .pricing-card:hover {
@@ -796,7 +787,7 @@ const Suscripciones: React.FC = () => {
         
         .pricing-header .description {
           font-size: 0.875rem;
-          color: #94A3B8;
+          color: #E2E8F0;
           line-height: 1.5;
           margin: 0 0 1.75rem 0;
           min-height: 2.75rem;
@@ -816,7 +807,7 @@ const Suscripciones: React.FC = () => {
           align-items: flex-start;
           gap: 0.75rem;
           font-size: 0.875rem;
-          color: #CBD5E1;
+          color: #F1F5F9;
           line-height: 1.4;
         }
         

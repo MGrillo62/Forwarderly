@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Search, ShieldAlert, Clock, CheckCircle2, MessageSquare, AlertTriangle, Eye, X, Send } from 'lucide-react';
+import { BookOpen, Search, ShieldAlert, Clock, CheckCircle2, MessageSquare, AlertTriangle, Eye, X, Send, Trash2 } from 'lucide-react';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 // Helper to calculate remaining Peruvian business days (15 business days limit)
 export const getRemainingBusinessDays = (createdAtStr: string | Date): number => {
@@ -25,6 +26,7 @@ export const getRemainingBusinessDays = (createdAtStr: string | Date): number =>
 };
 
 const ReclamacionesAdmin: React.FC = () => {
+  const { user } = useAuth();
   const [claims, setClaims] = useState<any[]>([]);
   const [filteredClaims, setFilteredClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,18 @@ const ReclamacionesAdmin: React.FC = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  const handleDeleteClaim = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar permanentemente esta hoja de reclamación?')) {
+      return;
+    }
+    try {
+      await api.delete(`/reclamaciones/${id}`);
+      fetchClaims();
+    } catch (err: any) {
+      alert('Error al eliminar la reclamación: ' + (err.response?.data?.message || err.message));
+    }
+  };
 
   useEffect(() => {
     fetchClaims();
@@ -257,13 +271,24 @@ const ReclamacionesAdmin: React.FC = () => {
                       {getDeadlineBadge(c)}
                     </td>
                     <td>
-                      <button 
-                        className="btn-outline font-bold flex-align" 
-                        style={{ gap: '0.25rem', padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
-                        onClick={() => handleOpenClaim(c)}
-                      >
-                        <Eye size={14} /> Atender
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          className="btn-outline font-bold flex-align" 
+                          style={{ gap: '0.25rem', padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
+                          onClick={() => handleOpenClaim(c)}
+                        >
+                          <Eye size={14} /> Atender
+                        </button>
+                        {user?.rol === 'SUPER_ADMIN' && (
+                          <button 
+                            className="btn-outline font-bold flex-align" 
+                            style={{ gap: '0.25rem', padding: '0.4rem 0.75rem', fontSize: '0.75rem', color: '#EF4444', borderColor: '#FCA5A5' }}
+                            onClick={() => handleDeleteClaim(c.id)}
+                          >
+                            <Trash2 size={14} /> Eliminar
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

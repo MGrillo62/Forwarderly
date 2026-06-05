@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { User, Phone, Mail, Lock, Save } from 'lucide-react';
+import { User, Phone, Mail, Lock, Save, Eye, EyeOff } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const Perfil: React.FC = () => {
@@ -20,6 +20,7 @@ const Perfil: React.FC = () => {
     password: ''
   });
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,11 +80,21 @@ const Perfil: React.FC = () => {
             </div>
             <div className="form-group">
               <label><Lock size={14} /> Nueva Contraseña (dejar en blanco para no cambiar)</label>
-              <input 
-                type="password" 
-                placeholder="********"
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              />
+              <div className="password-input-wrapper">
+                <input 
+                  type={showPassword ? 'text' : 'password'} 
+                  placeholder="********"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                />
+                <button 
+                  type="button" 
+                  className="password-toggle-btn" 
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
           </div>
           
@@ -148,6 +159,31 @@ const Perfil: React.FC = () => {
           margin-bottom: 1.5rem; 
           text-align: center;
           font-weight: 600;
+        }
+        .password-input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          width: 100%;
+        }
+        .password-input-wrapper input {
+          width: 100%;
+          padding-right: 2.5rem;
+        }
+        .password-toggle-btn {
+          position: absolute;
+          right: 0.75rem;
+          background: none;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.25rem;
+        }
+        .password-toggle-btn:hover {
+          color: #64748b;
         }
         @media (max-width: 600px) {
           .grid-2 { grid-template-columns: 1fr; }

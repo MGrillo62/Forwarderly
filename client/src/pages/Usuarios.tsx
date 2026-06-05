@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Shield, UserCheck, UserX, Edit2 } from 'lucide-react';
+import { Plus, Shield, UserCheck, UserX, Edit2, Eye, EyeOff } from 'lucide-react';
 
 const Usuarios: React.FC = () => {
   const { user } = useAuth();
@@ -12,6 +12,7 @@ const Usuarios: React.FC = () => {
   const [newUser, setNewUser] = useState({
     id: '', username: '', password: '', nombres: '', apellidos: '', correo: '', rol: 'VENDEDOR', celular: '', estado: 'ACTIVO', empresaId: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     fetchUsuarios();
@@ -75,6 +76,7 @@ const Usuarios: React.FC = () => {
   const resetForm = () => {
     setNewUser({ id: '', username: '', password: '', nombres: '', apellidos: '', correo: '', rol: 'VENDEDOR', celular: '', estado: 'ACTIVO', empresaId: '' });
     setIsEditing(false);
+    setShowPassword(false);
   };
 
   return (
@@ -145,7 +147,20 @@ const Usuarios: React.FC = () => {
                   </div>
                   <div className="form-group">
                     <label>{isEditing ? 'Nueva Contraseña (dejar en blanco para no cambiar)' : 'Contraseña'}</label>
-                    <input type="password" required={!isEditing} onChange={(e) => setNewUser({...newUser, password: e.target.value})} />
+                    <div className="password-input-wrapper">
+                      <input 
+                        type={showPassword ? 'text' : 'password'} 
+                        required={!isEditing} 
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})} 
+                      />
+                      <button 
+                        type="button" 
+                        className="password-toggle-btn" 
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                   <div className="form-group">
                     <label>Nombres</label>
@@ -222,6 +237,31 @@ const Usuarios: React.FC = () => {
         .text-success { color: var(--success); display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
         .text-danger { color: var(--danger); display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
         .icon-only { padding: 0.4rem; display: flex; align-items: center; justify-content: center; }
+        .password-input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+          width: 100%;
+        }
+        .password-input-wrapper input {
+          width: 100%;
+          padding-right: 2.5rem;
+        }
+        .password-toggle-btn {
+          position: absolute;
+          right: 0.75rem;
+          background: none;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.25rem;
+        }
+        .password-toggle-btn:hover {
+          color: #64748b;
+        }
       `}</style>
     </div>
   );

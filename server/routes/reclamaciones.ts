@@ -123,4 +123,19 @@ router.put('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req
   }
 });
 
+// DELETE /api/reclamaciones/:id - Authenticated route (SUPER_ADMIN only) to delete a claim
+router.delete('/:id', authenticate, authorize(['SUPER_ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const id = req.params.id as string;
+    const claim = await prisma.reclamacion.findUnique({ where: { id } });
+    if (!claim) {
+      return res.status(404).json({ message: 'Reclamación no encontrada.' });
+    }
+    await prisma.reclamacion.delete({ where: { id } });
+    res.json({ success: true, message: 'Reclamación eliminada con éxito.' });
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al eliminar la reclamación: ' + error.message });
+  }
+});
+
 export default router;

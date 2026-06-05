@@ -298,62 +298,77 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/suscripciones/planes - Get active plans from Culqi
+// GET /api/suscripciones/planes - Get active plans
 router.get('/planes', authenticate, async (req: AuthRequest, res) => {
+  const defaultPlans = [
+    {
+      nombre: 'Plan Solopreneur',
+      codigo: 'codigo',
+      monto: 155.0,
+      periodicidad: 'MENSUAL',
+      diasPrueba: 14
+    },
+    {
+      nombre: 'Plan Solopreneur Anual',
+      codigo: 'anual',
+      monto: 1488.0,
+      periodicidad: 'ANUAL',
+      diasPrueba: 14
+    }
+  ];
+
   try {
-    const culqiResponse = await fetch(`${CULQI_API_URL}/recurrent/plans`, {
-      headers: {
-        'Authorization': `Bearer ${CULQI_SECRET_KEY}`
+    let dbPlans = await prisma.plan.findMany();
+    
+    // Auto-seed if table exists but empty
+    if (dbPlans.length === 0) {
+      await prisma.plan.createMany({
+        data: defaultPlans
+      });
+      dbPlans = await prisma.plan.findMany();
+    }
+    
+    return res.json(dbPlans);
+  } catch (error: any) {
+    console.error('Error fetching plans from DB, using fallback list:', error.message);
+    // Fallback: list of plans in case Plan table doesn't exist yet in the database
+    return res.json(defaultPlans.map(p => ({
+      id: p.codigo,
+      codigo: p.codigo,
+      nombre: p.nombre,
+      name: p.nombre,
+      monto: p.monto,
+      amount: p.monto * 100,
+      periodicidad: p.periodicidad,
+      diasPrueba: p.diasPrueba
+    })));
+  }
+});
+
+// PUT /api/suscripciones/planes/:id - Update plan configuration (SUPER_ADMIN only)
+router.put('/planes/:id', authenticate, authorize(['SUPER_ADMIN']), async (req: AuthRequest, res) => {
+  const id = req.params.id as string;
+  const { nombre, monto, periodicidad, diasPrueba } = req.body;
+
+  try {
+    const plan = await prisma.plan.findUnique({ where: { id } });
+    if (!plan) {
+      return res.status(404).json({ message: 'Plan no encontrado.' });
+    }
+
+    const updated = await prisma.plan.update({
+      where: { id },
+      data: {
+        nombre,
+        monto: parseFloat(String(monto)) || 0,
+        periodicidad,
+        diasPrueba: parseInt(String(diasPrueba)) || 0
       }
     });
 
-    if (culqiResponse.ok) {
-      const culqiData = await culqiResponse.json() as any;
-      if (culqiData.data) {
-        return res.json(culqiData.data);
-      }
-    }
-
-    // Fallback: list of plans in case Culqi API is down or in mock environment
-    return res.json([
-      {
-        id: 'codigo',
-        name: 'Plan Solopreneur',
-        amount: 15500, // S/ 155.00
-        currency_code: 'PEN',
-        interval: 'months',
-        interval_count: 1
-      },
-      {
-        id: 'anual',
-        name: 'Plan Solopreneur Anual',
-        amount: 148800, // S/ 1,488.00
-        currency_code: 'PEN',
-        interval: 'months',
-        interval_count: 12
-      }
-    ]);
+    res.json(updated);
   } catch (error: any) {
-    console.error('Error fetching Culqi plans:', error);
-    // Return fallback plans rather than failing completely
-    res.json([
-      {
-        id: 'codigo',
-        name: 'Plan Solopreneur',
-        amount: 15500,
-        currency_code: 'PEN',
-        interval: 'months',
-        interval_count: 1
-      },
-      {
-        id: 'anual',
-        name: 'Plan Solopreneur Anual',
-        amount: 148800,
-        currency_code: 'PEN',
-        interval: 'months',
-        interval_count: 12
-      }
-    ]);
+    res.status(500).json({ message: 'Error al actualizar el plan: ' + error.message });
   }
 });
 

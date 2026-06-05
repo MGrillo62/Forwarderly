@@ -500,4 +500,15 @@ model Reclamacion {
   updatedAt          DateTime @updatedAt
 }
 
+model Plan {
+  id           String   @id @default(uuid())
+  nombre       String
+  codigo       String   @unique // 'codigo' o 'anual'
+  monto        Float
+  periodicidad String   // 'MENSUAL' o 'ANUAL'
+  diasPrueba   Int      @default(14)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 

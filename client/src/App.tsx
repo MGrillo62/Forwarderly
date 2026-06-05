@@ -19,6 +19,7 @@ import DashboardOperativo from './pages/DashboardOperativo';
 import Suscripciones from './pages/Suscripciones';
 import LibroReclamaciones from './pages/LibroReclamaciones';
 import ReclamacionesAdmin from './pages/ReclamacionesAdmin';
+import ConfiguracionPlanes from './pages/ConfiguracionPlanes';
 import { AlertTriangle, Lock, CreditCard } from 'lucide-react';
 import api from './api/axios';
 
@@ -429,6 +430,12 @@ function App() {
           <Route path="/reclamaciones-admin" element={
             <ProtectedRoute roles={['SUPER_ADMIN', 'ADMIN']}>
               <Layout><ReclamacionesAdmin /></Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/configuracion-planes" element={
+            <ProtectedRoute roles={['SUPER_ADMIN']}>
+              <Layout><ConfiguracionPlanes /></Layout>
             </ProtectedRoute>
           } />
 

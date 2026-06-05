@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Building2, Edit, X } from 'lucide-react';
+import { Plus, Building2, Edit, X, Trash2 } from 'lucide-react';
 
 const Empresas: React.FC = () => {
   const { token } = useAuth();
@@ -98,6 +98,18 @@ const Empresas: React.FC = () => {
     setShowModal(true);
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`¿Está seguro de que desea eliminar permanentemente la empresa "${name}" y todos sus datos relacionados (usuarios, cotizaciones, costeos, etc.)?`)) {
+      return;
+    }
+    try {
+      await api.delete(`/empresas/${id}`);
+      fetchEmpresas();
+    } catch (err: any) {
+      alert('Error al eliminar la empresa: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -182,9 +194,12 @@ const Empresas: React.FC = () => {
                       {e.estado}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '0.25rem' }}>
                     <button className="icon-btn" onClick={() => handleEdit(e)} title="Editar Empresa">
                       <Edit size={16} />
+                    </button>
+                    <button className="icon-btn" style={{ color: '#EF4444' }} onClick={() => handleDelete(e.id, e.razonSocial)} title="Eliminar Empresa">
+                      <Trash2 size={16} />
                     </button>
                   </td>
                 </tr>
