@@ -2,6 +2,9 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middlewares/auth';
+import multer from 'multer';
+import { cloudinary } from '../utils/cloudinary';
+import { Readable } from 'stream';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -410,6 +413,268 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
   } catch (error: any) {
     console.error('Error al eliminar orden:', error);
     res.status(500).json({ message: 'Error al eliminar orden: ' + error.message });
+  }
+});
+
+// Configure multer
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Get all documents for an order
+router.get('/:id/documentos', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { empresaId } = req.user!;
+
+  try {
+    const orden = await prisma.orden.findFirst({
+      where: {
+        id,
+        OR: [
+          { cotizacion: { empresaId } },
+          { cotizacionesAsociadas: { some: { empresaId } } }
+        ]
+      }
+    });
+
+    if (!orden) {
+      return res.status(404).json({ message: 'Orden no encontrada o no pertenece a su empresa' });
+    }
+
+    const documentos = await prisma.ordenDocumento.findMany({
+      where: { ordenId: id },
+      include: { tipoDocumento: true },
+      orderBy: { tipoDocumento: { nombre: 'asc' } }
+    });
+
+    res.json(documentos);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al obtener documentos: ' + error.message });
+  }
+});
+
+// Associate document types to an order
+router.post('/:id/documentos', authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { tipoDocumentoIds } = req.body;
+  const { empresaId } = req.user!;
+
+  try {
+    if (!tipoDocumentoIds || !Array.isArray(tipoDocumentoIds)) {
+      return res.status(400).json({ message: 'Se requiere una lista de IDs de tipos de documentos' });
+    }
+
+    const orden = await prisma.orden.findFirst({
+      where: {
+        id,
+        OR: [
+          { cotizacion: { empresaId } },
+          { cotizacionesAsociadas: { some: { empresaId } } }
+        ]
+      }
+    });
+
+    if (!orden) {
+      return res.status(404).json({ message: 'Orden no encontrada o no pertenece a su empresa' });
+    }
+
+    const validTypes = await prisma.tipoDocumento.findMany({
+      where: {
+        id: { in: tipoDocumentoIds },
+        empresaId
+      }
+    });
+
+    if (validTypes.length !== tipoDocumentoIds.length) {
+      return res.status(400).json({ message: 'Algunos tipos de documentos no son válidos' });
+    }
+
+    const creations = tipoDocumentoIds.map(async (tipoId) => {
+      return prisma.ordenDocumento.upsert({
+        where: {
+          ordenId_tipoDocumentoId: {
+            ordenId: id,
+            tipoDocumentoId: tipoId
+          }
+        },
+        create: {
+          ordenId: id,
+          tipoDocumentoId: tipoId
+        },
+        update: {}
+      });
+    });
+
+    await Promise.all(creations);
+
+    const actualizados = await prisma.ordenDocumento.findMany({
+      where: { ordenId: id },
+      include: { tipoDocumento: true },
+      orderBy: { tipoDocumento: { nombre: 'asc' } }
+    });
+
+    res.json(actualizados);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al asociar documentos: ' + error.message });
+  }
+});
+
+// Delete a document slot / requirement from an order
+router.delete('/:id/documentos/:documentoId', authenticate, async (req: AuthRequest, res) => {
+  const { id: ordenId, documentoId } = req.params;
+  const { empresaId } = req.user!;
+
+  try {
+    const orden = await prisma.orden.findFirst({
+      where: {
+        id: ordenId,
+        OR: [
+          { cotizacion: { empresaId } },
+          { cotizacionesAsociadas: { some: { empresaId } } }
+        ]
+      }
+    });
+
+    if (!orden) {
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const docReq = await prisma.ordenDocumento.findUnique({
+      where: { id: documentoId }
+    });
+
+    if (!docReq || docReq.ordenId !== ordenId) {
+      return res.status(404).json({ message: 'Documento no encontrado en esta orden' });
+    }
+
+    await prisma.ordenDocumento.delete({
+      where: { id: documentoId }
+    });
+
+    res.json({ message: 'Requerimiento de documento eliminado' });
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al eliminar requerimiento: ' + error.message });
+  }
+});
+
+// Upload document file to Cloudinary / Mock
+router.post('/:id/documentos/:documentoId/subir', authenticate, upload.single('file'), async (req: AuthRequest, res) => {
+  const { id: ordenId, documentoId } = req.params;
+  const { empresaId } = req.user!;
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Debe adjuntar un archivo' });
+    }
+
+    const orden = await prisma.orden.findFirst({
+      where: {
+        id: ordenId,
+        OR: [
+          { cotizacion: { empresaId } },
+          { cotizacionesAsociadas: { some: { empresaId } } }
+        ]
+      }
+    });
+
+    if (!orden) {
+      return res.status(404).json({ message: 'Orden no encontrada o no pertenece a su empresa' });
+    }
+
+    const docReq = await prisma.ordenDocumento.findUnique({
+      where: { id: documentoId }
+    });
+
+    if (!docReq || docReq.ordenId !== ordenId) {
+      return res.status(404).json({ message: 'Requerimiento no encontrado' });
+    }
+
+    let fileUrl = '';
+    const originalName = req.file.originalname;
+
+    const isCloudinaryConfigured = !!(
+      process.env.CLOUDINARY_URL || 
+      (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+    );
+
+    if (isCloudinaryConfigured) {
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: `forwarderly/orden-${ordenId}`,
+            resource_type: 'auto'
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result?.secure_url || '');
+          }
+        );
+        Readable.from(req.file.buffer).pipe(stream);
+      });
+      fileUrl = await uploadPromise;
+    } else {
+      console.warn('Cloudinary not configured. Mocking file upload.');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+      fileUrl = `https://res.cloudinary.com/mock-cloud/image/upload/v1234567890/mock_${Date.now()}_${sanitizedName}`;
+    }
+
+    const updatedDoc = await prisma.ordenDocumento.update({
+      where: { id: documentoId },
+      data: {
+        url: fileUrl,
+        nombreArchivo: originalName,
+        fechaSubida: new Date()
+      },
+      include: { tipoDocumento: true }
+    });
+
+    res.json(updatedDoc);
+  } catch (error: any) {
+    console.error('Error al subir archivo:', error);
+    res.status(500).json({ message: 'Error al subir archivo: ' + error.message });
+  }
+});
+
+// Clear document file from the requirement
+router.delete('/:id/documentos/:documentoId/eliminar-archivo', authenticate, async (req: AuthRequest, res) => {
+  const { id: ordenId, documentoId } = req.params;
+  const { empresaId } = req.user!;
+
+  try {
+    const orden = await prisma.orden.findFirst({
+      where: {
+        id: ordenId,
+        OR: [
+          { cotizacion: { empresaId } },
+          { cotizacionesAsociadas: { some: { empresaId } } }
+        ]
+      }
+    });
+
+    if (!orden) {
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const docReq = await prisma.ordenDocumento.findUnique({
+      where: { id: documentoId }
+    });
+
+    if (!docReq || docReq.ordenId !== ordenId) {
+      return res.status(404).json({ message: 'Documento no encontrado' });
+    }
+
+    const updated = await prisma.ordenDocumento.update({
+      where: { id: documentoId },
+      data: {
+        url: null,
+        nombreArchivo: null,
+        fechaSubida: null
+      },
+      include: { tipoDocumento: true }
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al eliminar archivo: ' + error.message });
   }
 });
 

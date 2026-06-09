@@ -17,6 +17,7 @@ import girosNegocioRoutes from './routes/girosNegocio';
 import bancosRoutes from './routes/bancos';
 import suscripcionesRoutes from './routes/suscripciones';
 import reclamacionesRoutes from './routes/reclamaciones';
+import tiposDocumentoRoutes from './routes/tiposDocumento';
 
 dotenv.config();
 
@@ -53,6 +54,7 @@ app.use('/api/giros-negocio', girosNegocioRoutes);
 app.use('/api/bancos', bancosRoutes);
 app.use('/api/suscripciones', suscripcionesRoutes);
 app.use('/api/reclamaciones', reclamacionesRoutes);
+app.use('/api/tipos-documento', tiposDocumentoRoutes);
 
 const PORT = process.env.PORT || 5000;
 

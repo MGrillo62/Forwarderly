@@ -13,7 +13,8 @@ import {
   FileText,
   X,
   Layers,
-  Activity
+  Activity,
+  Paperclip
 } from 'lucide-react';
 import { generateLiquidacionPDF } from '../utils/liquidacionPdfGenerator';
 import { getBase64ImageFromUrl } from '../utils/logoHelper';
@@ -34,6 +35,13 @@ const Ordenes: React.FC = () => {
   const [referenciaInput, setReferenciaInput] = useState('');
   const [bancosList, setBancosList] = useState<any[]>([]);
   const [selectedBanco, setSelectedBanco] = useState('');
+
+  // Order Documents Modal States
+  const [showDocumentosModal, setShowDocumentosModal] = useState(false);
+  const [documentosList, setDocumentosList] = useState<any[]>([]);
+  const [availableTiposDoc, setAvailableTiposDoc] = useState<any[]>([]);
+  const [selectedTipoDocId, setSelectedTipoDocId] = useState('');
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
 
   // Sorting & Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -309,6 +317,91 @@ const Ordenes: React.FC = () => {
     
     setActiveTab('registrar');
     setShowCobrosModal(true);
+  };
+
+  const fetchOrderDocuments = async (ordenId: string) => {
+    try {
+      const res = await api.get(`/ordenes/${ordenId}/documentos`);
+      setDocumentosList(res.data);
+    } catch (err: any) {
+      console.error('Error fetching order documents:', err);
+    }
+  };
+
+  const handleOpenDocumentos = async (orden: any) => {
+    setSelectedOrden(orden);
+    setSelectedTipoDocId('');
+    await fetchOrderDocuments(orden.id);
+    
+    // Fetch all available document types
+    try {
+      const res = await api.get('/tipos-documento');
+      setAvailableTiposDoc(res.data);
+    } catch (err: any) {
+      console.error('Error fetching document types:', err);
+    }
+    
+    setShowDocumentosModal(true);
+  };
+
+  const handleAssociateDocumento = async () => {
+    if (!selectedOrden || !selectedTipoDocId) return;
+    try {
+      const res = await api.post(`/ordenes/${selectedOrden.id}/documentos`, {
+        tipoDocumentoIds: [selectedTipoDocId]
+      });
+      setDocumentosList(res.data);
+      setSelectedTipoDocId('');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al asociar tipo de documento');
+    }
+  };
+
+  const handleDeleteDocRequirement = async (docId: string) => {
+    if (!selectedOrden) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar este requerimiento de documento? Si ya tenía un archivo cargado, se perderá.')) return;
+    try {
+      await api.delete(`/ordenes/${selectedOrden.id}/documentos/${docId}`);
+      await fetchOrderDocuments(selectedOrden.id);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al eliminar requerimiento');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docId: string) => {
+    if (!selectedOrden || !e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      setUploadingDocId(docId);
+      const res = await api.post(`/ordenes/${selectedOrden.id}/documentos/${docId}/subir`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      // Update list
+      setDocumentosList(prev => prev.map(d => d.id === docId ? res.data : d));
+      alert('Archivo subido con éxito.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al subir archivo');
+    } finally {
+      setUploadingDocId(null);
+    }
+  };
+
+  const handleDeleteFile = async (docId: string) => {
+    if (!selectedOrden) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar el archivo adjunto? El espacio para el documento seguirá asociado a la orden.')) return;
+    try {
+      const res = await api.delete(`/ordenes/${selectedOrden.id}/documentos/${docId}/eliminar-archivo`);
+      setDocumentosList(prev => prev.map(d => d.id === docId ? res.data : d));
+      alert('Archivo eliminado con éxito.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al eliminar archivo');
+    }
   };
 
   const handleLineaDocChange = (lineaId: string, field: string, value: string) => {
@@ -621,6 +714,9 @@ const Ordenes: React.FC = () => {
                         </button>
                         <button title="Gestión de Cobros" className="success btn-glow" onClick={() => handleOpenCobros(o)}>
                           <DollarSign size={16} />
+                        </button>
+                        <button title="Documentos de la Orden" className="warning btn-glow" onClick={() => handleOpenDocumentos(o)}>
+                          <Paperclip size={16} />
                         </button>
                         <button title="Liquidación de Cobranza" className="info" onClick={() => handleDownloadLiquidacion(o)}>
                           <FileText size={16} />
@@ -1437,6 +1533,234 @@ const Ordenes: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Documentos Modal */}
+      {showDocumentosModal && selectedOrden && (
+        <div className="modal-overlay">
+          <div className="modal-content large animate-slide-in" style={{ maxWidth: '850px', width: '95%' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="text-xl font-black text-slate-800 flex items-center gap-2" style={{ margin: 0 }}>
+                  📎 Documentos de la Orden — ORD-{selectedOrden.correlativo}
+                </h3>
+                <p className="text-xs text-slate-500" style={{ margin: '0.25rem 0 0 0' }}>
+                  Cliente: <strong>{getClientName(selectedOrden)}</strong>
+                </p>
+              </div>
+              <button className="icon-btn" onClick={() => { setShowDocumentosModal(false); setSelectedOrden(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', padding: '1.5rem' }}>
+              
+              {/* Form to associate document types */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                padding: '1.25rem',
+                marginBottom: '1.5rem'
+              }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-dark)' }}>
+                  Asociar Documento Requerido
+                </h4>
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', color: 'var(--text-light)' }}>
+                  Seleccione de la lista de tipos de documentos configurados cuál se necesita para gestionar esta orden.
+                </p>
+                
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <select 
+                    value={selectedTipoDocId}
+                    onChange={(e) => setSelectedTipoDocId(e.target.value)}
+                    className="select-custom"
+                    style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border)', outline: 'none' }}
+                  >
+                    <option value="">-- Seleccionar Tipo de Documento --</option>
+                    {availableTiposDoc
+                      .filter(tipo => !documentosList.some(d => d.tipoDocumentoId === tipo.id))
+                      .map(tipo => (
+                        <option key={tipo.id} value={tipo.id}>{tipo.nombre}</option>
+                      ))
+                    }
+                  </select>
+                  <button 
+                    type="button" 
+                    className="primary" 
+                    onClick={handleAssociateDocumento}
+                    disabled={!selectedTipoDocId}
+                    style={{ padding: '0.55rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    <Plus size={16} /> Asociar
+                  </button>
+                </div>
+              </div>
+
+              {/* Documents List */}
+              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>
+                Documentos Asociados
+              </h4>
+              
+              {documentosList.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '2.5rem',
+                  color: 'var(--text-light)',
+                  border: '1px dashed var(--border)',
+                  borderRadius: '12px',
+                  background: '#fafafa'
+                }}>
+                  No se han asociado documentos requeridos para esta orden. Seleccione un tipo de documento arriba para agregarlo.
+                </div>
+              ) : (
+                <div className="table-container">
+                  <table style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th>Nombre del Documento</th>
+                        <th>Estado</th>
+                        <th>Archivo Adjunto</th>
+                        <th style={{ width: '180px', textAlign: 'center' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {documentosList.map((doc: any) => {
+                        const isUploaded = !!doc.url;
+                        return (
+                          <tr key={doc.id}>
+                            <td>
+                              <span style={{ fontWeight: 600, color: 'var(--text-dark)', fontSize: '0.85rem' }}>
+                                {doc.tipoDocumento?.nombre}
+                              </span>
+                            </td>
+                            <td>
+                              {isUploaded ? (
+                                <span className="badge-green" style={{
+                                  color: 'white',
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '9999px',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  background: '#10b981'
+                                }}>Cargado</span>
+                              ) : (
+                                <span className="badge-gray" style={{
+                                  color: 'white',
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '9999px',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  background: '#94a3b8'
+                                }}>Pendiente</span>
+                              )}
+                            </td>
+                            <td>
+                              {isUploaded ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                  <a 
+                                    href={doc.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      color: 'var(--primary)',
+                                      fontWeight: '600',
+                                      fontSize: '0.85rem',
+                                      textDecoration: 'underline',
+                                      wordBreak: 'break-all'
+                                    }}
+                                  >
+                                    {doc.nombreArchivo || 'Ver Archivo'}
+                                  </a>
+                                  {doc.fechaSubida && (
+                                    <small style={{ color: 'var(--text-light)', fontSize: '0.65rem' }}>
+                                      Subido: {new Date(doc.fechaSubida).toLocaleString()}
+                                    </small>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-light)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                  No se ha subido ningún archivo
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="actions-cell" style={{ justifyContent: 'center', gap: '0.5rem' }}>
+                                {uploadingDocId === doc.id ? (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontStyle: 'italic' }}>
+                                    Subiendo...
+                                  </span>
+                                ) : (
+                                  <>
+                                    <label style={{ cursor: 'pointer', margin: 0 }}>
+                                      <input 
+                                        type="file" 
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => handleFileUpload(e, doc.id)}
+                                      />
+                                      <span style={{
+                                        display: 'inline-block',
+                                        padding: '0.35rem 0.75rem',
+                                        borderRadius: '6px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        background: 'var(--primary)',
+                                        color: 'white',
+                                        textAlign: 'center',
+                                        cursor: 'pointer'
+                                      }}>
+                                        {isUploaded ? 'Reemplazar' : 'Subir'}
+                                      </span>
+                                    </label>
+                                    
+                                    {isUploaded && (
+                                      <button 
+                                        type="button" 
+                                        className="danger" 
+                                        title="Eliminar archivo adjunto"
+                                        onClick={() => handleDeleteFile(doc.id)}
+                                        style={{ padding: '0.35rem 0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    )}
+
+                                    <button 
+                                      type="button" 
+                                      className="danger" 
+                                      title="Eliminar requerimiento"
+                                      onClick={() => handleDeleteDocRequirement(doc.id)}
+                                      style={{ padding: '0.35rem 0.5rem', background: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="btn-outline" 
+                onClick={() => { setShowDocumentosModal(false); setSelectedOrden(null); }}
+                style={{ padding: '0.5rem 1.5rem', borderRadius: '8px' }}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

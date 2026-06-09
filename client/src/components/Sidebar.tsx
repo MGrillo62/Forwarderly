@@ -50,6 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed, rol }) => {
     { name: 'Configuración Planes', icon: Settings, path: '/configuracion-planes', roles: ['SUPER_ADMIN'], group: 'Configuración' },
     { name: 'Proveedores', icon: Truck, path: '/proveedores', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR'], group: 'Configuración' },
     { name: 'Categorías', icon: Tags, path: '/categorias', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
+    { name: 'Tipos de Documento', icon: FileText, path: '/tipos-documento', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Usuarios', icon: Users, path: '/usuarios', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Administrar Reclamos', icon: BookOpen, path: '/reclamaciones-admin', roles: ['SUPER_ADMIN', 'ADMIN'], group: 'Configuración' },
     { name: 'Mi Perfil', icon: Settings, path: '/perfil', roles: ['SUPER_ADMIN', 'ADMIN', 'VENDEDOR', 'IMPORTADOR'], group: 'Configuración' },

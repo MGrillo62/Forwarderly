@@ -190,6 +190,7 @@ model Empresa {
   costeos            CosteoImportacion[]
   giroNegocios       GiroNegocio[]
   bancos             Banco[]
+  tiposDocumentos    TipoDocumento[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -389,6 +390,7 @@ model Orden {
   historial        OrdenEstadoHistorial[]
   pagos            OrdenPago[]
   cobros           Cobro[]
+  documentos       OrdenDocumento[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -509,6 +511,33 @@ model Plan {
   diasPrueba   Int      @default(14)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model TipoDocumento {
+  id        String            @id @default(uuid())
+  nombre    String
+  empresaId String
+  empresa   Empresa           @relation(fields: [empresaId], references: [id])
+  documentos OrdenDocumento[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([nombre, empresaId])
+}
+
+model OrdenDocumento {
+  id              String         @id @default(uuid())
+  ordenId         String
+  orden           Orden          @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  tipoDocumentoId String
+  tipoDocumento   TipoDocumento  @relation(fields: [tipoDocumentoId], references: [id], onDelete: Cascade)
+  url             String?
+  nombreArchivo   String?
+  fechaSubida     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([ordenId, tipoDocumentoId])
 }
 
 
