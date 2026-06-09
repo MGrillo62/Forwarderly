@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { User, Phone, Mail, Lock, Save, Eye, EyeOff, Upload, Trash2, Image } from 'lucide-react';
@@ -24,6 +24,35 @@ const Perfil: React.FC = () => {
   
   const { activeEmpresa } = useAuth();
   const [logoUploading, setLogoUploading] = useState(false);
+  const [numCotizacion, setNumCotizacion] = useState(0);
+  const [numOrden, setNumOrden] = useState(0);
+  const [numCosteo, setNumCosteo] = useState(0);
+  const [numsSuccess, setNumsSuccess] = useState(false);
+
+  useEffect(() => {
+    if (activeEmpresa) {
+      setNumCotizacion(activeEmpresa.ultimoNroCotizacion ?? 0);
+      setNumOrden(activeEmpresa.ultimoNroOrden ?? 0);
+      setNumCosteo(activeEmpresa.ultimoNroCosteo ?? 0);
+    }
+  }, [activeEmpresa]);
+
+  const handleSaveNumeradores = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.put('/empresas/mi-empresa/numeradores', {
+        ultimoNroCotizacion: numCotizacion,
+        ultimoNroOrden: numOrden,
+        ultimoNroCosteo: numCosteo
+      });
+      setNumsSuccess(true);
+      setTimeout(() => setNumsSuccess(false), 3000);
+      alert('Numeradores actualizados con éxito.');
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al actualizar numeradores');
+    }
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -213,6 +242,68 @@ const Perfil: React.FC = () => {
               </small>
             </div>
           </div>
+        </div>
+      )}
+
+      {(user?.rol === 'ADMIN' || user?.rol === 'SUPER_ADMIN') && (
+        <div className="card perfil-card" style={{ marginTop: '2rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>Numeradores de la Empresa</h2>
+          <p className="subtitle" style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '1.5rem' }}>
+            Inicializa o actualiza el contador de los documentos de la empresa. El número ingresado representa el <strong>último asignado</strong>; el siguiente documento creado recibirá ese número + 1.
+          </p>
+
+          <form onSubmit={handleSaveNumeradores}>
+            {numsSuccess && <div className="alert-success">Numeradores guardados con éxito</div>}
+            <div className="grid-2" style={{ marginBottom: '1.5rem' }}>
+              <div className="form-group">
+                <label>Último Nro. Cotización</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  required
+                  value={numCotizacion}
+                  onChange={(e) => setNumCotizacion(parseInt(e.target.value) || 0)}
+                />
+                <small className="text-light" style={{ fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                  Próxima cotización será: <strong>{numCotizacion + 1}</strong>
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label>Último Nro. Orden</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  required
+                  value={numOrden}
+                  onChange={(e) => setNumOrden(parseInt(e.target.value) || 0)}
+                />
+                <small className="text-light" style={{ fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                  Próxima orden será: <strong>{numOrden + 1}</strong>
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label>Último Nro. Costeo</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  required
+                  value={numCosteo}
+                  onChange={(e) => setNumCosteo(parseInt(e.target.value) || 0)}
+                />
+                <small className="text-light" style={{ fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                  Próximo costeo será: <strong>{new Date().getFullYear()}-{(numCosteo + 1).toString().padStart(5, '0')}</strong>
+                </small>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" className="primary">
+                <Save size={18} /> Guardar Numeradores
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

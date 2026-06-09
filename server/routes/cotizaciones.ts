@@ -21,8 +21,16 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
     const totals = calculateTotals(calculatedLineas);
 
+    const empresa = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: { ultimoNroCotizacion: { increment: 1 } },
+      select: { ultimoNroCotizacion: true }
+    });
+    const nextNumero = empresa.ultimoNroCotizacion;
+
     const cotizacion = await prisma.cotizacion.create({
       data: {
+        numero: nextNumero,
         clienteId: clienteId || null,
         leadId: leadId || null,
         moneda: moneda || 'USD',
@@ -184,11 +192,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
     if (estado === 'APROBADA' && req.body.crearOrdenImmediately === true) {
       const year = new Date().getFullYear();
-      const lastOrden = await prisma.orden.findFirst({
-        where: { anio: year },
-        orderBy: { correlativo: 'desc' }
+      const empresa = await prisma.empresa.update({
+        where: { id: empresaId },
+        data: { ultimoNroOrden: { increment: 1 } },
+        select: { ultimoNroOrden: true }
       });
-      const correlativo = (lastOrden?.correlativo || 0) + 1;
+      const correlativo = empresa.ultimoNroOrden;
 
       await prisma.orden.create({
         data: {
@@ -267,8 +276,16 @@ router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
     const targetClienteId = clienteId !== undefined ? clienteId : existing.clienteId;
     const targetLeadId = leadId !== undefined ? leadId : existing.leadId;
 
+    const empresa = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: { ultimoNroCotizacion: { increment: 1 } },
+      select: { ultimoNroCotizacion: true }
+    });
+    const nextNumero = empresa.ultimoNroCotizacion;
+
     const duplicated = await prisma.cotizacion.create({
       data: {
+        numero: nextNumero,
         clienteId: targetClienteId,
         leadId: targetLeadId,
         vendedorId,

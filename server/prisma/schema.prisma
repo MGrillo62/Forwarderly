@@ -180,6 +180,9 @@ model Empresa {
   diasPrueba         Int                @default(14)
   culqiCustomerId    String?
   culqiSubscriptionId String?
+  ultimoNroCotizacion Int                @default(0)
+  ultimoNroOrden      Int                @default(0)
+  ultimoNroCosteo     Int                @default(0)
   pagosSuscripcion   PagoSuscripcion[]
   usuarios           Usuario[]
   clientes           Cliente[]

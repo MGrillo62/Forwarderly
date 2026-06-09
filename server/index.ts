@@ -60,6 +60,17 @@ app.use('/api/tipos-documento', tiposDocumentoRoutes);
 async function ensureTablesExist() {
   console.log('Verificando/creando tablas de documentos en la base de datos de producción...');
   try {
+    // 0. Ensure numerator columns exist on Empresa
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Empresa" ADD COLUMN IF NOT EXISTS "ultimoNroCotizacion" INTEGER DEFAULT 0;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Empresa" ADD COLUMN IF NOT EXISTS "ultimoNroOrden" INTEGER DEFAULT 0;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Empresa" ADD COLUMN IF NOT EXISTS "ultimoNroCosteo" INTEGER DEFAULT 0;
+    `);
+
     // 1. Create TipoDocumento table
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "TipoDocumento" (

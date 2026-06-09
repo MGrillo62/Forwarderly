@@ -67,10 +67,13 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
   try {
     const year = new Date().getFullYear();
-    const count = await prisma.costeoImportacion.count({
-      where: { empresaId, createdAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } }
+    const empresa = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: { ultimoNroCosteo: { increment: 1 } },
+      select: { ultimoNroCosteo: true }
     });
-    const codigo = `${year}-${(count + 1).toString().padStart(5, '0')}`;
+    const nextCosteo = empresa.ultimoNroCosteo;
+    const codigo = `${year}-${nextCosteo.toString().padStart(5, '0')}`;
     const id = randomUUID();
     const now = new Date().toISOString();
 

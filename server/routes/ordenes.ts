@@ -114,11 +114,12 @@ router.post('/multiple', authenticate, async (req: AuthRequest, res) => {
     }
 
     const year = new Date().getFullYear();
-    const lastOrden = await prisma.orden.findFirst({
-      where: { anio: year },
-      orderBy: { correlativo: 'desc' }
+    const empresa = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: { ultimoNroOrden: { increment: 1 } },
+      select: { ultimoNroOrden: true }
     });
-    const correlativo = (lastOrden?.correlativo || 0) + 1;
+    const correlativo = empresa.ultimoNroOrden;
 
     // Create the merged order
     const newOrden = await prisma.orden.create({

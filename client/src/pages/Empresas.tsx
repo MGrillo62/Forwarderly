@@ -20,7 +20,10 @@ const Empresas: React.FC = () => {
     diaPagoSuscripcion: 5,
     periodicidad: 'MENSUAL',
     montoSuscripcion: 0,
-    diasPrueba: 14
+    diasPrueba: 14,
+    ultimoNroCotizacion: 0,
+    ultimoNroOrden: 0,
+    ultimoNroCosteo: 0
   });
 
   useEffect(() => {
@@ -44,7 +47,10 @@ const Empresas: React.FC = () => {
         fechaInicio: new Date(formData.fechaInicio),
         diaPagoSuscripcion: parseInt(String(formData.diaPagoSuscripcion)) || 5,
         montoSuscripcion: parseFloat(String(formData.montoSuscripcion)) || 0,
-        diasPrueba: parseInt(String(formData.diasPrueba)) || 0
+        diasPrueba: parseInt(String(formData.diasPrueba)) || 0,
+        ultimoNroCotizacion: parseInt(String(formData.ultimoNroCotizacion)) || 0,
+        ultimoNroOrden: parseInt(String(formData.ultimoNroOrden)) || 0,
+        ultimoNroCosteo: parseInt(String(formData.ultimoNroCosteo)) || 0
       };
       
       if (editingEmpresa) {
@@ -74,7 +80,10 @@ const Empresas: React.FC = () => {
       diaPagoSuscripcion: empresa.diaPagoSuscripcion ?? 5,
       periodicidad: empresa.periodicidad || 'MENSUAL',
       montoSuscripcion: empresa.montoSuscripcion ?? 0,
-      diasPrueba: empresa.diasPrueba ?? 14
+      diasPrueba: empresa.diasPrueba ?? 14,
+      ultimoNroCotizacion: empresa.ultimoNroCotizacion ?? 0,
+      ultimoNroOrden: empresa.ultimoNroOrden ?? 0,
+      ultimoNroCosteo: empresa.ultimoNroCosteo ?? 0
     });
     setShowModal(true);
   };
@@ -93,7 +102,10 @@ const Empresas: React.FC = () => {
       diaPagoSuscripcion: 5,
       periodicidad: 'MENSUAL',
       montoSuscripcion: 0,
-      diasPrueba: 14
+      diasPrueba: 14,
+      ultimoNroCotizacion: 0,
+      ultimoNroOrden: 0,
+      ultimoNroCosteo: 0
     });
     setShowModal(true);
   };
@@ -327,6 +339,36 @@ const Empresas: React.FC = () => {
                       required 
                       value={formData.diasPrueba}
                       onChange={(e) => setFormData({...formData, diasPrueba: parseInt(e.target.value) || 0})} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Último Nro. Cotización</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      required 
+                      value={formData.ultimoNroCotizacion}
+                      onChange={(e) => setFormData({...formData, ultimoNroCotizacion: parseInt(e.target.value) || 0})} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Último Nro. Orden</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      required 
+                      value={formData.ultimoNroOrden}
+                      onChange={(e) => setFormData({...formData, ultimoNroOrden: parseInt(e.target.value) || 0})} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Último Nro. Costeo</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      required 
+                      value={formData.ultimoNroCosteo}
+                      onChange={(e) => setFormData({...formData, ultimoNroCosteo: parseInt(e.target.value) || 0})} 
                     />
                   </div>
                 </div>

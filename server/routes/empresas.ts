@@ -36,6 +36,27 @@ router.get('/mi-empresa', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+router.put('/mi-empresa/numeradores', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { empresaId } = req.user!;
+    if (!empresaId) {
+      return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
+    }
+    const { ultimoNroCotizacion, ultimoNroOrden, ultimoNroCosteo } = req.body;
+    const updated = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: {
+        ultimoNroCotizacion: parseInt(ultimoNroCotizacion) || 0,
+        ultimoNroOrden: parseInt(ultimoNroOrden) || 0,
+        ultimoNroCosteo: parseInt(ultimoNroCosteo) || 0
+      }
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al actualizar numeradores: ' + error.message });
+  }
+});
+
 router.put('/:id', authenticate, authorize(['SUPER_ADMIN']), async (req, res) => {
 
   const id = req.params.id as string;
