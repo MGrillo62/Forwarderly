@@ -143,7 +143,7 @@ const Usuarios: React.FC = () => {
                 <div className="grid-2">
                   <div className="form-group">
                     <label>ID Usuario (Username)</label>
-                    <input type="text" required value={newUser.username} disabled={isEditing} onChange={(e) => setNewUser({...newUser, username: e.target.value})} />
+                    <input type="text" required value={newUser.username} disabled={isEditing} onChange={(e) => setNewUser({...newUser, username: e.target.value})} autoComplete="off" />
                   </div>
                   <div className="form-group">
                     <label>{isEditing ? 'Nueva Contraseña (dejar en blanco para no cambiar)' : 'Contraseña'}</label>
@@ -152,6 +152,7 @@ const Usuarios: React.FC = () => {
                         type={showPassword ? 'text' : 'password'} 
                         required={!isEditing} 
                         onChange={(e) => setNewUser({...newUser, password: e.target.value})} 
+                        autoComplete="new-password"
                       />
                       <button 
                         type="button" 

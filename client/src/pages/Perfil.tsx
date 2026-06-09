@@ -154,6 +154,7 @@ const Perfil: React.FC = () => {
                   placeholder="********"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  autoComplete="new-password"
                 />
                 <button 
                   type="button" 

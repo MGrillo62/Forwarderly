@@ -293,6 +293,7 @@ const Login: React.FC = () => {
                       required
                       value={registerForm.username}
                       onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
+                      autoComplete="off"
                     />
                   </div>
                   <div className="form-group">
@@ -303,6 +304,7 @@ const Login: React.FC = () => {
                         required
                         value={registerForm.password}
                         onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                        autoComplete="new-password"
                       />
                       <button 
                         type="button" 
