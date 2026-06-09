@@ -599,7 +599,7 @@ router.post('/:id/documentos/:documentoId/subir', authenticate, upload.single('f
       const uploadPromise = new Promise<string>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
-            folder: `forwarderly/orden-${ordenId}`,
+            folder: `${process.env.CLOUDINARY_FOLDER || 'forwarderly'}/orden-${ordenId}`,
             resource_type: 'auto'
           },
           (error, result) => {
