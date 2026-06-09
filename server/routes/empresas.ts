@@ -3,6 +3,10 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, authorize, AuthRequest } from '../middlewares/auth';
+import multer from 'multer';
+import { deleteFileFromCloudinary } from '../utils/cloudinaryHelper';
+import { cloudinary } from '../utils/cloudinary';
+import { Readable } from 'stream';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -98,6 +102,96 @@ router.delete('/:id', authenticate, authorize(['SUPER_ADMIN']), async (req, res)
     res.json({ success: true, message: 'Empresa y todos sus datos relacionados eliminados con éxito' });
   } catch (error: any) {
     res.status(500).json({ message: 'Error al eliminar la empresa: ' + error.message });
+  }
+});
+
+// Configure multer for logo uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Upload company logo
+router.post('/mi-empresa/logo', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), upload.single('logo'), async (req: AuthRequest, res) => {
+  try {
+    const { empresaId } = req.user!;
+    if (!empresaId) {
+      return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Debe adjuntar una imagen para el logo' });
+    }
+
+    const empresa = await prisma.empresa.findUnique({
+      where: { id: empresaId }
+    });
+
+    if (empresa && empresa.logoUrl) {
+      await deleteFileFromCloudinary(empresa.logoUrl);
+    }
+
+    const isCloudinaryConfigured = !!(
+      process.env.CLOUDINARY_URL || 
+      (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+    );
+
+    let logoUrl = '';
+    if (isCloudinaryConfigured) {
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: `${process.env.CLOUDINARY_FOLDER || 'forwarderly'}/logos`,
+            resource_type: 'image',
+            transformation: [{ width: 250, height: 100, crop: 'limit' }]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result?.secure_url || '');
+          }
+        );
+        Readable.from(req.file.buffer).pipe(stream);
+      });
+      logoUrl = await uploadPromise;
+    } else {
+      console.warn('Cloudinary not configured. Mocking logo upload.');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      logoUrl = `https://res.cloudinary.com/mock-cloud/image/upload/v1234567890/mock_logo_${Date.now()}.png`;
+    }
+
+    const updated = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: { logoUrl }
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    console.error('Error al subir logo:', error);
+    res.status(500).json({ message: 'Error al subir el logo: ' + error.message });
+  }
+});
+
+// Remove company logo
+router.delete('/mi-empresa/logo', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { empresaId } = req.user!;
+    if (!empresaId) {
+      return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
+    }
+
+    const empresa = await prisma.empresa.findUnique({
+      where: { id: empresaId }
+    });
+
+    if (empresa && empresa.logoUrl) {
+      await deleteFileFromCloudinary(empresa.logoUrl);
+    }
+
+    const updated = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: { logoUrl: null }
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al eliminar logo: ' + error.message });
   }
 });
 

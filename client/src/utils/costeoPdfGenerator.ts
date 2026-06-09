@@ -68,15 +68,23 @@ export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null =
   const docCode = costeo.codigo || 'N/A';
 
   // --- PAGE 1 ---
+  // Determine positions based on logo presence
+  const showLogo = !!logoBase64;
+  const titleY = showLogo ? 32 : 22;
+  const subtitleY = showLogo ? 40 : 30;
+  const descY = showLogo ? 46 : 36;
+  const clientY = showLogo ? 53 : 43;
+  const startY = showLogo ? 58 : 48;
+
   // Top Header Line
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text('Global Logistics & Financial Report', 15, 10);
   doc.line(15, 12, 195, 12);
 
-  if (logoBase64) {
+  if (showLogo) {
     try {
-      doc.addImage(logoBase64, 'PNG', 165, 14, 20, 7);
+      doc.addImage(logoBase64!, 'PNG', 15, 14, 35, 12);
     } catch (e) {
       console.error('Error drawing logo in Costeo PDF Page 1:', e);
     }
@@ -86,33 +94,32 @@ export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null =
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42); // slate-900
-  doc.text('REPORTE DE INTELIGENCIA', 15, 22);
-  doc.text('LOGÍSTICA', 15, 30);
+  doc.text('REPORTE DE INTELIGENCIA', 15, titleY);
+  doc.text('LOGÍSTICA', 15, subtitleY);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139); // slate-500
-  doc.text('Análisis Consolidado de Importación y Rentabilidad Operativa', 15, 36);
+  doc.text('Análisis Consolidado de Importación y Rentabilidad Operativa', 15, descY);
 
   // Client and Doc ID
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(`Cliente: `, 15, 43);
+  doc.text(`Cliente: `, 15, clientY);
   doc.setFont('helvetica', 'normal');
-  doc.text(clientName, 30, 43);
+  doc.text(clientName, 30, clientY);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('DOCUMENTO ID', 195, 22, { align: 'right' });
+  doc.text('DOCUMENTO ID', 195, titleY, { align: 'right' });
   doc.setFontSize(14);
-  doc.text(docCode, 195, 28, { align: 'right' });
+  doc.text(docCode, 195, titleY + 6, { align: 'right' });
 
   // Metrics Row (4 Card rects)
   const rectW = 42;
   const rectH = 22;
   const gap = 4;
   const startX = 15;
-  const startY = 48;
 
   const metrics = [
     { label: 'TOTAL INVERSIÓN (PEN)', value: `S/ ${formatNum(calculations.cTotalPEN)}` },
@@ -142,14 +149,14 @@ export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null =
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text('Detalle de Mercadería', 15, 78);
+  doc.text('Detalle de Mercadería', 15, showLogo ? 88 : 78);
 
   // Badge Consolidado
   doc.setFillColor(79, 70, 229); // indigo-600
-  doc.roundedRect(173, 74, 22, 5, 1, 1, 'F');
+  doc.roundedRect(173, showLogo ? 84 : 74, 22, 5, 1, 1, 'F');
   doc.setFontSize(7);
   doc.setTextColor(255, 255, 255);
-  doc.text('CONSOLIDADO', 184, 77.5, { align: 'center' });
+  doc.text('CONSOLIDADO', 184, showLogo ? 87.5 : 77.5, { align: 'center' });
 
   // Limit to first 4 items for Page 1
   const page1Items = itemsList.slice(0, 4);
@@ -164,7 +171,7 @@ export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null =
   ]);
 
   autoTable(doc, {
-    startY: 81,
+    startY: showLogo ? 91 : 81,
     margin: { left: 15, right: 15 },
     head: [['SKU', 'DESCRIPCIÓN', 'CANTIDAD', 'PRECIO UNIT (USD)', 'TOTAL (USD)']],
     body: table1Rows,
@@ -377,30 +384,34 @@ export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null =
     doc.text('Global Logistics & Financial Report - Anexo de Mercadería', 15, 10);
     doc.line(15, 12, 195, 12);
 
-    if (logoBase64) {
+    if (showLogo) {
       try {
-        doc.addImage(logoBase64, 'PNG', 165, 13, 20, 7);
+        doc.addImage(logoBase64!, 'PNG', 15, 14, 35, 12);
       } catch (e) {
         console.error('Error drawing logo in Costeo PDF Page 2:', e);
       }
     }
 
+    const titlePage2Y = showLogo ? 32 : 22;
+    const clientPage2Y = showLogo ? 38 : 28;
+    const table1Page2StartY = showLogo ? 43 : 33;
+
     // Title Page 2
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('DETALLE DE MERCADERÍA - CONTINUACIÓN', 15, 22);
+    doc.text('DETALLE DE MERCADERÍA - CONTINUACIÓN', 15, titlePage2Y);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Cliente: `, 15, 28);
+    doc.text(`Cliente: `, 15, clientPage2Y);
     doc.setFont('helvetica', 'normal');
-    doc.text(clientName, 30, 28);
+    doc.text(clientName, 30, clientPage2Y);
 
     doc.setFont('helvetica', 'bold');
-    doc.text('DOCUMENTO ID', 195, 18, { align: 'right' });
+    doc.text('DOCUMENTO ID', 195, titlePage2Y, { align: 'right' });
     doc.setFontSize(12);
-    doc.text(docCode, 195, 23, { align: 'right' });
+    doc.text(docCode, 195, titlePage2Y + 5, { align: 'right' });
 
     // Table 1 Page 2: remaining items
     const page2Items = itemsList.slice(4);
@@ -413,7 +424,7 @@ export const generateCosteoReportPDF = (costeo: any, logoBase64: string | null =
     ]);
 
     autoTable(doc, {
-      startY: 33,
+      startY: table1Page2StartY,
       margin: { left: 15, right: 15 },
       head: [['SKU', 'DESCRIPCIÓN', 'CANTIDAD', 'PRECIO UNIT (USD)', 'TOTAL (USD)']],
       body: table1Page2Rows,
