@@ -572,6 +572,14 @@ router.post('/:id/documentos/:documentoId/subir', authenticate, upload.single('f
           { cotizacion: { empresaId } },
           { cotizacionesAsociadas: { some: { empresaId } } }
         ]
+      },
+      include: {
+        cotizacion: {
+          include: { cliente: true, lead: true }
+        },
+        cotizacionesAsociadas: {
+          include: { cliente: true, lead: true }
+        }
       }
     });
 
@@ -590,6 +598,29 @@ router.post('/:id/documentos/:documentoId/subir', authenticate, upload.single('f
     let fileUrl = '';
     const originalName = req.file.originalname;
 
+    let clienteNombre = 'Sin_Cliente';
+    if (orden.cotizacion?.cliente) {
+      clienteNombre = orden.cotizacion.cliente.razonSocial;
+    } else if (orden.cotizacion?.lead) {
+      clienteNombre = orden.cotizacion.lead.nombre || orden.cotizacion.lead.contacto || 'Sin_Cliente';
+    } else if (orden.cotizacionesAsociadas && orden.cotizacionesAsociadas.length > 0) {
+      const first = orden.cotizacionesAsociadas[0];
+      if (first.cliente) {
+        clienteNombre = first.cliente.razonSocial;
+      } else if (first.lead) {
+        clienteNombre = first.lead.nombre || first.lead.contacto || 'Sin_Cliente';
+      }
+    }
+
+    const clientNameSanitized = clienteNombre
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9\s-_]/g, '')
+      .replace(/\s+/g, '_');
+
+    const folderPath = `${process.env.CLOUDINARY_FOLDER || 'forwarderly'}/ORD-${orden.correlativo}-${orden.anio}_${clientNameSanitized}`;
+
     const isCloudinaryConfigured = !!(
       process.env.CLOUDINARY_URL || 
       (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
@@ -599,7 +630,7 @@ router.post('/:id/documentos/:documentoId/subir', authenticate, upload.single('f
       const uploadPromise = new Promise<string>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
-            folder: `${process.env.CLOUDINARY_FOLDER || 'forwarderly'}/orden-${ordenId}`,
+            folder: folderPath,
             resource_type: 'auto'
           },
           (error, result) => {
