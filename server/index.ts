@@ -56,10 +56,91 @@ app.use('/api/suscripciones', suscripcionesRoutes);
 app.use('/api/reclamaciones', reclamacionesRoutes);
 app.use('/api/tipos-documento', tiposDocumentoRoutes);
 
+// Self-healing function to ensure custom document tables exist in the runtime database
+async function ensureTablesExist() {
+  console.log('Verificando/creando tablas de documentos en la base de datos de producción...');
+  try {
+    // 1. Create TipoDocumento table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "TipoDocumento" (
+        "id" TEXT NOT NULL,
+        "nombre" TEXT NOT NULL,
+        "empresaId" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "TipoDocumento_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 2. Create OrdenDocumento table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "OrdenDocumento" (
+        "id" TEXT NOT NULL,
+        "ordenId" TEXT NOT NULL,
+        "tipoDocumentoId" TEXT NOT NULL,
+        "url" TEXT,
+        "nombreArchivo" TEXT,
+        "fechaSubida" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "OrdenDocumento_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 3. Create unique index for TipoDocumento
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX "TipoDocumento_nombre_empresaId_key" ON "TipoDocumento"("nombre", "empresaId");
+      `);
+    } catch (e) {}
+
+    // 4. Create unique index for OrdenDocumento
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX "OrdenDocumento_ordenId_tipoDocumentoId_key" ON "OrdenDocumento"("ordenId", "tipoDocumentoId");
+      `);
+    } catch (e) {}
+
+    // 5. Add Foreign Key constraints
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "TipoDocumento" 
+        ADD CONSTRAINT "TipoDocumento_empresaId_fkey" 
+        FOREIGN KEY ("empresaId") REFERENCES "Empresa"("id") 
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "OrdenDocumento" 
+        ADD CONSTRAINT "OrdenDocumento_ordenId_fkey" 
+        FOREIGN KEY ("ordenId") REFERENCES "Orden"("id") 
+        ON DELETE CASCADE ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "OrdenDocumento" 
+        ADD CONSTRAINT "OrdenDocumento_tipoDocumentoId_fkey" 
+        FOREIGN KEY ("tipoDocumentoId") REFERENCES "TipoDocumento"("id") 
+        ON DELETE CASCADE ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    console.log('Tablas de documentos verificadas con éxito.');
+  } catch (error) {
+    console.error('Error al asegurar la existencia de tablas de documentos:', error);
+  }
+}
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+ensureTablesExist().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });
 
 export { prisma };
