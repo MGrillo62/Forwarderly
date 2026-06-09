@@ -419,6 +419,75 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
 // Configure multer
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Helper functions to parse Cloudinary URL and delete file
+function getPublicIdFromUrl(url: string): string | null {
+  try {
+    if (!url.includes('cloudinary.com')) return null;
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+    
+    let publicIdWithExt = parts[1];
+    const versionMatch = publicIdWithExt.match(/^v\d+\/(.+)$/);
+    if (versionMatch) {
+      publicIdWithExt = versionMatch[1];
+    }
+    
+    const lastDotIndex = publicIdWithExt.lastIndexOf('.');
+    if (lastDotIndex !== -1) {
+      return publicIdWithExt.substring(0, lastDotIndex);
+    }
+    return publicIdWithExt;
+  } catch (error) {
+    console.error('Error parsing public_id from Cloudinary URL:', error);
+    return null;
+  }
+}
+
+function getResourceTypeFromUrl(url: string): string {
+  try {
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return 'image';
+    const urlBeforeUpload = parts[0];
+    const slashParts = urlBeforeUpload.split('/');
+    const resourceType = slashParts[slashParts.length - 1];
+    if (['image', 'raw', 'video'].includes(resourceType)) {
+      return resourceType;
+    }
+    return 'image';
+  } catch (error) {
+    return 'image';
+  }
+}
+
+async function deleteFileFromCloudinary(url: string): Promise<boolean> {
+  if (!url) return false;
+  const isCloudinaryConfigured = !!(
+    process.env.CLOUDINARY_URL || 
+    (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+  );
+
+  if (!isCloudinaryConfigured) {
+    console.log('Cloudinary not configured. Skipping file deletion.');
+    return true;
+  }
+
+  const publicId = getPublicIdFromUrl(url);
+  const resourceType = getResourceTypeFromUrl(url);
+  if (!publicId) return false;
+
+  try {
+    console.log(`Deleting file from Cloudinary: ${publicId} (${resourceType})`);
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType
+    });
+    console.log('Cloudinary deletion result:', result);
+    return result.result === 'ok';
+  } catch (error) {
+    console.error('Error deleting file from Cloudinary:', error);
+    return false;
+  }
+}
+
 // Get all documents for an order
 router.get('/:id/documentos', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
@@ -543,6 +612,10 @@ router.delete('/:id/documentos/:documentoId', authenticate, async (req: AuthRequ
 
     if (!docReq || docReq.ordenId !== ordenId) {
       return res.status(404).json({ message: 'Documento no encontrado en esta orden' });
+    }
+
+    if (docReq.url) {
+      await deleteFileFromCloudinary(docReq.url);
     }
 
     await prisma.ordenDocumento.delete({
@@ -691,6 +764,10 @@ router.delete('/:id/documentos/:documentoId/eliminar-archivo', authenticate, asy
 
     if (!docReq || docReq.ordenId !== ordenId) {
       return res.status(404).json({ message: 'Documento no encontrado' });
+    }
+
+    if (docReq.url) {
+      await deleteFileFromCloudinary(docReq.url);
     }
 
     const updated = await prisma.ordenDocumento.update({
