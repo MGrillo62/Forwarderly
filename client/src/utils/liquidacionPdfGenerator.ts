@@ -26,8 +26,17 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
   let startY = 18;
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', 15, 12, 35, 10);
-      startY = 28;
+      const imgProps = doc.getImageProperties(logoBase64);
+      const aspect = imgProps.width / imgProps.height;
+      let logoWidth = 40;
+      let logoHeight = logoWidth / aspect;
+      if (logoHeight > 12) {
+        logoHeight = 12;
+        logoWidth = logoHeight * aspect;
+      }
+      
+      doc.addImage(logoBase64, 'PNG', 15, 10, logoWidth, logoHeight);
+      startY = 10 + logoHeight + 8; // Adjust startY dynamically based on logo height
     } catch (e) {
       console.error('Error drawing logo:', e);
       startY = 18;
