@@ -399,6 +399,11 @@ model Orden {
   email            String?
   estado           OrdenEstado  @default(COORDINACION_EMBARQUE)
   costeo           CosteoImportacion?
+  incoterm         Incoterm?
+  origenId         String?
+  origen           Origen?      @relation(fields: [origenId], references: [id])
+  destinoId        String?
+  destino          Destino?     @relation(fields: [destinoId], references: [id])
   historial        OrdenEstadoHistorial[]
   pagos            OrdenPago[]
   cobros           Cobro[]
@@ -558,6 +563,7 @@ model Origen {
   empresaId    String
   empresa      Empresa      @relation(fields: [empresaId], references: [id])
   cotizaciones Cotizacion[]
+  ordenes      Orden[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -570,6 +576,7 @@ model Destino {
   empresaId    String
   empresa      Empresa      @relation(fields: [empresaId], references: [id])
   cotizaciones Cotizacion[]
+  ordenes      Orden[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 

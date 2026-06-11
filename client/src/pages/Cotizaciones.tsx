@@ -418,7 +418,7 @@ const Cotizaciones: React.FC = () => {
                     </td>
                     <td>
                       <div className="actions-cell">
-                        {(cot.estado === 'BORRADOR' || cot.estado === 'ENVIADA') && (
+                        {(cot.estado === 'BORRADOR' || cot.estado === 'ENVIADA' || cot.estado === 'APROBADA') && (
                           <button title="Editar" onClick={() => handleEdit(cot)}>
                             <Edit size={16} />
                           </button>
@@ -459,6 +459,16 @@ const Cotizaciones: React.FC = () => {
                       </div>
                     </td>
                   </tr>
+                  {cot.referencia && (
+                    <tr style={{ background: '#f8fafc' }}>
+                      <td colSpan={11} style={{ padding: '0.4rem 1rem', fontSize: '0.775rem', color: '#64748b', borderTop: 'none' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.675rem', color: '#94a3b8' }}>Referencia:</span>
+                          <span style={{ fontStyle: 'italic' }}>{cot.referencia}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {expandedRow === cot.id && (
                     <tr className="stepper-row">
                       <td colSpan={11}>

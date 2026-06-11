@@ -197,6 +197,17 @@ async function ensureTablesExist() {
       ALTER TABLE "Cotizacion" ADD COLUMN IF NOT EXISTS "referencia" TEXT;
     `);
 
+    // 9.b Alter Orden table to add columns
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Orden" ADD COLUMN IF NOT EXISTS "incoterm" TEXT;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Orden" ADD COLUMN IF NOT EXISTS "origenId" TEXT;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Orden" ADD COLUMN IF NOT EXISTS "destinoId" TEXT;
+    `);
+
     // 10. Add Foreign Key constraints for Origen & Destino
     try {
       await prisma.$executeRawUnsafe(`
@@ -229,6 +240,24 @@ async function ensureTablesExist() {
       await prisma.$executeRawUnsafe(`
         ALTER TABLE "Cotizacion" 
         ADD CONSTRAINT "Cotizacion_destinoId_fkey" 
+        FOREIGN KEY ("destinoId") REFERENCES "Destino"("id") 
+        ON DELETE SET NULL ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Orden" 
+        ADD CONSTRAINT "Orden_origenId_fkey" 
+        FOREIGN KEY ("origenId") REFERENCES "Origen"("id") 
+        ON DELETE SET NULL ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Orden" 
+        ADD CONSTRAINT "Orden_destinoId_fkey" 
         FOREIGN KEY ("destinoId") REFERENCES "Destino"("id") 
         ON DELETE SET NULL ON UPDATE CASCADE;
       `);

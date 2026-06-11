@@ -83,8 +83,8 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     });
     if (!existing) return res.status(404).json({ message: 'Cotización no encontrada' });
 
-    if (existing.estado === 'APROBADA' || existing.estado === 'RECHAZADA') {
-      return res.status(400).json({ message: 'No se puede modificar una cotización aprobada o rechazada' });
+    if (existing.estado === 'RECHAZADA') {
+      return res.status(400).json({ message: 'No se puede modificar una cotización rechazada' });
     }
 
     let finalClienteId = clienteId || existing.clienteId;
@@ -205,6 +205,18 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
+    // Sync new data to the associated Orden if it exists
+    await prisma.orden.updateMany({
+      where: { cotizacionId: id },
+      data: {
+        tipoCarga: updated.tipoCarga || null,
+        incoterm: updated.incoterm || null,
+        origenId: updated.origenId || null,
+        destinoId: updated.destinoId || null,
+        referencia: updated.referencia || null
+      }
+    });
+
     if (estado === 'APROBADA' && req.body.crearOrdenImmediately === true) {
       const year = new Date().getFullYear();
       const empresa = await prisma.empresa.update({
@@ -219,7 +231,12 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           cotizacionId: id,
           correlativo,
           anio: year,
-          estado: 'COORDINACION_EMBARQUE'
+          estado: 'COORDINACION_EMBARQUE',
+          tipoCarga: updated.tipoCarga || null,
+          incoterm: updated.incoterm || null,
+          origenId: updated.origenId || null,
+          destinoId: updated.destinoId || null,
+          referencia: updated.referencia || null
         }
       });
     }
