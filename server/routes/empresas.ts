@@ -57,6 +57,26 @@ router.put('/mi-empresa/numeradores', authenticate, authorize(['SUPER_ADMIN', 'A
   }
 });
 
+router.put('/mi-empresa/bancos-y-notas', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req: AuthRequest, res) => {
+  try {
+    const { empresaId } = req.user!;
+    if (!empresaId) {
+      return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
+    }
+    const { cuentasBancarias, notasLiquidador } = req.body;
+    const updated = await prisma.empresa.update({
+      where: { id: empresaId },
+      data: {
+        cuentasBancarias: cuentasBancarias !== undefined ? cuentasBancarias : undefined,
+        notasLiquidador: notasLiquidador !== undefined ? (notasLiquidador === '' ? null : notasLiquidador) : undefined
+      }
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error al actualizar cuentas bancarias y notas: ' + error.message });
+  }
+});
+
 router.put('/:id', authenticate, authorize(['SUPER_ADMIN']), async (req, res) => {
 
   const id = req.params.id as string;

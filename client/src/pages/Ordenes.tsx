@@ -272,7 +272,7 @@ const Ordenes: React.FC = () => {
       const res = await api.get(`/ordenes/${orden.id}/cobros`);
       const cobros = res.data;
       const logoBase64 = activeEmpresa?.logoUrl ? await getBase64ImageFromUrl(activeEmpresa.logoUrl) : null;
-      generateLiquidacionPDF(orden, cobros, logoBase64);
+      generateLiquidacionPDF(orden, cobros, logoBase64, activeEmpresa);
     } catch (err) {
       console.error('Error generating Liquidación de Cobranza PDF:', err);
       alert('Error al generar el PDF de Liquidación de Cobranza.');

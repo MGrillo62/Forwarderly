@@ -3,9 +3,10 @@ import jsPDF from 'jspdf';
 const formatNum = (val: number) => 
   new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
-export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: string | null = null) => {
+export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: string | null = null, activeEmpresa: any = null) => {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
   // --- CLIENT NAME LOGIC ---
   const getClientName = () => {
@@ -132,122 +133,160 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
   const usdPending = Math.max(0, usdTotal - usdCobrado);
   const penPending = Math.max(0, penTotal - penCobrado);
 
+  // Dynamic layout coordinates
+  let currentY = startY + 18;
+  let pageNumber = 1;
+
+  // Helper to draw generic footer
+  const drawPageFooter = (page: number) => {
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text(`© 2026 Forwarderly Systems. Este documento es un reporte consolidado oficial de cobranzas. | Página ${page}`, pageWidth / 2, 285, { align: 'center' });
+  };
+
+  // Helper to check space and page-break
+  const checkSpace = (neededHeight: number) => {
+    if (currentY + neededHeight > 265) {
+      drawPageFooter(pageNumber);
+      doc.addPage();
+      pageNumber++;
+      
+      // Top mini header
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text('Forwarderly Financial Systems — Reporte de Liquidación de Cobranza', 15, 10);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(15, 12, 195, 12);
+      
+      currentY = 20; // Reset Y on new page
+    }
+  };
+
   // --- SECTION 1: SALDOS SEGREGADOS POR MONEDA ---
-  const sec1Y = startY + 18;
+  checkSpace(36);
   doc.setFillColor(79, 70, 229); // Indigo-600
-  doc.rect(15, sec1Y - 3, 3, 3, 'F');
+  doc.rect(15, currentY - 3, 3, 3, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(79, 70, 229);
-  doc.text('SALDOS SEGREGADOS POR MONEDA', 20, sec1Y - 0.5);
+  doc.text('SALDOS SEGREGADOS POR MONEDA', 20, currentY - 0.5);
 
-  // Cards layout: side by side
   // Left: USD Card
-  doc.setDrawColor(226, 232, 240); // slate-200
+  doc.setDrawColor(226, 232, 240);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(15, sec1Y + 3, 87, 26, 1, 1, 'FD');
-  // Card Header Fill
+  doc.roundedRect(15, currentY + 3, 87, 26, 1, 1, 'FD');
   doc.setFillColor(239, 246, 255); // blue-50
-  doc.roundedRect(15.1, 41.1 + (sec1Y - 38), 86.8, 6.5, 1, 1, 'F');
-  // Header line
+  doc.roundedRect(15.1, currentY + 3.1, 86.8, 6.5, 1, 1, 'F');
   doc.setDrawColor(219, 234, 254); // blue-100
-  doc.line(15, sec1Y + 9.5, 102, sec1Y + 9.5);
-  // Header text
+  doc.line(15, currentY + 9.5, 102, currentY + 9.5);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(29, 78, 216); // blue-700
-  doc.text('USD ($)', 19, sec1Y + 7.5);
+  doc.text('USD ($)', 19, currentY + 7.5);
 
-  // USD Values
   doc.setFontSize(8.5);
-  doc.setTextColor(100, 116, 139); // slate-500
+  doc.setTextColor(100, 116, 139);
   doc.setFont('helvetica', 'normal');
-  doc.text('Total:', 19, sec1Y + 14);
+  doc.text('Total:', 19, currentY + 14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(`$ ${formatNum(usdTotal)}`, 98, sec1Y + 14, { align: 'right' });
+  doc.text(`$ ${formatNum(usdTotal)}`, 98, currentY + 14, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  doc.text('Cobrado:', 19, sec1Y + 19);
+  doc.text('Cobrado:', 19, currentY + 19);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(37, 99, 235); // blue-600
-  doc.text(`$ ${formatNum(usdCobrado)}`, 98, sec1Y + 19, { align: 'right' });
+  doc.setTextColor(37, 99, 235);
+  doc.text(`$ ${formatNum(usdCobrado)}`, 98, currentY + 19, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  doc.text('Pendiente:', 19, sec1Y + 24);
+  doc.text('Pendiente:', 19, currentY + 24);
   doc.setFont('helvetica', 'bold');
   if (usdPending > 0.01) {
-    doc.setTextColor(239, 68, 68); // red-500
+    doc.setTextColor(239, 68, 68);
   } else {
     doc.setTextColor(15, 23, 42);
   }
-  doc.text(`$ ${formatNum(usdPending)}`, 98, sec1Y + 24, { align: 'right' });
+  doc.text(`$ ${formatNum(usdPending)}`, 98, currentY + 24, { align: 'right' });
 
   // Right: PEN Card
   doc.setDrawColor(226, 232, 240);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(108, sec1Y + 3, 87, 26, 1, 1, 'FD');
-  // Card Header Fill
+  doc.roundedRect(108, currentY + 3, 87, 26, 1, 1, 'FD');
   doc.setFillColor(239, 246, 255);
-  doc.roundedRect(108.1, 41.1 + (sec1Y - 38), 86.8, 6.5, 1, 1, 'F');
-  // Header line
+  doc.roundedRect(108.1, currentY + 3.1, 86.8, 6.5, 1, 1, 'F');
   doc.setDrawColor(219, 234, 254);
-  doc.line(108, sec1Y + 9.5, 195, sec1Y + 9.5);
-  // Header text
+  doc.line(108, currentY + 9.5, 195, currentY + 9.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(29, 78, 216);
-  doc.text('PEN (S/)', 112, sec1Y + 7.5);
+  doc.text('PEN (S/)', 112, currentY + 7.5);
 
-  // PEN Values
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
   doc.setFont('helvetica', 'normal');
-  doc.text('Total:', 112, sec1Y + 14);
+  doc.text('Total:', 112, currentY + 14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(`S/ ${formatNum(penTotal)}`, 191, sec1Y + 14, { align: 'right' });
+  doc.text(`S/ ${formatNum(penTotal)}`, 191, currentY + 14, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  doc.text('Cobrado:', 112, sec1Y + 19);
+  doc.text('Cobrado:', 112, currentY + 19);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(37, 99, 235);
-  doc.text(`S/ ${formatNum(penCobrado)}`, 191, sec1Y + 19, { align: 'right' });
+  doc.text(`S/ ${formatNum(penCobrado)}`, 191, currentY + 19, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
-  doc.text('Pendiente:', 112, sec1Y + 24);
+  doc.text('Pendiente:', 112, currentY + 24);
   doc.setFont('helvetica', 'bold');
   if (penPending > 0.01) {
     doc.setTextColor(239, 68, 68);
   } else {
     doc.setTextColor(15, 23, 42);
   }
-  doc.text(`S/ ${formatNum(penPending)}`, 191, sec1Y + 24, { align: 'right' });
+  doc.text(`S/ ${formatNum(penPending)}`, 191, currentY + 24, { align: 'right' });
 
-  // --- SECTION 2: CONCEPTOS DEL DESPACHO A COBRAR ---
-  const sec2Y = sec1Y + 38;
+  currentY += 35;
+
+  // --- SECTION 2: CONCEPTOS DEL DESPACHO A COBRAR (Grouped by Category) ---
+  checkSpace(20);
   doc.setFillColor(79, 70, 229);
-  doc.rect(15, sec2Y - 3, 3, 3, 'F');
+  doc.rect(15, currentY - 3, 3, 3, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(79, 70, 229);
-  doc.text('CONCEPTOS DEL DESPACHO A COBRAR', 20, sec2Y - 0.5);
+  doc.text('CONCEPTOS DEL DESPACHO A COBRAR', 20, currentY - 0.5);
 
-  // Table Header (Removed COBRAR column)
+  // Table Header
   doc.setFillColor(248, 250, 252); // slate-50
-  doc.rect(15, sec2Y + 2, 180, 7.5, 'F');
+  doc.rect(15, currentY + 2, 180, 7.5, 'F');
   doc.setDrawColor(226, 232, 240);
-  doc.line(15, sec2Y + 2, 195, sec2Y + 2);
-  doc.line(15, sec2Y + 9.5, 195, sec2Y + 9.5);
+  doc.line(15, currentY + 2, 195, currentY + 2);
+  doc.line(15, currentY + 9.5, 195, currentY + 9.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('CONCEPTO / DOCUMENTO', 15, sec2Y + 7);
-  doc.text('VENTA', 191, sec2Y + 7, { align: 'right' });
+  doc.text('CONCEPTO / DOCUMENTO', 17, currentY + 7);
+  doc.text('VALOR VENTA', 115, currentY + 7, { align: 'right' });
+  doc.text('IGV', 150, currentY + 7, { align: 'right' });
+  doc.text('PRECIO VENTA', 193, currentY + 7, { align: 'right' });
+
+  currentY += 9.5;
+
+  // Grouping lines by category
+  const groupedLines: Record<string, any[]> = {};
+  lines.forEach((l: any) => {
+    const catName = l.concepto?.categoria?.nombre || 'Otros Conceptos';
+    if (!groupedLines[catName]) {
+      groupedLines[catName] = [];
+    }
+    groupedLines[catName].push(l);
+  });
 
   // Parse billing documents from cobros as fallback
   const lineDocs: Record<string, { tipoDocumento: string, nroDocumento: string, fechaDocumento: string }> = {};
@@ -262,62 +301,95 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
     }
   });
 
-  // Concept Rows (Single line representation)
-  let currentY = sec2Y + 9.5;
-  const rowHeight = 9.5;
+  Object.entries(groupedLines).forEach(([categoryName, catLines]) => {
+    // Draw Category Sub-Header
+    checkSpace(8);
+    doc.setFillColor(241, 245, 249); // slate-100
+    doc.rect(15, currentY, 180, 7, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.line(15, currentY + 7, 195, currentY + 7);
 
-  lines.forEach((l: any) => {
-    // Bottom line
-    doc.setDrawColor(241, 245, 249);
-    doc.line(15, currentY + rowHeight, 195, currentY + rowHeight);
-
-    // Concept text (bold)
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text(l.concepto?.nombre || 'Concepto General', 15, currentY + 6.2);
-    const conceptW = doc.getTextWidth(l.concepto?.nombre || 'Concepto General');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text(`Categoría: ${categoryName}`, 17, currentY + 4.8);
 
-    // Cot reference (normal slate-400)
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184); // slate-400
-    const cotLabel = `Cot: ${String(l.cotizacionNumero).padStart(5, '0')}`;
-    doc.text(cotLabel, 15 + conceptW + 2.5, currentY + 6.2);
-    const cotW = doc.getTextWidth(cotLabel);
+    currentY += 7;
 
-    // Fetch document details (saved on concept line directly, fallback to cobros history)
-    const docTipo = l.tipoDocumento || lineDocs[l.id]?.tipoDocumento || 'FACTURA';
-    const docNro = l.nroDocumento || lineDocs[l.id]?.nroDocumento || '';
-    const docFecha = l.fechaDocumento || lineDocs[l.id]?.fechaDocumento || '';
+    // Draw Category Items
+    catLines.forEach((l: any) => {
+      checkSpace(9.5);
+      
+      // Bottom line of row
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, currentY + 9.5, 195, currentY + 9.5);
 
-    let docStr = '';
-    if (docNro) {
-      const formattedDate = docFecha ? new Date(docFecha).toLocaleDateString('es-PE') : '';
-      docStr = `  |  ${docTipo}: ${docNro}${formattedDate ? ` (${formattedDate})` : ''}`;
-    }
+      // Concept text (bold)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text(l.concepto?.nombre || 'Concepto General', 17, currentY + 6);
+      const conceptW = doc.getTextWidth(l.concepto?.nombre || 'Concepto General');
 
-    if (docStr) {
+      // Cot reference (normal slate-400)
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184); // slate-400
+      const cotLabel = `Cot: ${String(l.cotizacionNumero).padStart(5, '0')}`;
+      doc.text(cotLabel, 17 + conceptW + 2.5, currentY + 6);
+      const cotW = doc.getTextWidth(cotLabel);
+
+      // Fetch document details
+      const docTipo = l.tipoDocumento || lineDocs[l.id]?.tipoDocumento || 'FACTURA';
+      const docNro = l.nroDocumento || lineDocs[l.id]?.nroDocumento || '';
+      const docFecha = l.fechaDocumento || lineDocs[l.id]?.fechaDocumento || '';
+
+      let docStr = '';
+      if (docNro) {
+        const formattedDate = docFecha ? new Date(docFecha).toLocaleDateString('es-PE') : '';
+        docStr = `  |  ${docTipo}: ${docNro}${formattedDate ? ` (${formattedDate})` : ''}`;
+      }
+
+      if (docStr) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(71, 85, 105); // slate-600
+        doc.text(docStr, 17 + conceptW + 2.5 + cotW + 2.5, currentY + 6);
+      }
+
+      const symbol = l.moneda === 'PEN' ? 'S/' : l.moneda === 'EUR' ? '€' : '$';
+
+      // Valor Venta
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105); // slate-600
-      doc.text(docStr, 15 + conceptW + 2.5 + cotW + 2.5, currentY + 6.2);
-    }
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${symbol} ${formatNum(l.valorVenta ?? l.precioVenta)}`, 115, currentY + 6, { align: 'right' });
 
-    // Amount
-    const symbol = l.moneda === 'PEN' ? 'S/' : l.moneda === 'EUR' ? '€' : '$';
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(37, 99, 235);
-    doc.text(`${symbol} ${formatNum(l.precioVenta)}`, 191, currentY + 6.2, { align: 'right' });
+      // IGV (si corresponde)
+      doc.text(l.igv > 0.001 ? `${symbol} ${formatNum(l.igv)}` : '-', 150, currentY + 6, { align: 'right' });
 
-    currentY += rowHeight;
+      // Precio Venta
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(37, 99, 235); // blue-600
+      doc.text(`${symbol} ${formatNum(l.precioVenta)}`, 193, currentY + 6, { align: 'right' });
+
+      currentY += 9.5;
+    });
   });
 
+  currentY += 6;
+
   // --- SECTION 3: HISTORIAL DE TRANSACCIONES ---
-  const sec3Y = currentY + 8;
-  
-  // Helper to draw the transaction table header
+  checkSpace(20);
+  doc.setFillColor(79, 70, 229);
+  doc.rect(15, currentY - 3, 3, 3, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(79, 70, 229);
+  doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS', 20, currentY - 0.5);
+
+  // Helper to draw transaction table header
   const drawTransHeader = (y: number) => {
     doc.setFillColor(248, 250, 252);
     doc.rect(15, y + 2, 180, 7.5, 'F');
@@ -380,25 +452,122 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
     doc.text(formatNum(c.tipoCambio || 1), 191, y + 10, { align: 'right' });
   };
 
-  // Helper to draw bottom notes and signature box
+  drawTransHeader(currentY);
+  currentY += 9.5;
+
+  if (cobros.length === 0) {
+    checkSpace(12);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('No hay transacciones registradas para esta orden.', 18, currentY + 6);
+    currentY += 12;
+  } else {
+    cobros.forEach((c: any) => {
+      checkSpace(18.5);
+      drawTransRow(c, currentY);
+      currentY += 18.5;
+    });
+  }
+
+  currentY += 4;
+
+  // --- SECTION 4: CUENTAS BANCARIAS PARA TRANSFERENCIA ---
+  let cuentasList: any[] = [];
+  if (activeEmpresa?.cuentasBancarias) {
+    try {
+      const parsed = typeof activeEmpresa.cuentasBancarias === 'string'
+        ? JSON.parse(activeEmpresa.cuentasBancarias)
+        : activeEmpresa.cuentasBancarias;
+      if (Array.isArray(parsed)) {
+        cuentasList = parsed;
+      }
+    } catch (e) {
+      console.error('Error parsing cuentasBancarias:', e);
+    }
+  }
+
+  if (cuentasList.length > 0) {
+    const requiredHeight = 15 + (cuentasList.length * 8.5);
+    checkSpace(requiredHeight);
+
+    doc.setFillColor(79, 70, 229);
+    doc.rect(15, currentY - 3, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(79, 70, 229);
+    doc.text('CUENTAS BANCARIAS PARA TRANSFERENCIA', 20, currentY - 0.5);
+
+    // Table Header for accounts
+    doc.setFillColor(248, 250, 252);
+    doc.rect(15, currentY + 2, 180, 6.5, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.line(15, currentY + 2, 195, currentY + 2);
+    doc.line(15, currentY + 8.5, 195, currentY + 8.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.2);
+    doc.setTextColor(100, 116, 139);
+    doc.text('BANCO', 18, currentY + 6.2);
+    doc.text('MONEDA', 50, currentY + 6.2);
+    doc.text('TIPO DE CUENTA', 80, currentY + 6.2);
+    doc.text('NRO. DE CUENTA', 115, currentY + 6.2);
+    doc.text('CCI', 155, currentY + 6.2);
+
+    currentY += 8.5;
+
+    cuentasList.forEach((cuenta: any) => {
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, currentY + 7.5, 195, currentY + 7.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text(cuenta.banco || '-', 18, currentY + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(cuenta.moneda || '-', 50, currentY + 5);
+      doc.text(cuenta.tipoCuenta || '-', 80, currentY + 5);
+      doc.text(cuenta.nroCuenta || '-', 115, currentY + 5);
+      doc.text(cuenta.cci || '-', 155, currentY + 5);
+
+      currentY += 7.5;
+    });
+
+    currentY += 4;
+  }
+
+  // --- FOOTER NOTES AND SIGNATURE BOX ---
+  checkSpace(35);
+
+  const getNotesText = () => {
+    if (activeEmpresa?.notasLiquidador && activeEmpresa.notasLiquidador.trim() !== '') {
+      return activeEmpresa.notasLiquidador.replace(/ORD-1/g, `ORD-${order.correlativo}`);
+    }
+    return `Documento generado automáticamente por el sistema de gestión de cobranzas. Los montos reflejados corresponden a la liquidación final autorizada para el despacho ORD-${order.correlativo}.`;
+  };
+
   const drawNotesAndSignature = (y: number) => {
-    // Top line separator for footer elements
+    // Line separator
     doc.setDrawColor(226, 232, 240);
     doc.line(15, y + 5, 195, y + 5);
 
-    // Notes on the left
+    // Notes Title
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
     doc.text('NOTAS DEL LIQUIDADOR', 15, y + 11);
 
+    // Notes Content
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7.2);
     doc.setTextColor(148, 163, 184); // slate-400
-    const noteText = `Documento generado automáticamente por el sistema de gestión de cobranzas. Los montos reflejados corresponden a la liquidación final autorizada para el despacho ORD-${order.correlativo}.`;
+    const noteText = getNotesText();
     doc.text(noteText, 15, y + 15, { maxWidth: 105 });
 
-    // Signature on the right
+    // Signature box
     doc.setDrawColor(148, 163, 184);
     doc.line(135, y + 21, 191, y + 21);
     
@@ -408,96 +577,8 @@ export const generateLiquidacionPDF = (order: any, cobros: any[], logoBase64: st
     doc.text('FIRMA AUTORIZADA', 163, y + 25, { align: 'center' });
   };
 
-  // Helper to draw generic footer (run on all pages)
-  const drawPageFooter = (page: number) => {
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(148, 163, 184);
-    doc.text('© 2026 Forwarderly Systems. Este documento es un reporte consolidado oficial de cobranzas.', pageWidth / 2, 285, { align: 'center' });
-  };
-
-  // PAGINATION IMPLEMENTATION
-  const hasMoreThanThree = cobros.length > 3;
-
-  if (!hasMoreThanThree) {
-    // --- ALL FITS ON PAGE 1 ---
-    doc.setFillColor(79, 70, 229);
-    doc.rect(15, sec3Y - 3, 3, 3, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(79, 70, 229);
-    doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS', 20, sec3Y - 0.5);
-
-    drawTransHeader(sec3Y);
-
-    let transY = sec3Y + 9.5;
-    cobros.forEach((c: any) => {
-      drawTransRow(c, transY);
-      transY += 18.5;
-    });
-
-    // Draw notes and signature below
-    drawNotesAndSignature(transY + 3);
-    drawPageFooter(1);
-
-  } else {
-    // --- MULTIPAGE SETUP: FIRST 3 ROWS ON PAGE 1, OTHERS ON PAGE 2 ---
-    // --- PAGE 1 ---
-    doc.setFillColor(79, 70, 229);
-    doc.rect(15, sec3Y - 3, 3, 3, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(79, 70, 229);
-    doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS', 20, sec3Y - 0.5);
-
-    drawTransHeader(sec3Y);
-
-    let transY = sec3Y + 9.5;
-    const page1Cobros = cobros.slice(0, 3);
-    page1Cobros.forEach((c: any) => {
-      drawTransRow(c, transY);
-      transY += 18.5;
-    });
-
-    // "Sigue en la siguiente página" text
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8.5);
-    doc.setTextColor(79, 70, 229);
-    doc.text('Sigue en la siguiente página...', 191, transY + 6, { align: 'right' });
-
-    drawPageFooter(1);
-
-    // --- PAGE 2 ---
-    doc.addPage();
-    
-    // Top mini header
-    doc.setFontSize(7.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text('Forwarderly Financial Systems — Settlement Report', 15, 10);
-    doc.line(15, 12, 195, 12);
-
-    // Title Page 2
-    const page2TitleY = 22;
-    doc.setFillColor(79, 70, 229);
-    doc.rect(15, page2TitleY - 3, 3, 3, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(79, 70, 229);
-    doc.text('HISTORIAL DE TRANSACCIONES REGISTRADAS (Continuación)', 20, page2TitleY - 0.5);
-
-    drawTransHeader(page2TitleY);
-
-    let transPage2Y = page2TitleY + 9.5;
-    const page2Cobros = cobros.slice(3);
-    page2Cobros.forEach((c: any) => {
-      drawTransRow(c, transPage2Y);
-      transPage2Y += 18.5;
-    });
-
-    // Draw notes and signature at the end of page 2
-    drawNotesAndSignature(transPage2Y + 4);
-    drawPageFooter(2);
-  }
+  drawNotesAndSignature(currentY);
+  drawPageFooter(pageNumber);
 
   // --- SAVE DOCUMENT ---
   const correlativoStr = `ORD-${String(order.correlativo).padStart(4, '0')}-${order.anio}`;

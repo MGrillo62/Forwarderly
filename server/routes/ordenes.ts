@@ -61,10 +61,10 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
       where,
       include: {
         cotizacion: {
-          include: { cliente: true, vendedor: true, lineas: { include: { concepto: true } } }
+          include: { cliente: true, vendedor: true, lineas: { include: { concepto: { include: { categoria: true } } } } }
         },
         cotizacionesAsociadas: {
-          include: { cliente: true, vendedor: true, lineas: { include: { concepto: true } } }
+          include: { cliente: true, vendedor: true, lineas: { include: { concepto: { include: { categoria: true } } } } }
         },
         pagos: true,
         cobros: true,

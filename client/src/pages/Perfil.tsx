@@ -29,11 +29,44 @@ const Perfil: React.FC = () => {
   const [numCosteo, setNumCosteo] = useState(0);
   const [numsSuccess, setNumsSuccess] = useState(false);
 
+  const [bancosList, setBancosList] = useState<any[]>([]);
+  const [cuentasBancarias, setCuentasBancarias] = useState<any[]>([]);
+  const [notasLiquidador, setNotasLiquidador] = useState('');
+  const [cobranzasSuccess, setCobranzasSuccess] = useState(false);
+
+  useEffect(() => {
+    const fetchBancos = async () => {
+      try {
+        const res = await api.get('/bancos');
+        setBancosList(res.data);
+      } catch (err) {
+        console.error('Error fetching banks:', err);
+      }
+    };
+    if (user?.rol === 'ADMIN' || user?.rol === 'SUPER_ADMIN') {
+      fetchBancos();
+    }
+  }, [user]);
+
   useEffect(() => {
     if (activeEmpresa) {
       setNumCotizacion(activeEmpresa.ultimoNroCotizacion ?? 0);
       setNumOrden(activeEmpresa.ultimoNroOrden ?? 0);
       setNumCosteo(activeEmpresa.ultimoNroCosteo ?? 0);
+
+      if (activeEmpresa.cuentasBancarias) {
+        try {
+          const parsed = typeof activeEmpresa.cuentasBancarias === 'string'
+            ? JSON.parse(activeEmpresa.cuentasBancarias)
+            : activeEmpresa.cuentasBancarias;
+          setCuentasBancarias(Array.isArray(parsed) ? parsed : []);
+        } catch (e) {
+          setCuentasBancarias([]);
+        }
+      } else {
+        setCuentasBancarias([]);
+      }
+      setNotasLiquidador(activeEmpresa.notasLiquidador ?? 'Documento generado automáticamente por el sistema de gestión de cobranzas. Los montos reflejados corresponden a la liquidación final autorizada para el despacho ORD-1.');
     }
   }, [activeEmpresa]);
 
@@ -51,6 +84,62 @@ const Perfil: React.FC = () => {
       window.location.reload();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al actualizar numeradores');
+    }
+  };
+
+  const handleRegisterBanco = async () => {
+    const nombre = prompt('Ingrese el nombre del nuevo banco:');
+    if (!nombre || nombre.trim() === '') return;
+    
+    try {
+      await api.post('/bancos', { nombre: nombre.trim() });
+      const res = await api.get('/bancos');
+      setBancosList(res.data);
+      alert('Banco registrado con éxito.');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Error al registrar banco');
+    }
+  };
+
+  const handleAddCuenta = () => {
+    setCuentasBancarias(prev => [
+      ...prev,
+      { banco: '', moneda: 'Soles', tipoCuenta: 'Cta. Cte', nroCuenta: '', cci: '' }
+    ]);
+  };
+
+  const handleRemoveCuenta = (index: number) => {
+    setCuentasBancarias(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditCuenta = (index: number, field: string, value: string) => {
+    setCuentasBancarias(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
+  };
+
+  const handleSaveCobranzas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      for (const account of cuentasBancarias) {
+        if (!account.banco || account.banco.trim() === '') {
+          alert('Por favor seleccione o ingrese un banco para todas las cuentas.');
+          return;
+        }
+        if (!account.nroCuenta || account.nroCuenta.trim() === '') {
+          alert('Por favor ingrese el número de cuenta para todas las cuentas.');
+          return;
+        }
+      }
+
+      await api.put('/empresas/mi-empresa/bancos-y-notas', {
+        cuentasBancarias,
+        notasLiquidador: notasLiquidador.trim()
+      });
+      setCobranzasSuccess(true);
+      setTimeout(() => setCobranzasSuccess(false), 3000);
+      alert('Configuración de cobranzas guardada con éxito.');
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al guardar la configuración de cobranzas');
     }
   };
 
@@ -302,6 +391,142 @@ const Perfil: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button type="submit" className="primary">
                 <Save size={18} /> Guardar Numeradores
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {(user?.rol === 'ADMIN' || user?.rol === 'SUPER_ADMIN') && (
+        <div className="card perfil-card" style={{ marginTop: '2rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>Configuración de Cobranzas (Cuentas y Notas)</h2>
+          <p className="subtitle" style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '1.5rem' }}>
+            Registra las cuentas bancarias de la empresa para la liquidación de cobranza y edita la nota legal de pie de página.
+          </p>
+
+          <form onSubmit={handleSaveCobranzas}>
+            {cobranzasSuccess && <div className="alert-success">Configuración de cobranzas guardada con éxito</div>}
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-dark)', margin: 0 }}>Cuentas Bancarias</h3>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" onClick={handleRegisterBanco} className="btn-outline font-semibold" style={{ padding: '0.45rem 0.9rem', fontSize: '0.75rem', cursor: 'pointer', border: '1px solid #cbd5e1', borderRadius: '6px', color: '#475569' }}>
+                    + Registrar Nuevo Banco
+                  </button>
+                  <button type="button" onClick={handleAddCuenta} className="primary font-bold" style={{ padding: '0.45rem 0.9rem', fontSize: '0.75rem', cursor: 'pointer', border: 'none', borderRadius: '6px', background: 'var(--primary)', color: 'white' }}>
+                    + Añadir Cuenta
+                  </button>
+                </div>
+              </div>
+
+              {cuentasBancarias.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', border: '2px dashed #e2e8f0', borderRadius: '8px', color: '#94a3b8', fontSize: '0.85rem', background: '#f8fafc' }}>
+                  No hay cuentas bancarias registradas. Haz clic en "Añadir Cuenta" para empezar.
+                </div>
+              ) : (
+                <div className="table-container" style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', background: 'white' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Banco</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Moneda</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Tipo de Cuenta</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#475569' }}>Nro. de Cuenta</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 600, color: '#475569' }}>CCI</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'center', width: '50px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cuentasBancarias.map((cuenta, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '0.5rem', minWidth: '150px' }}>
+                            <select
+                              value={cuenta.banco}
+                              onChange={(e) => handleEditCuenta(idx, 'banco', e.target.value)}
+                              className="select-custom"
+                              style={{ width: '100%', padding: '0.45rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                            >
+                              <option value="">Seleccione Banco...</option>
+                              {['BCP', 'BBVA', 'Interbank', 'Scotiabank', 'Banco de la Nación'].map(b => (
+                                <option key={b} value={b}>{b}</option>
+                              ))}
+                              {bancosList.filter(b => !['BCP', 'BBVA', 'Interbank', 'Scotiabank', 'Banco de la Nación'].includes(b.nombre.toUpperCase())).map(b => (
+                                <option key={b.id} value={b.nombre}>{b.nombre}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td style={{ padding: '0.5rem', minWidth: '100px' }}>
+                            <select
+                              value={cuenta.moneda}
+                              onChange={(e) => handleEditCuenta(idx, 'moneda', e.target.value)}
+                              style={{ width: '100%', padding: '0.45rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', background: 'white' }}
+                            >
+                              <option value="Soles">Soles</option>
+                              <option value="Dólares">Dólares</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: '0.5rem', minWidth: '120px' }}>
+                            <select
+                              value={cuenta.tipoCuenta}
+                              onChange={(e) => handleEditCuenta(idx, 'tipoCuenta', e.target.value)}
+                              style={{ width: '100%', padding: '0.45rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', background: 'white' }}
+                            >
+                              <option value="Cta. Cte">Cta. Cte</option>
+                              <option value="Ahorro">Ahorro</option>
+                            </select>
+                          </td>
+                          <td style={{ padding: '0.5rem' }}>
+                            <input
+                              type="text"
+                              placeholder="Ej. 191-xxxxxxxx-xx"
+                              value={cuenta.nroCuenta}
+                              onChange={(e) => handleEditCuenta(idx, 'nroCuenta', e.target.value)}
+                              style={{ width: '100%', padding: '0.45rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                            />
+                          </td>
+                          <td style={{ padding: '0.5rem' }}>
+                            <input
+                              type="text"
+                              placeholder="Ej. 002-xxxxxxxxxxxxxx-xx"
+                              value={cuenta.cci}
+                              onChange={(e) => handleEditCuenta(idx, 'cci', e.target.value)}
+                              style={{ width: '100%', padding: '0.45rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }}
+                            />
+                          </td>
+                          <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCuenta(idx)}
+                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label style={{ fontWeight: 700, color: 'var(--text-dark)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>Notas del Liquidador</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: '0.50rem', lineHeight: '1.4' }}>
+                Este texto aparecerá al pie de página del PDF de liquidación. El texto `"ORD-1"` o similar se reemplazará automáticamente con el número de orden correspondiente al imprimir.
+              </p>
+              <textarea
+                rows={3}
+                value={notasLiquidador}
+                onChange={(e) => setNotasLiquidador(e.target.value)}
+                style={{ width: '100%', padding: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical', background: 'white' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" className="primary">
+                <Save size={18} /> Guardar Configuración de Cobranzas
               </button>
             </div>
           </form>

@@ -183,6 +183,8 @@ model Empresa {
   ultimoNroCotizacion Int                @default(0)
   ultimoNroOrden      Int                @default(0)
   ultimoNroCosteo     Int                @default(0)
+  cuentasBancarias    Json?
+  notasLiquidador     String?
   pagosSuscripcion   PagoSuscripcion[]
   usuarios           Usuario[]
   clientes           Cliente[]
