@@ -8,7 +8,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
-  const { clienteId, leadId, lineas, moneda } = req.body;
+  const { clienteId, leadId, lineas, moneda, tipoCarga, incoterm, origenId, destinoId, referencia } = req.body;
   const { empresaId, id: vendedorId } = req.user!;
 
   try {
@@ -36,6 +36,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         moneda: moneda || 'USD',
         vendedorId,
         empresaId,
+        tipoCarga: tipoCarga || null,
+        incoterm: incoterm || null,
+        origenId: origenId || null,
+        destinoId: destinoId || null,
+        referencia: referencia || null,
         ...totals,
         lineas: {
           create: calculatedLineas.map((l: any) => ({
@@ -56,7 +61,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
           }
         }
       },
-      include: { lineas: true, cliente: true, lead: true, historial: true }
+      include: { lineas: true, cliente: true, lead: true, historial: true, origen: true, destino: true }
     });
 
     res.json(cotizacion);
@@ -68,7 +73,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { clienteId, leadId, lineas, estado, clientConversion, moneda } = req.body;
+  const { clienteId, leadId, lineas, estado, clientConversion, moneda, tipoCarga, incoterm, origenId, destinoId, referencia } = req.body;
   const { empresaId } = req.user!;
 
   try {
@@ -145,6 +150,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           leadId: finalLeadId,
           estado,
           moneda,
+          tipoCarga: tipoCarga !== undefined ? tipoCarga : undefined,
+          incoterm: incoterm !== undefined ? incoterm : undefined,
+          origenId: origenId !== undefined ? origenId : undefined,
+          destinoId: destinoId !== undefined ? destinoId : undefined,
+          referencia: referencia !== undefined ? referencia : undefined,
           ...totals,
           lineas: {
             create: calculatedLineas.map((l: any) => ({
@@ -167,7 +177,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
             }
           })
         },
-        include: { lineas: true, lead: true, cliente: true, historial: { include: { usuario: true } } }
+        include: { lineas: true, lead: true, cliente: true, origen: true, destino: true, historial: { include: { usuario: true } } }
       });
     } else {
       updated = await prisma.cotizacion.update({
@@ -177,6 +187,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           leadId: finalLeadId,
           estado,
           moneda,
+          tipoCarga: tipoCarga !== undefined ? tipoCarga : undefined,
+          incoterm: incoterm !== undefined ? incoterm : undefined,
+          origenId: origenId !== undefined ? origenId : undefined,
+          destinoId: destinoId !== undefined ? destinoId : undefined,
+          referencia: referencia !== undefined ? referencia : undefined,
           ...(estado !== existing.estado && {
             historial: {
               create: {
@@ -186,7 +201,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
             }
           })
         },
-        include: { lineas: true, lead: true, cliente: true, historial: { include: { usuario: true } } }
+        include: { lineas: true, lead: true, cliente: true, origen: true, destino: true, historial: { include: { usuario: true } } }
       });
     }
 
@@ -235,6 +250,8 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
         lead: true,
         vendedor: true, 
         orden: true,
+        origen: true,
+        destino: true,
         historial: { 
           include: { usuario: true },
           orderBy: { fechaHora: 'asc' }
@@ -298,6 +315,11 @@ router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
         precioTotal: existing.precioTotal,
         utilidad: existing.utilidad,
         porcentajeUtilidad: existing.porcentajeUtilidad,
+        tipoCarga: existing.tipoCarga,
+        incoterm: existing.incoterm,
+        origenId: existing.origenId,
+        destinoId: existing.destinoId,
+        referencia: existing.referencia,
         lineas: {
           create: existing.lineas.map((l) => ({
             conceptoId: l.conceptoId,
@@ -317,7 +339,7 @@ router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
           }
         }
       },
-      include: { lineas: true, cliente: true, lead: true, historial: true }
+      include: { lineas: true, cliente: true, lead: true, historial: true, origen: true, destino: true }
     });
 
     res.json(duplicated);

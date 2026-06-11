@@ -150,12 +150,35 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   doc.setTextColor(15, 23, 42);
   doc.text(currencyName, 134, yCards + 12);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text('Precios de servicios', 134, yCards + 20);
-  doc.text('expresados en la', 134, yCards + 24.5);
-  doc.text('moneda indicada.', 134, yCards + 29);
+  // Logistics Details within the card
+  if (cotizacion.tipoCarga || cotizacion.incoterm || cotizacion.origen?.nombre || cotizacion.destino?.nombre) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+
+    let detailsTextY = yCards + 18;
+    if (cotizacion.tipoCarga || cotizacion.incoterm) {
+      const cargoInco = [cotizacion.tipoCarga, cotizacion.incoterm].filter(Boolean).join(' / ');
+      doc.text(`Carga/Inco: ${cargoInco}`, 134, detailsTextY);
+      detailsTextY += 4.5;
+    }
+    if (cotizacion.origen?.nombre) {
+      const origText = doc.splitTextToSize(`Origen: ${cotizacion.origen.nombre}`, 58);
+      doc.text(origText, 134, detailsTextY);
+      detailsTextY += origText.length * 4.5;
+    }
+    if (cotizacion.destino?.nombre) {
+      const destText = doc.splitTextToSize(`Destino: ${cotizacion.destino.nombre}`, 58);
+      doc.text(destText, 134, detailsTextY);
+    }
+  } else {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text('Precios de servicios', 134, yCards + 20);
+    doc.text('expresados en la', 134, yCards + 24.5);
+    doc.text('moneda indicada.', 134, yCards + 29);
+  }
 
   // Table (Start at yCards + 37)
   const symbol = currencySymbol;
@@ -261,18 +284,46 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   doc.text(`${symbol} ${cotizacion.precioTotal.toFixed(2)}`, 160, totalsY + 23, { align: 'center' });
 
   // Footer Section
-  const footerY = totalsY + 40;
+  let currentY = totalsY + 38;
+
+  if (cotizacion.referencia) {
+    // Check if reference field overflows
+    const wrappedRef = doc.splitTextToSize(`REFERENCIA / OBSERVACIONES: ${cotizacion.referencia}`, pageWidth - 30);
+    const refHeight = wrappedRef.length * 4.5;
+    
+    if (currentY + refHeight + 5 > 280) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    doc.text('REFERENCIA / OBSERVACIONES:', 15, currentY);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(doc.splitTextToSize(cotizacion.referencia, pageWidth - 30), 15, currentY + 4.5);
+    
+    currentY += refHeight + 8;
+  }
+
+  if (currentY + 25 > 280) {
+    doc.addPage();
+    currentY = 20;
+  }
 
   // Thin gray separator line
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
-  doc.line(15, footerY, pageWidth - 15, footerY);
+  doc.line(15, currentY, pageWidth - 15, currentY);
 
   // Technical Notes (Left)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
-  doc.text('NOTAS TÉCNICAS', 15, footerY + 6);
+  doc.text('NOTAS TÉCNICAS', 15, currentY + 6);
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7);
@@ -280,25 +331,25 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   
   const notesText = 'La presente cotización tiene una vigencia de 15 días calendario. Precios sujetos a variaciones del mercado internacional y disponibilidad de cupos en los servicios tercerizados.';
   const wrappedNotes = doc.splitTextToSize(notesText, 95);
-  doc.text(wrappedNotes, 15, footerY + 11);
+  doc.text(wrappedNotes, 15, currentY + 11);
 
   // Authorized Signature (Right)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184); // Light slate/gray
-  doc.text('FIRMA AUTORIZADA', pageWidth - 15, footerY + 11, { align: 'right' });
+  doc.text('FIRMA AUTORIZADA', pageWidth - 15, currentY + 11, { align: 'right' });
 
   // Signature line
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
-  doc.line(135, footerY + 15, pageWidth - 15, footerY + 15);
+  doc.line(135, currentY + 15, pageWidth - 15, currentY + 15);
 
   // Name
   const sellerName = (cotizacion.vendedor?.nombres ? `${cotizacion.vendedor.nombres} ${cotizacion.vendedor.apellidos || ''}` : 'SUPER ADMIN').toUpperCase();
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
-  doc.text(`${sellerName} - LOGISTICS MANAGER`, pageWidth - 15, footerY + 20, { align: 'right' });
+  doc.text(`${sellerName} - LOGISTICS MANAGER`, pageWidth - 15, currentY + 20, { align: 'right' });
 
   // Page Loop to Draw Professional Printer Footer & Page Numbers
   const totalPages = doc.getNumberOfPages();

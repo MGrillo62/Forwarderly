@@ -237,6 +237,12 @@ const Cotizaciones: React.FC = () => {
       } else if (sortField === 'vendedor') {
         aVal = a.vendedor?.nombres || '';
         bVal = b.vendedor?.nombres || '';
+      } else if (sortField === 'origen') {
+        aVal = a.origen?.nombre || '';
+        bVal = b.origen?.nombre || '';
+      } else if (sortField === 'destino') {
+        aVal = a.destino?.nombre || '';
+        bVal = b.destino?.nombre || '';
       }
 
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
@@ -337,6 +343,18 @@ const Cotizaciones: React.FC = () => {
                 <th className="sortable-header" onClick={() => handleSort('cliente')}>
                   <div className="flex-center gap-1">Cliente / Prospecto <ArrowUpDown size={14} /></div>
                 </th>
+                <th className="sortable-header" onClick={() => handleSort('tipoCarga')}>
+                  <div className="flex-center gap-1">Tipo <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('incoterm')}>
+                  <div className="flex-center gap-1">Incoterm <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('origen')}>
+                  <div className="flex-center gap-1">Origen <ArrowUpDown size={14} /></div>
+                </th>
+                <th className="sortable-header" onClick={() => handleSort('destino')}>
+                  <div className="flex-center gap-1">Destino <ArrowUpDown size={14} /></div>
+                </th>
                 <th className="sortable-header" onClick={() => handleSort('createdAt')}>
                   <div className="flex-center gap-1">Fecha <ArrowUpDown size={14} /></div>
                 </th>
@@ -365,6 +383,22 @@ const Cotizaciones: React.FC = () => {
                         </span>
                       )}
                     </td>
+                    <td>
+                      {cot.tipoCarga ? (
+                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-xs font-semibold">
+                          {cot.tipoCarga}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td>
+                      {cot.incoterm ? (
+                        <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-bold">
+                          {cot.incoterm}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td>{cot.origen?.nombre || '—'}</td>
+                    <td>{cot.destino?.nombre || '—'}</td>
                     <td>{new Date(cot.createdAt).toLocaleDateString()}</td>
                     <td>{cot.vendedor?.nombres}</td>
                     <td>
@@ -427,7 +461,7 @@ const Cotizaciones: React.FC = () => {
                   </tr>
                   {expandedRow === cot.id && (
                     <tr className="stepper-row">
-                      <td colSpan={7}>
+                      <td colSpan={11}>
                         <StatusStepper currentStatus={cot.estado} historial={cot.historial} />
                       </td>
                     </tr>
@@ -436,7 +470,7 @@ const Cotizaciones: React.FC = () => {
               ))}
               {filteredAndSorted.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-4">No se encontraron cotizaciones.</td>
+                  <td colSpan={11} className="text-center py-4">No se encontraron cotizaciones.</td>
                 </tr>
               )}
             </tbody>

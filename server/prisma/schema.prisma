@@ -194,6 +194,8 @@ model Empresa {
   giroNegocios       GiroNegocio[]
   bancos             Banco[]
   tiposDocumentos    TipoDocumento[]
+  origenes           Origen[]
+  destinos           Destino[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -330,6 +332,13 @@ model Cotizacion {
   precioTotal       Float            @default(0)
   utilidad          Float            @default(0)
   porcentajeUtilidad Float           @default(0)
+  tipoCarga         String?
+  incoterm          Incoterm?
+  origenId          String?
+  origen            Origen?          @relation(fields: [origenId], references: [id])
+  destinoId         String?
+  destino           Destino?         @relation(fields: [destinoId], references: [id])
+  referencia        String?
   historial         CotizacionEstadoHistorial[]
   orden             Orden?
   ordenId           String?
@@ -542,5 +551,30 @@ model OrdenDocumento {
 
   @@unique([ordenId, tipoDocumentoId])
 }
+
+model Origen {
+  id           String       @id @default(uuid())
+  nombre       String
+  empresaId    String
+  empresa      Empresa      @relation(fields: [empresaId], references: [id])
+  cotizaciones Cotizacion[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([nombre, empresaId])
+}
+
+model Destino {
+  id           String       @id @default(uuid())
+  nombre       String
+  empresaId    String
+  empresa      Empresa      @relation(fields: [empresaId], references: [id])
+  cotizaciones Cotizacion[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([nombre, empresaId])
+}
+
 
 

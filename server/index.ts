@@ -18,6 +18,8 @@ import bancosRoutes from './routes/bancos';
 import suscripcionesRoutes from './routes/suscripciones';
 import reclamacionesRoutes from './routes/reclamaciones';
 import tiposDocumentoRoutes from './routes/tiposDocumento';
+import origenesRoutes from './routes/origenes';
+import destinosRoutes from './routes/destinos';
 
 dotenv.config();
 
@@ -55,6 +57,8 @@ app.use('/api/bancos', bancosRoutes);
 app.use('/api/suscripciones', suscripcionesRoutes);
 app.use('/api/reclamaciones', reclamacionesRoutes);
 app.use('/api/tipos-documento', tiposDocumentoRoutes);
+app.use('/api/origenes', origenesRoutes);
+app.use('/api/destinos', destinosRoutes);
 
 // Self-healing function to ensure custom document tables exist in the runtime database
 async function ensureTablesExist() {
@@ -140,7 +144,132 @@ async function ensureTablesExist() {
       `);
     } catch (e) {}
 
-    console.log('Tablas de documentos verificadas con éxito.');
+    // 6. Create Origen table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Origen" (
+        "id" TEXT NOT NULL,
+        "nombre" TEXT NOT NULL,
+        "empresaId" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Origen_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 7. Create Destino table
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Destino" (
+        "id" TEXT NOT NULL,
+        "nombre" TEXT NOT NULL,
+        "empresaId" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Destino_pkey" PRIMARY KEY ("id")
+      );
+    `);
+
+    // 8. Create unique indexes for Origen & Destino
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX "Origen_nombre_empresaId_key" ON "Origen"("nombre", "empresaId");
+      `);
+    } catch (e) {}
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX "Destino_nombre_empresaId_key" ON "Destino"("nombre", "empresaId");
+      `);
+    } catch (e) {}
+
+    // 9. Alter Cotizacion table to add columns
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Cotizacion" ADD COLUMN IF NOT EXISTS "tipoCarga" TEXT;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Cotizacion" ADD COLUMN IF NOT EXISTS "incoterm" TEXT;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Cotizacion" ADD COLUMN IF NOT EXISTS "origenId" TEXT;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Cotizacion" ADD COLUMN IF NOT EXISTS "destinoId" TEXT;
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Cotizacion" ADD COLUMN IF NOT EXISTS "referencia" TEXT;
+    `);
+
+    // 10. Add Foreign Key constraints for Origen & Destino
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Origen" 
+        ADD CONSTRAINT "Origen_empresaId_fkey" 
+        FOREIGN KEY ("empresaId") REFERENCES "Empresa"("id") 
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Destino" 
+        ADD CONSTRAINT "Destino_empresaId_fkey" 
+        FOREIGN KEY ("empresaId") REFERENCES "Empresa"("id") 
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Cotizacion" 
+        ADD CONSTRAINT "Cotizacion_origenId_fkey" 
+        FOREIGN KEY ("origenId") REFERENCES "Origen"("id") 
+        ON DELETE SET NULL ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "Cotizacion" 
+        ADD CONSTRAINT "Cotizacion_destinoId_fkey" 
+        FOREIGN KEY ("destinoId") REFERENCES "Destino"("id") 
+        ON DELETE SET NULL ON UPDATE CASCADE;
+      `);
+    } catch (e) {}
+
+    // 11. Auto-seed default ports for existing companies
+    try {
+      const empresas = await prisma.empresa.findMany({ select: { id: true } });
+      const defaultOrigenes = ["Shanghai (China)", "Ningbo (China)", "Miami (USA)", "Callao (Perú)", "Guayaquil (Ecuador)"];
+      const defaultDestinos = ["Callao (Perú)", "Aeropuerto Jorge Chávez (Perú)", "Miami (USA)"];
+
+      for (const emp of empresas) {
+        // Seed Origenes
+        const countOrig = await (prisma as any).origen.count({ where: { empresaId: emp.id } });
+        if (countOrig === 0) {
+          console.log(`Seeding default origenes for company ${emp.id}...`);
+          await (prisma as any).origen.createMany({
+            data: defaultOrigenes.map(name => ({
+              nombre: name,
+              empresaId: emp.id
+            }))
+          });
+        }
+
+        // Seed Destinos
+        const countDest = await (prisma as any).destino.count({ where: { empresaId: emp.id } });
+        if (countDest === 0) {
+          console.log(`Seeding default destinos for company ${emp.id}...`);
+          await (prisma as any).destino.createMany({
+            data: defaultDestinos.map(name => ({
+              nombre: name,
+              empresaId: emp.id
+            }))
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error('Error auto-seeding ports:', err.message);
+    }
+
+    console.log('Tablas de documentos y puertos verificadas con éxito.');
   } catch (error) {
     console.error('Error al asegurar la existencia de tablas de documentos:', error);
   }

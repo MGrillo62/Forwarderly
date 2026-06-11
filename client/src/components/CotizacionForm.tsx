@@ -14,10 +14,17 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
   const [leads, setLeads] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
+  const [origenes, setOrigenes] = useState<any[]>([]);
+  const [destinos, setDestinos] = useState<any[]>([]);
   
   const [clienteId, setClienteId] = useState(initialData?.clienteId || '');
   const [leadId, setLeadId] = useState(initialData?.leadId || '');
   const [moneda, setMoneda] = useState(initialData?.moneda || 'USD');
+  const [tipoCarga, setTipoCarga] = useState(initialData?.tipoCarga || '');
+  const [incoterm, setIncoterm] = useState(initialData?.incoterm || '');
+  const [origenId, setOrigenId] = useState(initialData?.origenId || '');
+  const [destinoId, setDestinoId] = useState(initialData?.destinoId || '');
+  const [referencia, setReferencia] = useState(initialData?.referencia || '');
   const [selectedTarget, setSelectedTarget] = useState(() => {
     if (initialData?.clienteId) return `client:${initialData.clienteId}`;
     if (initialData?.leadId) return `lead:${initialData.leadId}`;
@@ -41,16 +48,20 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
 
   const fetchData = async () => {
     try {
-      const [cRes, pRes, catRes, lRes] = await Promise.all([
+      const [cRes, pRes, catRes, lRes, oRes, dRes] = await Promise.all([
         api.get('/clientes'),
         api.get('/proveedores'),
         api.get('/categorias'),
-        api.get('/leads')
+        api.get('/leads'),
+        api.get('/origenes'),
+        api.get('/destinos')
       ]);
       setClientes(cRes.data);
       setLeads(lRes.data);
       setProveedores(pRes.data);
       setCategorias(catRes.data);
+      setOrigenes(oRes.data);
+      setDestinos(dRes.data);
 
       if (!initialData) {
         const defaultLineas: any[] = [];
@@ -144,6 +155,32 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     setLineas(lineas.filter((_, i) => i !== index));
   };
 
+  const handleCreateOrigen = async () => {
+    const nombre = prompt('Ingrese el nombre del nuevo origen (ej. Shanghai):');
+    if (!nombre || !nombre.trim()) return;
+    try {
+      const res = await api.post('/origenes', { nombre: nombre.trim() });
+      const nuevoOrigen = res.data;
+      setOrigenes(prev => [...prev, nuevoOrigen].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setOrigenId(nuevoOrigen.id);
+    } catch (err) {
+      alert('Error al crear origen');
+    }
+  };
+
+  const handleCreateDestino = async () => {
+    const nombre = prompt('Ingrese el nombre del nuevo destino (ej. Callao):');
+    if (!nombre || !nombre.trim()) return;
+    try {
+      const res = await api.post('/destinos', { nombre: nombre.trim() });
+      const nuevoDestino = res.data;
+      setDestinos(prev => [...prev, nuevoDestino].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setDestinoId(nuevoDestino.id);
+    } catch (err) {
+      alert('Error al crear destino');
+    }
+  };
+
   const handleCreateConcept = async (categoriaId: string) => {
     if (!newConceptName.trim()) return;
     try {
@@ -199,7 +236,12 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         clienteId: clienteId || null, 
         leadId: leadId || null, 
         moneda,
-        lineas 
+        lineas,
+        tipoCarga: tipoCarga || null,
+        incoterm: incoterm || null,
+        origenId: origenId || null,
+        destinoId: destinoId || null,
+        referencia: referencia || null
       };
       if (initialData) {
         await api.put(`/cotizaciones/${initialData.id}`, data);
@@ -281,6 +323,112 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                 <option value="PEN">PEN (S/)</option>
               </select>
             </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+            <div className="form-section" style={{ minWidth: '180px', marginBottom: 0 }}>
+              <label>Tipo de Carga</label>
+              <select
+                value={tipoCarga}
+                onChange={(e) => setTipoCarga(e.target.value)}
+                disabled={viewOnly}
+              >
+                <option value="">Seleccionar</option>
+                <option value="LCL">LCL (Carga Suelta)</option>
+                <option value="FCL">FCL (Contenedor Lleno)</option>
+              </select>
+            </div>
+
+            <div className="form-section" style={{ minWidth: '150px', marginBottom: 0 }}>
+              <label>Incoterm</label>
+              <select
+                value={incoterm}
+                onChange={(e) => setIncoterm(e.target.value)}
+                disabled={viewOnly}
+              >
+                <option value="">Seleccionar</option>
+                <option value="EXW">EXW</option>
+                <option value="FOB">FOB</option>
+                <option value="FCA">FCA</option>
+              </select>
+            </div>
+
+            <div className="form-section" style={{ minWidth: '220px', marginBottom: 0 }}>
+              <label>Origen</label>
+              <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                <select
+                  value={origenId}
+                  onChange={(e) => setOrigenId(e.target.value)}
+                  disabled={viewOnly}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Seleccionar</option>
+                  {origenes.map(o => (
+                    <option key={o.id} value={o.id}>{o.nombre}</option>
+                  ))}
+                </select>
+                {!viewOnly && (
+                  <button 
+                    type="button" 
+                    className="icon-btn primary" 
+                    onClick={handleCreateOrigen}
+                    style={{ padding: '0.5rem', height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--primary)', color: 'white' }}
+                    title="Crear Origen"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="form-section" style={{ minWidth: '220px', marginBottom: 0 }}>
+              <label>Destino</label>
+              <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                <select
+                  value={destinoId}
+                  onChange={(e) => setDestinoId(e.target.value)}
+                  disabled={viewOnly}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Seleccionar</option>
+                  {destinos.map(d => (
+                    <option key={d.id} value={d.id}>{d.nombre}</option>
+                  ))}
+                </select>
+                {!viewOnly && (
+                  <button 
+                    type="button" 
+                    className="icon-btn primary" 
+                    onClick={handleCreateDestino}
+                    style={{ padding: '0.5rem', height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--primary)', color: 'white' }}
+                    title="Crear Destino"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Referencia</label>
+            <textarea
+              value={referencia}
+              onChange={(e) => setReferencia(e.target.value)}
+              placeholder="Digite los detalles o la referencia de la cotización..."
+              rows={3}
+              style={{
+                width: '100%',
+                minHeight: '80px',
+                padding: '0.5rem',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+                fontSize: '0.875rem'
+              }}
+              disabled={viewOnly}
+            />
           </div>
 
           <div className="table-container">
