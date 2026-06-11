@@ -21,7 +21,15 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   // Header Logo
   if (showLogo) {
     try {
-      doc.addImage(logoBase64, 'PNG', 15, 10, 35, 12);
+      const imgProps = doc.getImageProperties(logoBase64);
+      const aspect = imgProps.width / imgProps.height;
+      let logoWidth = 35;
+      let logoHeight = logoWidth / aspect;
+      if (logoHeight > 12) {
+        logoHeight = 12;
+        logoWidth = logoHeight * aspect;
+      }
+      doc.addImage(logoBase64, 'PNG', 15, 10, logoWidth, logoHeight);
     } catch (e) {
       console.error('Error drawing logo in Quotation PDF:', e);
     }
@@ -182,16 +190,43 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
 
   // Table (Start at yCards + 37)
   const symbol = currencySymbol;
-  const tableRows = cotizacion.lineas.map((l: any) => [
-    `${(l.concepto?.categoria?.nombre || l.categoriaNombre || 'S/C').toUpperCase()}\n${l.concepto?.nombre || l.conceptoNombre || '—'}`,
-    (l.proveedor?.razonSocial || l.proveedor?.contacto || '—').toUpperCase(),
-    `${symbol} ${l.precioVenta.toFixed(2)}`,
-    `${symbol} ${l.valorVenta.toFixed(2)}`
-  ]);
+  
+  // Grouping lines by category
+  const groupedLines: Record<string, any[]> = {};
+  cotizacion.lineas.forEach((l: any) => {
+    const catName = l.concepto?.categoria?.nombre || l.categoriaNombre || 'Otros Conceptos';
+    if (!groupedLines[catName]) {
+      groupedLines[catName] = [];
+    }
+    groupedLines[catName].push(l);
+  });
+
+  const tableRows: any[] = [];
+  
+  Object.entries(groupedLines).forEach(([categoryName, catLines]) => {
+    // Add category sub-header row
+    tableRows.push([
+      {
+        content: `CATEGORÍA: ${categoryName.toUpperCase()}`,
+        colSpan: 4,
+        styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105], fontSize: 8 }
+      }
+    ]);
+    
+    // Add concepts belonging to this category
+    catLines.forEach((l: any) => {
+      tableRows.push([
+        l.concepto?.nombre || l.conceptoNombre || '—',
+        `${symbol} ${(l.valorVenta ?? l.precioVenta).toFixed(2)}`,
+        l.igv > 0.001 ? `${symbol} ${l.igv.toFixed(2)}` : '-',
+        `${symbol} ${l.precioVenta.toFixed(2)}`
+      ]);
+    });
+  });
 
   autoTable(doc, {
     startY: yCards + 37,
-    head: [['CATEGORÍA / CONCEPTO', 'PROVEEDOR', 'PRECIO VENTA', 'VALOR VENTA']],
+    head: [['CONCEPTO', 'VALOR VENTA', 'IGV', 'PRECIO VENTA']],
     body: tableRows,
     theme: 'grid',
     styles: {
@@ -210,10 +245,10 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
       halign: 'left'
     },
     columnStyles: {
-      0: { cellWidth: 80, halign: 'left' },  // Category / Concept
-      1: { cellWidth: 40, halign: 'left' },  // Provider
-      2: { cellWidth: 30, halign: 'right' }, // Sale Price
-      3: { cellWidth: 30, halign: 'right' }  // Sale Value
+      0: { cellWidth: 90, halign: 'left' },  // Concept
+      1: { cellWidth: 30, halign: 'right' }, // Sale Value
+      2: { cellWidth: 30, halign: 'right' }, // IGV
+      3: { cellWidth: 30, halign: 'right' }  // Sale Price
     }
   });
 
