@@ -6,10 +6,11 @@ interface CotizacionFormProps {
   onClose: () => void;
   onSave: () => void;
   initialData?: any;
+  defaultModalidad?: 'MARITIMO' | 'AEREO';
   viewOnly?: boolean;
 }
 
-const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initialData, viewOnly }) => {
+const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initialData, defaultModalidad, viewOnly }) => {
   const [clientes, setClientes] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -31,6 +32,25 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     return '';
   });
   const [lineas, setLineas] = useState<any[]>([]);
+
+  // New state variables for air cargo
+  const [modalidad, setModalidad] = useState<'MARITIMO' | 'AEREO'>(
+    initialData?.modalidad || defaultModalidad || 'MARITIMO'
+  );
+  const [itemsAereo, setItemsAereo] = useState<any[]>(() => {
+    if (initialData?.itemsAereo) {
+      try {
+        const parsed = typeof initialData.itemsAereo === 'string' 
+          ? JSON.parse(initialData.itemsAereo) 
+          : initialData.itemsAereo;
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return [{ peso: '', largo: '', ancho: '', alto: '', cantidad: 1 }];
+  });
+  const [divisorVolumetrico, setDivisorVolumetrico] = useState<number>(6000);
 
   const getMonedaSymbol = (m: string) => {
     if (m === 'PEN') return 'S/';
@@ -68,7 +88,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
         catRes.data.forEach((cat: any) => {
           if (cat.conceptos) {
             cat.conceptos.forEach((con: any) => {
-              if (con.incluirPorDefecto) {
+              if (con.incluirPorDefecto && con.modalidad === modalidad) {
                 defaultLineas.push({
                   conceptoId: con.id,
                   categoriaNombre: cat.nombre,
@@ -80,7 +100,10 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                   igv: 0,
                   utilidad: 0,
                   margen: 0,
-                  afectoIGV: cat.afectoIGV
+                  afectoIGV: cat.afectoIGV,
+                  calculaTarifaBase: con.calculaTarifaBase || false,
+                  tarifaBaseCosto: 0,
+                  tarifaBaseVenta: 0
                 });
               }
             });
@@ -92,8 +115,33 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
           ...l,
           categoriaNombre: l.concepto?.categoria?.nombre || 'S/C',
           conceptoNombre: l.concepto?.nombre || 'S/C',
-          afectoIGV: l.concepto?.categoria?.afectoIGV ?? true
+          afectoIGV: l.concepto?.categoria?.afectoIGV ?? true,
+          calculaTarifaBase: l.concepto?.calculaTarifaBase || false,
+          tarifaBaseCosto: l.tarifaBaseCosto || 0,
+          tarifaBaseVenta: l.tarifaBaseVenta || 0
         })));
+
+        // Infer divisorVolumetrico
+        if (initialData.itemsAereo && initialData.pesoVolumetrico && Array.isArray(initialData.itemsAereo)) {
+          const items = initialData.itemsAereo;
+          let sum5000 = 0;
+          let sum6000 = 0;
+          items.forEach((item: any) => {
+            const qty = parseFloat(item.cantidad) || 0;
+            const l = parseFloat(item.largo) || 0;
+            const w = parseFloat(item.ancho) || 0;
+            const h = parseFloat(item.alto) || 0;
+            sum5000 += ((l * w * h) / 5000) * qty;
+            sum6000 += ((l * w * h) / 6000) * qty;
+          });
+          const diff5000 = Math.abs(sum5000 - initialData.pesoVolumetrico);
+          const diff6000 = Math.abs(sum6000 - initialData.pesoVolumetrico);
+          if (diff5000 < diff6000) {
+            setDivisorVolumetrico(5000);
+          } else {
+            setDivisorVolumetrico(6000);
+          }
+        }
       }
       setLoading(false);
     } catch (err) {
@@ -102,11 +150,101 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     }
   };
 
+  // Calculate cargo totals
+  let totalBultos = 0;
+  let pesoRealTotal = 0;
+  let pesoVolumetricoTotal = 0;
+  let volumenTotal = 0;
+  let pesoFacturable = 0;
+
+  if (modalidad === 'AEREO') {
+    itemsAereo.forEach((item) => {
+      const qty = parseFloat(item.cantidad) || 0;
+      const w = parseFloat(item.peso) || 0;
+      const l = parseFloat(item.largo) || 0;
+      const wDim = parseFloat(item.ancho) || 0;
+      const h = parseFloat(item.alto) || 0;
+
+      totalBultos += qty;
+      pesoRealTotal += w * qty;
+      pesoVolumetricoTotal += ((l * wDim * h) / divisorVolumetrico) * qty;
+      volumenTotal += ((l * wDim * h) / 1000000) * qty;
+    });
+    pesoFacturable = Math.max(pesoRealTotal, pesoVolumetricoTotal);
+  }
+
+  const recalculateLines = (currentLines: any[], pFact: number) => {
+    return currentLines.map((linea: any) => {
+      if (linea.calculaTarifaBase) {
+        const tCosto = parseFloat(linea.tarifaBaseCosto) || 0;
+        const tVenta = parseFloat(linea.tarifaBaseVenta) || 0;
+        const costo = tCosto * pFact;
+        const precioVenta = tVenta * pFact;
+        
+        let valorVenta, igv;
+        if (linea.afectoIGV) {
+          valorVenta = precioVenta / 1.18;
+          igv = valorVenta * 0.18;
+        } else {
+          valorVenta = precioVenta;
+          igv = 0;
+        }
+        const utilidad = valorVenta - costo;
+        const margen = valorVenta > 0 ? (utilidad / valorVenta) * 100 : 0;
+        
+        return {
+          ...linea,
+          costo,
+          precioVenta,
+          valorVenta,
+          igv,
+          utilidad,
+          margen
+        };
+      }
+      return linea;
+    });
+  };
+
+  // Keep lines recalculated when cargo totals change
+  useEffect(() => {
+    if (modalidad === 'AEREO') {
+      setLineas(prev => recalculateLines(prev, pesoFacturable));
+    }
+  }, [pesoFacturable, modalidad]);
+
   const handleLineChange = (index: number, field: string, value: any) => {
     const newLineas = [...lineas];
     const linea = { ...newLineas[index], [field]: value };
 
-    if (field === 'precioVenta' || field === 'costo') {
+    if (field === 'tarifaBaseCosto' || field === 'tarifaBaseVenta') {
+      const tCosto = field === 'tarifaBaseCosto' ? parseFloat(value) || 0 : linea.tarifaBaseCosto;
+      const tVenta = field === 'tarifaBaseVenta' ? parseFloat(value) || 0 : linea.tarifaBaseVenta;
+      
+      const costo = tCosto * pesoFacturable;
+      const precioVenta = tVenta * pesoFacturable;
+      
+      let valorVenta, igv;
+      if (linea.afectoIGV) {
+        valorVenta = precioVenta / 1.18;
+        igv = valorVenta * 0.18;
+      } else {
+        valorVenta = precioVenta;
+        igv = 0;
+      }
+      
+      const utilidad = valorVenta - costo;
+      const margen = valorVenta > 0 ? (utilidad / valorVenta) * 100 : 0;
+
+      linea.tarifaBaseCosto = tCosto;
+      linea.tarifaBaseVenta = tVenta;
+      linea.costo = costo;
+      linea.precioVenta = precioVenta;
+      linea.valorVenta = valorVenta;
+      linea.igv = igv;
+      linea.utilidad = utilidad;
+      linea.margen = margen;
+    } else if (field === 'precioVenta' || field === 'costo') {
       const precioVenta = field === 'precioVenta' ? parseFloat(value) || 0 : linea.precioVenta;
       const costo = field === 'costo' ? parseFloat(value) || 0 : linea.costo;
       
@@ -134,7 +272,26 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     setLineas(newLineas);
   };
 
+  const handleItemChange = (itemIndex: number, field: string, value: any) => {
+    const newItems = [...itemsAereo];
+    newItems[itemIndex] = { ...newItems[itemIndex], [field]: value };
+    setItemsAereo(newItems);
+  };
+
+  const addItem = () => {
+    setItemsAereo([...itemsAereo, { peso: '', largo: '', ancho: '', alto: '', cantidad: 1 }]);
+  };
+
+  const removeItem = (itemIndex: number) => {
+    if (itemsAereo.length === 1) {
+      setItemsAereo([{ peso: '', largo: '', ancho: '', alto: '', cantidad: 1 }]);
+    } else {
+      setItemsAereo(itemsAereo.filter((_, i) => i !== itemIndex));
+    }
+  };
+
   const addLine = (concepto: any, categoria: any) => {
+    const isBase = concepto.calculaTarifaBase || false;
     setLineas([...lineas, {
       categoriaId: categoria.id,
       categoriaNombre: categoria.nombre,
@@ -147,7 +304,10 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
       igv: 0,
       utilidad: 0,
       margen: 0,
-      afectoIGV: categoria.afectoIGV
+      afectoIGV: categoria.afectoIGV,
+      calculaTarifaBase: isBase,
+      tarifaBaseCosto: 0,
+      tarifaBaseVenta: 0
     }]);
   };
 
@@ -186,7 +346,9 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     try {
       const response = await api.post(`/categorias/${categoriaId}/conceptos`, {
         nombre: newConceptName,
-        incluirPorDefecto: false
+        incluirPorDefecto: false,
+        modalidad,
+        calculaTarifaBase: false
       });
       
       const newConcept = response.data;
@@ -231,17 +393,37 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
 
   const handleSubmit = async () => {
     if (!clienteId && !leadId) return alert('Seleccione un cliente o prospecto');
+
+    if (modalidad === 'AEREO') {
+      for (const item of itemsAereo) {
+        if (!item.peso || !item.largo || !item.ancho || !item.alto || !item.cantidad) {
+          return alert('Por favor, complete todos los campos obligatorios de la carga aérea.');
+        }
+      }
+    }
+
     try {
       const data = { 
         clienteId: clienteId || null, 
         leadId: leadId || null, 
         moneda,
-        lineas,
+        lineas: lineas.map(l => ({
+          ...l,
+          tarifaBaseCosto: l.tarifaBaseCosto || 0,
+          tarifaBaseVenta: l.tarifaBaseVenta || 0,
+          calculaTarifaBase: l.calculaTarifaBase || false
+        })),
         tipoCarga: tipoCarga || null,
         incoterm: incoterm || null,
         origenId: origenId || null,
         destinoId: destinoId || null,
-        referencia: referencia || null
+        referencia: referencia || null,
+        modalidad,
+        pesoTotal: modalidad === 'AEREO' ? pesoRealTotal : null,
+        pesoVolumetrico: modalidad === 'AEREO' ? pesoVolumetricoTotal : null,
+        pesoFacturable: modalidad === 'AEREO' ? pesoFacturable : null,
+        itemsAereo: modalidad === 'AEREO' ? itemsAereo : null,
+        divisorVolumetrico: modalidad === 'AEREO' ? divisorVolumetrico : undefined
       };
       if (initialData) {
         await api.put(`/cotizaciones/${initialData.id}`, data);
@@ -260,7 +442,12 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
     <div className="modal-overlay">
       <div className="modal-content large">
         <div className="modal-header">
-          <h2>{viewOnly ? 'Detalle de Cotización' : (initialData ? 'Editar Cotización' : 'Nueva Cotización')}</h2>
+          <h2>
+            {viewOnly ? 'Detalle de Cotización' : (initialData ? 'Editar Cotización' : 'Nueva Cotización')}
+            <span style={{ marginLeft: '10px', fontSize: '0.85rem', color: 'var(--text-light)', background: '#e2e8f0', padding: '4px 8px', borderRadius: '6px', fontWeight: 600 }}>
+              {modalidad === 'AEREO' ? '✈️ AÉREA' : '🚢 MARÍTIMA'}
+            </span>
+          </h2>
           <button className="icon-btn" onClick={onClose}><X /></button>
         </div>
 
@@ -431,6 +618,213 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
             />
           </div>
 
+          {modalidad === 'AEREO' && (
+            <div className="air-cargo-panel mb-6" style={{
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
+                  ✈️ Detalle de Carga / Bultos Aéreos
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#475569' }}>
+                    Divisor Volumétrico:
+                  </label>
+                  <select
+                    value={divisorVolumetrico}
+                    onChange={(e) => setDivisorVolumetrico(parseInt(e.target.value))}
+                    disabled={viewOnly}
+                    style={{ width: '180px', padding: '0.25rem 0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white' }}
+                  >
+                    <option value={6000}>1:6000 (Estándar IATA)</option>
+                    <option value={5000}>1:5000 (Courier Express)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {itemsAereo.map((item, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    background: 'white',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    flexWrap: 'wrap',
+                    position: 'relative'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 700, color: '#64748b' }}>#{idx + 1}</span>
+                      {!viewOnly && (
+                        <button 
+                          type="button" 
+                          className="icon-btn danger" 
+                          onClick={() => removeItem(idx)}
+                          style={{ padding: '0.25rem' }}
+                          title="Eliminar Bulto"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ minWidth: '120px', flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
+                        Peso Unit. (kg) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.peso}
+                        placeholder="0.00"
+                        disabled={viewOnly}
+                        onChange={(e) => handleItemChange(idx, 'peso', e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 3, minWidth: '220px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
+                          Largo (cm) *
+                        </label>
+                        <input
+                          type="number"
+                          value={item.largo}
+                          placeholder="cm"
+                          disabled={viewOnly}
+                          onChange={(e) => handleItemChange(idx, 'largo', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <span style={{ marginTop: '14px', fontWeight: 'bold', color: '#94a3b8' }}>x</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
+                          Ancho (cm) *
+                        </label>
+                        <input
+                          type="number"
+                          value={item.ancho}
+                          placeholder="cm"
+                          disabled={viewOnly}
+                          onChange={(e) => handleItemChange(idx, 'ancho', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <span style={{ marginTop: '14px', fontWeight: 'bold', color: '#94a3b8' }}>x</span>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
+                          Alto (cm) *
+                        </label>
+                        <input
+                          type="number"
+                          value={item.alto}
+                          placeholder="cm"
+                          disabled={viewOnly}
+                          onChange={(e) => handleItemChange(idx, 'alto', e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ minWidth: '110px' }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
+                        Cant. Bultos *
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', border: '1px solid rgba(226, 232, 240, 0.9)', borderRadius: '8px', overflow: 'hidden', height: '38px' }}>
+                        {!viewOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleItemChange(idx, 'cantidad', Math.max(1, (parseInt(item.cantidad) || 1) - 1))}
+                            style={{ padding: '0.25rem 0.5rem', background: '#f1f5f9', borderRadius: 0, height: '36px', minWidth: '30px' }}
+                          >
+                            -
+                          </button>
+                        )}
+                        <input
+                          type="number"
+                          value={item.cantidad}
+                          disabled={viewOnly}
+                          onChange={(e) => handleItemChange(idx, 'cantidad', Math.max(1, parseInt(e.target.value) || 1))}
+                          style={{ textAlign: 'center', border: 'none', borderRadius: 0, padding: 0, height: '36px', width: '40px', background: 'transparent' }}
+                          required
+                        />
+                        {!viewOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleItemChange(idx, 'cantidad', (parseInt(item.cantidad) || 1) + 1)}
+                            style={{ padding: '0.25rem 0.5rem', background: '#f1f5f9', borderRadius: 0, height: '36px', minWidth: '30px' }}
+                          >
+                            +
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {!viewOnly && (
+                <button
+                  type="button"
+                  className="btn-outline sm mt-4"
+                  onClick={addItem}
+                  style={{ background: 'white' }}
+                >
+                  <Plus size={14} /> Agregar Otro Bulto
+                </button>
+              )}
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                padding: '1rem',
+                marginTop: '1rem',
+                flexWrap: 'wrap',
+                gap: '1rem'
+              }}>
+                <div style={{ textAlign: 'center', flex: 1, minWidth: '80px' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>TOTAL BULTOS</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>{totalBultos}</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, minWidth: '90px' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>PESO REAL TOTAL</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>{pesoRealTotal.toFixed(2)} kg</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, minWidth: '100px' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>PESO VOLUMÉTRICO</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>{pesoVolumetricoTotal.toFixed(2)} kg</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, minWidth: '90px' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>VOLUMEN TOTAL</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a' }}>{volumenTotal.toFixed(3)} m³</div>
+                </div>
+                <div style={{
+                  textAlign: 'center',
+                  flex: 1,
+                  minWidth: '120px',
+                  borderLeft: '2px dashed #cbd5e1',
+                  paddingLeft: '0.5rem',
+                  backgroundColor: '#e0f2fe',
+                  borderRadius: '4px',
+                  padding: '0.25rem'
+                }}>
+                  <div style={{ fontSize: '0.7rem', color: '#0369a1', fontWeight: 700 }}>PESO FACTURABLE</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0284c7' }}>{pesoFacturable.toFixed(2)} kg</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="table-container">
             <table>
               <thead>
@@ -451,7 +845,14 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                     <td>
                       <div className="concept-info">
                         <small>{linea.categoriaNombre}</small>
-                        <div>{linea.conceptoNombre}</div>
+                        <div>
+                          {linea.conceptoNombre}
+                          {linea.calculaTarifaBase && (
+                            <span style={{ marginLeft: '6px', fontSize: '0.65rem', backgroundColor: '#ddd6fe', color: '#6d28d9', padding: '1px 4px', borderRadius: '4px', fontWeight: 'bold' }}>
+                              TARIFA BASE
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -467,20 +868,58 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
                       </select>
                     </td>
                     <td>
-                      <input 
-                        type="number" 
-                        value={linea.costo} 
-                        onChange={(e) => handleLineChange(index, 'costo', e.target.value)} 
-                        disabled={viewOnly}
-                      />
+                      {linea.calculaTarifaBase ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.8rem', color: '#64748b', marginRight: '4px' }}>Tarifa:</span>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              value={linea.tarifaBaseCosto} 
+                              onChange={(e) => handleLineChange(index, 'tarifaBaseCosto', e.target.value)} 
+                              disabled={viewOnly}
+                              style={{ width: '80px', padding: '0.25rem' }}
+                            />
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
+                            Total: {getMonedaSymbol(moneda)} {linea.costo.toFixed(2)}
+                          </span>
+                        </div>
+                      ) : (
+                        <input 
+                          type="number" 
+                          value={linea.costo} 
+                          onChange={(e) => handleLineChange(index, 'costo', e.target.value)} 
+                          disabled={viewOnly}
+                        />
+                      )}
                     </td>
                     <td>
-                      <input 
-                        type="number" 
-                        value={linea.precioVenta} 
-                        onChange={(e) => handleLineChange(index, 'precioVenta', e.target.value)} 
-                        disabled={viewOnly}
-                      />
+                      {linea.calculaTarifaBase ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.8rem', color: '#64748b', marginRight: '4px' }}>Tarifa:</span>
+                            <input 
+                              type="number" 
+                              step="0.01"
+                              value={linea.tarifaBaseVenta} 
+                              onChange={(e) => handleLineChange(index, 'tarifaBaseVenta', e.target.value)} 
+                              disabled={viewOnly}
+                              style={{ width: '80px', padding: '0.25rem' }}
+                            />
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
+                            Total: {getMonedaSymbol(moneda)} {linea.precioVenta.toFixed(2)}
+                          </span>
+                        </div>
+                      ) : (
+                        <input 
+                          type="number" 
+                          value={linea.precioVenta} 
+                          onChange={(e) => handleLineChange(index, 'precioVenta', e.target.value)} 
+                          disabled={viewOnly}
+                        />
+                      )}
                     </td>
                     <td>{linea.valorVenta.toFixed(2)}</td>
                     <td>{linea.utilidad.toFixed(2)}</td>
@@ -504,7 +943,7 @@ const CotizacionForm: React.FC<CotizacionFormProps> = ({ onClose, onSave, initia
               <div className="categories-grid">
                 {categorias.map(cat => {
                   const availableConcepts = cat.conceptos.filter((con: any) => 
-                    !lineas.some(l => l.conceptoId === con.id)
+                    !lineas.some(l => l.conceptoId === con.id) && con.modalidad === modalidad
                   );
                   
                   return (

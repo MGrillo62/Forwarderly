@@ -8,16 +8,72 @@ const router = Router();
 const prisma = new PrismaClient();
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
-  const { clienteId, leadId, lineas, moneda, tipoCarga, incoterm, origenId, destinoId, referencia } = req.body;
+  const {
+    clienteId,
+    leadId,
+    lineas,
+    moneda,
+    tipoCarga,
+    incoterm,
+    origenId,
+    destinoId,
+    referencia,
+    modalidad,
+    pesoTotal,
+    pesoVolumetrico,
+    pesoFacturable,
+    itemsAereo
+  } = req.body;
   const { empresaId, id: vendedorId } = req.user!;
 
   try {
     if (!empresaId) return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
 
-    const calculatedLineas = lineas.map((linea: any) => ({
-      ...linea,
-      ...calculateLineValues(linea.costo, linea.precioVenta, linea.afectoIGV)
-    }));
+    const isAereo = modalidad === 'AEREO';
+    
+    // Recalculate weights in backend if it's an air quote
+    let finalPesoTotal = pesoTotal || 0;
+    let finalPesoVolumetrico = pesoVolumetrico || 0;
+    let finalPesoFacturable = pesoFacturable || 0;
+    
+    if (isAereo && itemsAereo && Array.isArray(itemsAereo)) {
+      let calcPesoTotal = 0;
+      let calcPesoVolumetrico = 0;
+      const divisor = parseFloat(req.body.divisorVolumetrico) || 6000;
+      itemsAereo.forEach((item: any) => {
+        const qty = parseFloat(item.cantidad) || 0;
+        const w = parseFloat(item.peso) || 0;
+        const l = parseFloat(item.largo) || 0;
+        const wDim = parseFloat(item.ancho) || 0;
+        const h = parseFloat(item.alto) || 0;
+        calcPesoTotal += w * qty;
+        calcPesoVolumetrico += ((l * wDim * h) / divisor) * qty;
+      });
+      finalPesoTotal = calcPesoTotal;
+      finalPesoVolumetrico = calcPesoVolumetrico;
+      finalPesoFacturable = Math.max(calcPesoTotal, calcPesoVolumetrico);
+    }
+
+    const calculatedLineas = lineas.map((linea: any) => {
+      let costo = parseFloat(linea.costo) || 0;
+      let precioVenta = parseFloat(linea.precioVenta) || 0;
+      const tarifaBaseCosto = parseFloat(linea.tarifaBaseCosto) || 0;
+      const tarifaBaseVenta = parseFloat(linea.tarifaBaseVenta) || 0;
+
+      if (isAereo && linea.calculaTarifaBase) {
+        costo = tarifaBaseCosto * finalPesoFacturable;
+        precioVenta = tarifaBaseVenta * finalPesoFacturable;
+      }
+
+      return {
+        ...linea,
+        costo,
+        precioVenta,
+        tarifaBaseCosto,
+        tarifaBaseVenta,
+        ...calculateLineValues(costo, precioVenta, linea.afectoIGV)
+      };
+    });
 
     const totals = calculateTotals(calculatedLineas);
 
@@ -41,6 +97,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         origenId: origenId || null,
         destinoId: destinoId || null,
         referencia: referencia || null,
+        modalidad: modalidad || 'MARITIMO',
+        pesoTotal: isAereo ? finalPesoTotal : null,
+        pesoVolumetrico: isAereo ? finalPesoVolumetrico : null,
+        pesoFacturable: isAereo ? finalPesoFacturable : null,
+        itemsAereo: isAereo ? itemsAereo : null,
         ...totals,
         lineas: {
           create: calculatedLineas.map((l: any) => ({
@@ -51,7 +112,9 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
             valorVenta: l.valorVenta,
             igv: l.igv,
             utilidad: l.utilidad,
-            margen: l.margen
+            margen: l.margen,
+            tarifaBaseCosto: l.tarifaBaseCosto,
+            tarifaBaseVenta: l.tarifaBaseVenta
           }))
         },
         historial: {
@@ -73,7 +136,24 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
-  const { clienteId, leadId, lineas, estado, clientConversion, moneda, tipoCarga, incoterm, origenId, destinoId, referencia } = req.body;
+  const {
+    clienteId,
+    leadId,
+    lineas,
+    estado,
+    clientConversion,
+    moneda,
+    tipoCarga,
+    incoterm,
+    origenId,
+    destinoId,
+    referencia,
+    modalidad,
+    pesoTotal,
+    pesoVolumetrico,
+    pesoFacturable,
+    itemsAereo
+  } = req.body;
   const { empresaId } = req.user!;
 
   try {
@@ -132,12 +212,54 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
       });
     }
 
+    // Modalidad y recalculación de carga
+    const finalModalidad = modalidad || existing.modalidad;
+    const isAereo = finalModalidad === 'AEREO';
+    
+    let finalPesoTotal = pesoTotal !== undefined ? pesoTotal : existing.pesoTotal;
+    let finalPesoVolumetrico = pesoVolumetrico !== undefined ? pesoVolumetrico : existing.pesoVolumetrico;
+    let finalPesoFacturable = pesoFacturable !== undefined ? pesoFacturable : existing.pesoFacturable;
+    
+    if (isAereo && itemsAereo && Array.isArray(itemsAereo)) {
+      let calcPesoTotal = 0;
+      let calcPesoVolumetrico = 0;
+      const divisor = parseFloat(req.body.divisorVolumetrico) || 6000;
+      itemsAereo.forEach((item: any) => {
+        const qty = parseFloat(item.cantidad) || 0;
+        const w = parseFloat(item.peso) || 0;
+        const l = parseFloat(item.largo) || 0;
+        const wDim = parseFloat(item.ancho) || 0;
+        const h = parseFloat(item.alto) || 0;
+        calcPesoTotal += w * qty;
+        calcPesoVolumetrico += ((l * wDim * h) / divisor) * qty;
+      });
+      finalPesoTotal = calcPesoTotal;
+      finalPesoVolumetrico = calcPesoVolumetrico;
+      finalPesoFacturable = Math.max(calcPesoTotal, calcPesoVolumetrico);
+    }
+
     let updated;
     if (lineas) {
-      const calculatedLineas = lineas.map((linea: any) => ({
-        ...linea,
-        ...calculateLineValues(linea.costo, linea.precioVenta, linea.afectoIGV)
-      }));
+      const calculatedLineas = lineas.map((linea: any) => {
+        let costo = parseFloat(linea.costo) || 0;
+        let precioVenta = parseFloat(linea.precioVenta) || 0;
+        const tarifaBaseCosto = parseFloat(linea.tarifaBaseCosto) || 0;
+        const tarifaBaseVenta = parseFloat(linea.tarifaBaseVenta) || 0;
+
+        if (isAereo && linea.calculaTarifaBase) {
+          costo = tarifaBaseCosto * finalPesoFacturable;
+          precioVenta = tarifaBaseVenta * finalPesoFacturable;
+        }
+
+        return {
+          ...linea,
+          costo,
+          precioVenta,
+          tarifaBaseCosto,
+          tarifaBaseVenta,
+          ...calculateLineValues(costo, precioVenta, linea.afectoIGV)
+        };
+      });
 
       const totals = calculateTotals(calculatedLineas);
 
@@ -155,6 +277,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           origenId: origenId !== undefined ? origenId : undefined,
           destinoId: destinoId !== undefined ? destinoId : undefined,
           referencia: referencia !== undefined ? referencia : undefined,
+          modalidad: finalModalidad,
+          pesoTotal: isAereo ? finalPesoTotal : null,
+          pesoVolumetrico: isAereo ? finalPesoVolumetrico : null,
+          pesoFacturable: isAereo ? finalPesoFacturable : null,
+          itemsAereo: isAereo ? itemsAereo : null,
           ...totals,
           lineas: {
             create: calculatedLineas.map((l: any) => ({
@@ -165,7 +292,9 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
               valorVenta: l.valorVenta,
               igv: l.igv,
               utilidad: l.utilidad,
-              margen: l.margen
+              margen: l.margen,
+              tarifaBaseCosto: l.tarifaBaseCosto,
+              tarifaBaseVenta: l.tarifaBaseVenta
             }))
           },
           ...(estado && estado !== existing.estado && {
@@ -192,6 +321,11 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
           origenId: origenId !== undefined ? origenId : undefined,
           destinoId: destinoId !== undefined ? destinoId : undefined,
           referencia: referencia !== undefined ? referencia : undefined,
+          modalidad: finalModalidad,
+          pesoTotal: isAereo ? finalPesoTotal : null,
+          pesoVolumetrico: isAereo ? finalPesoVolumetrico : null,
+          pesoFacturable: isAereo ? finalPesoFacturable : null,
+          itemsAereo: isAereo ? itemsAereo : null,
           ...(estado !== existing.estado && {
             historial: {
               create: {
@@ -327,6 +461,11 @@ router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
         moneda: existing.moneda,
         pais: existing.pais,
         estado: 'BORRADOR',
+        modalidad: existing.modalidad,
+        pesoTotal: existing.pesoTotal,
+        pesoVolumetrico: existing.pesoVolumetrico,
+        pesoFacturable: existing.pesoFacturable,
+        itemsAereo: existing.itemsAereo || undefined,
         totalVenta: existing.totalVenta,
         igv: existing.igv,
         precioTotal: existing.precioTotal,
@@ -346,7 +485,9 @@ router.post('/:id/duplicar', authenticate, async (req: AuthRequest, res) => {
             valorVenta: l.valorVenta,
             igv: l.igv,
             utilidad: l.utilidad,
-            margen: l.margen
+            margen: l.margen,
+            tarifaBaseCosto: l.tarifaBaseCosto,
+            tarifaBaseVenta: l.tarifaBaseVenta
           }))
         },
         historial: {

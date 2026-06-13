@@ -52,11 +52,30 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 router.post('/:id/conceptos', authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { nombre, incluirPorDefecto } = req.body;
+    const { nombre, incluirPorDefecto, modalidad, calculaTarifaBase } = req.body;
     const concepto = await prisma.concepto.create({
-      data: { nombre, incluirPorDefecto, categoriaId: id }
+      data: {
+        nombre,
+        incluirPorDefecto: incluirPorDefecto !== undefined ? incluirPorDefecto : false,
+        categoriaId: id,
+        modalidad: modalidad || 'MARITIMO',
+        calculaTarifaBase: calculaTarifaBase !== undefined ? calculaTarifaBase : false
+      }
     });
     res.json(concepto);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.delete('/conceptos/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.concepto.delete({
+      where: { id }
+    });
+    res.json({ message: 'Concepto eliminado correctamente' });
   } catch (error: any) {
     console.error(error);
     res.status(500).json({ message: error.message });

@@ -14,6 +14,7 @@ const Cotizaciones: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedCot, setSelectedCot] = useState<any>(null);
   const [viewOnly, setViewOnly] = useState(false);
+  const [defaultModalidad, setDefaultModalidad] = useState<'MARITIMO' | 'AEREO'>('MARITIMO');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -188,8 +189,9 @@ const Cotizaciones: React.FC = () => {
     setShowForm(true);
   };
 
-  const handleNew = () => {
+  const handleNew = (mod: 'MARITIMO' | 'AEREO') => {
     setSelectedCot(null);
+    setDefaultModalidad(mod);
     setViewOnly(false);
     setShowForm(true);
   };
@@ -313,9 +315,14 @@ const Cotizaciones: React.FC = () => {
           <h1>Cotizaciones</h1>
           <p className="subtitle">Gestione propuestas comerciales, duplicados inteligentes y órdenes asociadas</p>
         </div>
-        <button className="primary icon-left" onClick={handleNew}>
-          <Plus size={18} /> Nueva Cotización
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button className="primary icon-left" onClick={() => handleNew('MARITIMO')}>
+            <Plus size={18} /> Cotización Marítima
+          </button>
+          <button className="secondary icon-left" onClick={() => handleNew('AEREO')}>
+            <Plus size={18} /> Cotización Aérea
+          </button>
+        </div>
       </div>
 
       {/* Filters card */}
@@ -374,7 +381,14 @@ const Cotizaciones: React.FC = () => {
               {filteredAndSorted.map((cot) => (
                 <React.Fragment key={cot.id}>
                   <tr>
-                    <td><strong>{String(cot.numero).padStart(5, '0')}</strong></td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <strong>{String(cot.numero).padStart(5, '0')}</strong>
+                        <span title={cot.modalidad === 'AEREO' ? 'Cotización Aérea' : 'Cotización Marítima'} style={{ fontSize: '1rem', cursor: 'help' }}>
+                          {cot.modalidad === 'AEREO' ? '✈️' : '🚢'}
+                        </span>
+                      </div>
+                    </td>
                     <td>
                       {cot.cliente?.razonSocial || (
                         <span className="flex items-center gap-1.5 font-semibold text-amber-700">
@@ -491,6 +505,7 @@ const Cotizaciones: React.FC = () => {
       {showForm && (
         <CotizacionForm 
           initialData={selectedCot} 
+          defaultModalidad={defaultModalidad}
           viewOnly={viewOnly}
           onClose={() => setShowForm(false)} 
           onSave={() => { setShowForm(false); fetchCotizaciones(); }} 

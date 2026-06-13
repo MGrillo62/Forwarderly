@@ -11,7 +11,7 @@ const Categorias: React.FC = () => {
   const [catFormData, setCatFormData] = useState({ nombre: '', afectoIGV: true });
   
   const [showConceptForm, setShowConceptForm] = useState<string | null>(null);
-  const [newConcept, setNewConcept] = useState({ nombre: '', incluirPorDefecto: false });
+  const [newConcept, setNewConcept] = useState({ nombre: '', incluirPorDefecto: false, modalidad: 'MARITIMO', calculaTarifaBase: false });
 
   useEffect(() => {
     fetchCategorias();
@@ -58,11 +58,21 @@ const Categorias: React.FC = () => {
     if (!newConcept.nombre) return;
     try {
       await api.post(`/categorias/${catId}/conceptos`, newConcept);
-      setNewConcept({ nombre: '', incluirPorDefecto: false });
+      setNewConcept({ nombre: '', incluirPorDefecto: false, modalidad: 'MARITIMO', calculaTarifaBase: false });
       setShowConceptForm(null);
       fetchCategorias();
     } catch (err) {
       alert('Error al crear concepto');
+    }
+  };
+
+  const handleDeleteConcepto = async (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este concepto?')) return;
+    try {
+      await api.delete(`/categorias/conceptos/${id}`);
+      fetchCategorias();
+    } catch (err) {
+      alert('Error al eliminar concepto');
     }
   };
 
@@ -93,7 +103,10 @@ const Categorias: React.FC = () => {
                 <button className="icon-btn" onClick={() => handleEditCat(cat)} title="Editar Categoría">
                   <Edit size={16} />
                 </button>
-                <button className="btn-outline sm" onClick={() => setShowConceptForm(cat.id)}>
+                <button className="btn-outline sm" onClick={() => {
+                  setNewConcept({ nombre: '', incluirPorDefecto: false, modalidad: 'MARITIMO', calculaTarifaBase: false });
+                  setShowConceptForm(cat.id);
+                }}>
                   <Plus size={16} /> Agregar Concepto
                 </button>
               </div>
@@ -104,6 +117,8 @@ const Categorias: React.FC = () => {
                 <thead>
                   <tr>
                     <th>Nombre del Concepto</th>
+                    <th>Modalidad</th>
+                    <th>Fórmula / Cálculo</th>
                     <th>Incluir por defecto</th>
                     <th>Acciones</th>
                   </tr>
@@ -113,13 +128,44 @@ const Categorias: React.FC = () => {
                     <tr key={con.id}>
                       <td>{con.nombre}</td>
                       <td>
+                        <span className={`badge-success`} style={{
+                          backgroundColor: con.modalidad === 'AEREO' ? '#e0f2fe' : '#ecfdf5',
+                          color: con.modalidad === 'AEREO' ? '#0369a1' : '#047857',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700
+                        }}>
+                          {con.modalidad === 'AEREO' ? '✈️ AÉREO' : '🚢 MARÍTIMO'}
+                        </span>
+                      </td>
+                      <td>
+                        {con.modalidad === 'AEREO' && con.calculaTarifaBase ? (
+                          <span style={{
+                            backgroundColor: '#f5f3ff',
+                            color: '#6d28d9',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            border: '1px solid #ddd6fe'
+                          }}>
+                            Tarifa Base * Peso Fact.
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Costo / Precio Fijo</span>
+                        )}
+                      </td>
+                      <td>
                         {con.incluirPorDefecto ? 
                           <span className="badge-success"><CheckSquare size={14} /> Sí</span> : 
                           <span className="badge-gray"><Square size={14} /> No</span>
                         }
                       </td>
                       <td>
-                        <button className="icon-btn danger"><Trash2 size={16} /></button>
+                        <button className="icon-btn danger" onClick={() => handleDeleteConcepto(con.id)} title="Eliminar Concepto">
+                          <Trash2 size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -135,13 +181,43 @@ const Categorias: React.FC = () => {
                         />
                       </td>
                       <td>
-                        <label className="checkbox-label">
+                        <select
+                          value={newConcept.modalidad}
+                          onChange={(e) => setNewConcept({ 
+                            ...newConcept, 
+                            modalidad: e.target.value,
+                            calculaTarifaBase: e.target.value === 'MARITIMO' ? false : newConcept.calculaTarifaBase 
+                          })}
+                          style={{ padding: '0.25rem', fontSize: '0.85rem', width: 'auto' }}
+                        >
+                          <option value="MARITIMO">🚢 Marítimo</option>
+                          <option value="AEREO">✈️ Aéreo</option>
+                        </select>
+                      </td>
+                      <td>
+                        {newConcept.modalidad === 'AEREO' ? (
+                          <label className="checkbox-label" style={{ fontSize: '0.8rem' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={newConcept.calculaTarifaBase}
+                              onChange={(e) => setNewConcept({ ...newConcept, calculaTarifaBase: e.target.checked })}
+                              style={{ width: 'auto', marginRight: '4px' }}
+                            />
+                            <span>Tarifa Base</span>
+                          </label>
+                        ) : (
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>N/A (Fijo)</span>
+                        )}
+                      </td>
+                      <td>
+                        <label className="checkbox-label" style={{ fontSize: '0.8rem' }}>
                           <input 
                             type="checkbox" 
                             checked={newConcept.incluirPorDefecto}
                             onChange={(e) => setNewConcept({ ...newConcept, incluirPorDefecto: e.target.checked })}
+                            style={{ width: 'auto', marginRight: '4px' }}
                           />
-                          <span>Marcar para cotizaciones nuevas</span>
+                          <span>Por defecto</span>
                         </label>
                       </td>
                       <td>

@@ -190,6 +190,85 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
 
   // Table (Start at yCards + 37)
   const symbol = currencySymbol;
+  let startTableY = yCards + 37;
+
+  if (cotizacion.modalidad === 'AEREO' && cotizacion.itemsAereo && Array.isArray(cotizacion.itemsAereo)) {
+    // Render cargo header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(37, 99, 235);
+    doc.text('DETALLE DE LA CARGA AÉREA', 15, yCards + 37);
+
+    // Infer divisorVolumetrico
+    let divisor = 6000;
+    if (cotizacion.pesoVolumetrico) {
+      let sum5000 = 0;
+      let sum6000 = 0;
+      cotizacion.itemsAereo.forEach((it: any) => {
+        const q = parseFloat(it.cantidad) || 0;
+        const len = parseFloat(it.largo) || 0;
+        const w = parseFloat(it.ancho) || 0;
+        const h = parseFloat(it.alto) || 0;
+        sum5000 += ((len * w * h) / 5000) * q;
+        sum6000 += ((len * w * h) / 6000) * q;
+      });
+      const diff5000 = Math.abs(sum5000 - cotizacion.pesoVolumetrico);
+      const diff6000 = Math.abs(sum6000 - cotizacion.pesoVolumetrico);
+      if (diff5000 < diff6000) {
+        divisor = 5000;
+      }
+    }
+
+    const divisorText = divisor === 5000 ? '1:5000 (Courier)' : '1:6000 (IATA)';
+
+    // Render cargo table
+    const cargoRows = cotizacion.itemsAereo.map((item: any, idx: number) => {
+      const weight = parseFloat(item.peso) || 0;
+      const length = parseFloat(item.largo) || 0;
+      const width = parseFloat(item.ancho) || 0;
+      const height = parseFloat(item.alto) || 0;
+      const qty = parseInt(item.cantidad) || 0;
+      
+      const volWeight = ((length * width * height) / divisor) * qty;
+      const volumeCbm = ((length * width * height) / 1000000) * qty;
+
+      return [
+        `Bulto #${idx + 1}`,
+        `${weight.toFixed(2)} kg`,
+        `${length} x ${width} x ${height} cm`,
+        `${qty}`,
+        `${volWeight.toFixed(2)} kg`,
+        `${volumeCbm.toFixed(3)} m³`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yCards + 41,
+      head: [['ITEM', 'PESO UNITARIO', 'DIMENSIONES', 'CANTIDAD', 'PESO VOLUMÉTRICO', 'VOLUMEN (m³)']],
+      body: cargoRows,
+      theme: 'grid',
+      styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica' },
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] }
+    });
+
+    const cargoTableEndY = (doc as any).lastAutoTable.finalY || (yCards + 41 + 15);
+
+    // Draw weights summary card
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(15, cargoTableEndY + 3, pageWidth - 30, 8, 1, 1, 'F');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(51, 65, 85);
+    
+    const pReal = cotizacion.pesoTotal || 0;
+    const pVol = cotizacion.pesoVolumetrico || 0;
+    const pFact = cotizacion.pesoFacturable || 0;
+    
+    doc.text(`Resumen de Carga:   Peso Real Total: ${pReal.toFixed(2)} kg   |   Peso Volumétrico Total: ${pVol.toFixed(2)} kg (Divisor: ${divisorText})   |   Peso Facturable: ${pFact.toFixed(2)} kg`, 18, cargoTableEndY + 8.5);
+
+    startTableY = cargoTableEndY + 18;
+  }
   
   // Grouping lines by category
   const groupedLines: Record<string, any[]> = {};
@@ -215,8 +294,13 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
     
     // Add concepts belonging to this category
     catLines.forEach((l: any) => {
+      let conceptName = l.concepto?.nombre || l.conceptoNombre || '—';
+      if (l.calculaTarifaBase) {
+        const rate = (l.tarifaBaseVenta || 0).toFixed(2);
+        conceptName += ` (Tarifa: ${symbol}${rate}/kg)`;
+      }
       tableRows.push([
-        l.concepto?.nombre || l.conceptoNombre || '—',
+        conceptName,
         `${symbol} ${(l.valorVenta ?? l.precioVenta).toFixed(2)}`,
         l.igv > 0.001 ? `${symbol} ${l.igv.toFixed(2)}` : '-',
         `${symbol} ${l.precioVenta.toFixed(2)}`
@@ -225,7 +309,7 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   });
 
   autoTable(doc, {
-    startY: yCards + 37,
+    startY: startTableY,
     head: [['CONCEPTO', 'VALOR VENTA', 'IGV', 'PRECIO VENTA']],
     body: tableRows,
     theme: 'grid',
@@ -253,7 +337,7 @@ export const generateQuotationPDF = (cotizacion: any, logoBase64: string | null 
   });
 
   // Table end Y coordinate and page
-  const finalY = (doc as any).lastAutoTable.finalY || (yCards + 37 + 15);
+  const finalY = (doc as any).lastAutoTable.finalY || (startTableY + 15);
   const tableEndPage = doc.getNumberOfPages();
 
   // If table spans multiple pages, print the continuation note on Page 1

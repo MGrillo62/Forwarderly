@@ -307,6 +307,8 @@ model Concepto {
   id                 String            @id @default(uuid())
   nombre             String
   incluirPorDefecto  Boolean           @default(false)
+  modalidad          ModalidadImportacion @default(MARITIMO)
+  calculaTarifaBase  Boolean           @default(false)
   categoriaId        String
   categoria          Categoria         @relation(fields: [categoriaId], references: [id])
   cotizacionLineas   CotizacionLinea[]
@@ -341,6 +343,11 @@ model Cotizacion {
   destinoId         String?
   destino           Destino?         @relation(fields: [destinoId], references: [id])
   referencia        String?
+  modalidad         ModalidadImportacion @default(MARITIMO)
+  pesoTotal         Float?               @default(0)
+  pesoVolumetrico   Float?               @default(0)
+  pesoFacturable    Float?               @default(0)
+  itemsAereo        Json?
   historial         CotizacionEstadoHistorial[]
   orden             Orden?
   ordenId           String?
@@ -376,6 +383,8 @@ model CotizacionLinea {
   tipoDocumento   String?
   nroDocumento    String?
   fechaDocumento  DateTime?
+  tarifaBaseCosto Float?     @default(0)
+  tarifaBaseVenta Float?     @default(0)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 }
