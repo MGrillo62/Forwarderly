@@ -47,13 +47,176 @@ function getMonthsRange(start: Date, end: Date) {
   return range;
 }
 
+// Sincronización automática de suscripciones de una empresa y control de estado (activo/inactivo)
+async function syncCompanySubscriptions(companyId: string) {
+  const today = new Date();
+  const company = await prisma.empresa.findUnique({
+    where: { id: companyId }
+  });
+  if (!company) return null;
+
+  // Omitir validación de suscripción para empresas de prueba hardcodeadas
+  if (company.ruc === '20600259751' || company.razonSocial.toLowerCase().includes('optimus')) {
+    if (company.estado === 'INACTIVO') {
+      const updated = await prisma.empresa.update({
+        where: { id: companyId },
+        data: { estado: 'ACTIVO' }
+      });
+      return updated;
+    }
+    return company;
+  }
+
+  // Si la empresa ya está suspendida o de baja de forma manual por el admin, no auto-activar/inactivar
+  if (company.estado === 'SUSPENDIDO' || company.estado === 'DE_BAJA') {
+    return company;
+  }
+
+  // Calcular fin del periodo de prueba
+  const start = new Date(company.fechaInicio);
+  const effectiveStart = new Date(start);
+  effectiveStart.setDate(effectiveStart.getDate() + (company.diasPrueba ?? 14));
+
+  const isTrialActive = today < effectiveStart;
+
+  // Generar cobros pendientes si ya venció el trial
+  if (!isTrialActive) {
+    if (company.periodicidad === 'MENSUAL') {
+      const months = getMonthsRange(effectiveStart, today);
+      for (const m of months) {
+        const exists = await prisma.pagoSuscripcion.findUnique({
+          where: {
+            empresaId_mes_anio: {
+              empresaId: company.id,
+              mes: m.mes,
+              anio: m.anio
+            }
+          }
+        });
+
+        if (!exists) {
+          const dueDate = new Date(m.anio, m.mes - 1, company.diaPagoSuscripcion, 23, 59, 59);
+          const status = today > dueDate ? 'VENCIDO' : 'PENDIENTE';
+
+          await prisma.pagoSuscripcion.create({
+            data: {
+              empresaId: company.id,
+              mes: m.mes,
+              anio: m.anio,
+              monto: company.montoSuscripcion,
+              estadoPago: status
+            }
+          });
+        }
+      }
+    } else if (company.periodicidad === 'ANUAL') {
+      const anniversaryMonth = effectiveStart.getMonth() + 1;
+      const startYear = effectiveStart.getFullYear();
+      const currentYear = today.getFullYear();
+
+      for (let y = startYear; y <= currentYear; y++) {
+        const anniversaryDate = new Date(y, anniversaryMonth - 1, company.diaPagoSuscripcion, 23, 59, 59);
+        
+        if (y > startYear && today < new Date(y, anniversaryMonth - 1, 1)) {
+          continue;
+        }
+
+        const exists = await prisma.pagoSuscripcion.findUnique({
+          where: {
+            empresaId_mes_anio: {
+              empresaId: company.id,
+              mes: anniversaryMonth,
+              anio: y
+            }
+          }
+        });
+
+        if (!exists) {
+          const status = today > anniversaryDate ? 'VENCIDO' : 'PENDIENTE';
+          await prisma.pagoSuscripcion.create({
+            data: {
+              empresaId: company.id,
+              mes: anniversaryMonth,
+              anio: y,
+              monto: company.montoSuscripcion,
+              estadoPago: status
+            }
+          });
+        }
+      }
+    }
+  }
+
+  // Actualizar cobros PENDIENTES a VENCIDOS si ya pasó la fecha de pago
+  const pendingSubs = await prisma.pagoSuscripcion.findMany({
+    where: {
+      empresaId: company.id,
+      estadoPago: 'PENDIENTE'
+    }
+  });
+
+  for (const sub of pendingSubs) {
+    const dueDate = new Date(sub.anio, sub.mes - 1, company.diaPagoSuscripcion, 23, 59, 59);
+    if (today > dueDate) {
+      await prisma.pagoSuscripcion.update({
+        where: { id: sub.id },
+        data: { estadoPago: 'VENCIDO' }
+      });
+    }
+  }
+
+  // Contar los cobros VENCIDOS de la empresa
+  const vencidosCount = await prisma.pagoSuscripcion.count({
+    where: {
+      empresaId: company.id,
+      estadoPago: 'VENCIDO'
+    }
+  });
+
+  // Verificar si la fecha de suscripción está expirada
+  let isExpired = false;
+  if (company.fechaFin) {
+    isExpired = today > new Date(company.fechaFin);
+  }
+
+  // Determinar si el estado debe ser INACTIVO
+  const requiresFirstPayment = !isTrialActive && !company.fechaFin;
+  const isSubscriptionExpired = !isTrialActive && isExpired;
+  const hasOverdueInvoices = vencidosCount > 0;
+
+  const notUpToDate = requiresFirstPayment || isSubscriptionExpired || hasOverdueInvoices;
+
+  let finalEstado = company.estado;
+  if (notUpToDate) {
+    if (company.estado === 'ACTIVO') {
+      finalEstado = 'INACTIVO';
+      await prisma.empresa.update({
+        where: { id: company.id },
+        data: { estado: 'INACTIVO' }
+      });
+    }
+  } else {
+    if (company.estado === 'INACTIVO') {
+      finalEstado = 'ACTIVO';
+      await prisma.empresa.update({
+        where: { id: company.id },
+        data: { estado: 'ACTIVO' }
+      });
+    }
+  }
+
+  return {
+    ...company,
+    estado: finalEstado
+  };
+}
+
 // GET /api/suscripciones - Fetch and auto-generate subscriptions
 router.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req: AuthRequest, res) => {
   try {
     const userRol = req.user?.rol;
     const userEmpresaId = req.user?.empresaId;
     const { estadoPago, empresaId, mes, anio } = req.query;
-    const today = new Date();
 
     // Determine target company filter
     let filterEmpresaId = empresaId as string;
@@ -64,115 +227,23 @@ router.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), async (req: A
       filterEmpresaId = userEmpresaId;
     }
 
-    // 1. Fetch active companies to run self-healing generation
-    const companyWhereClause: any = { estado: 'ACTIVO' };
+    // 1. Sincronizar empresas
+    const companyWhereClause: any = {
+      estado: { in: ['ACTIVO', 'INACTIVO'] }
+    };
     if (filterEmpresaId) {
       companyWhereClause.id = filterEmpresaId;
     }
 
-    const activeCompanies = await prisma.empresa.findMany({
+    const companiesToSync = await prisma.empresa.findMany({
       where: companyWhereClause
     });
 
-    for (const company of activeCompanies) {
-      // Calculate effective start date based on trial days
-      const start = new Date(company.fechaInicio);
-      const effectiveStart = new Date(start);
-      effectiveStart.setDate(effectiveStart.getDate() + (company.diasPrueba ?? 14));
-
-      // If they are still in the trial period, do not generate billing periods yet
-      if (today < effectiveStart) {
-        continue;
-      }
-
-      if (company.periodicidad === 'MENSUAL') {
-        const months = getMonthsRange(effectiveStart, today);
-        for (const m of months) {
-          const exists = await prisma.pagoSuscripcion.findUnique({
-            where: {
-              empresaId_mes_anio: {
-                empresaId: company.id,
-                mes: m.mes,
-                anio: m.anio
-              }
-            }
-          });
-
-          if (!exists) {
-            const dueDate = new Date(m.anio, m.mes - 1, company.diaPagoSuscripcion, 23, 59, 59);
-            const status = today > dueDate ? 'VENCIDO' : 'PENDIENTE';
-
-            await prisma.pagoSuscripcion.create({
-              data: {
-                empresaId: company.id,
-                mes: m.mes,
-                anio: m.anio,
-                monto: company.montoSuscripcion,
-                estadoPago: status
-              }
-            });
-          }
-        }
-      } else if (company.periodicidad === 'ANUAL') {
-        const anniversaryMonth = effectiveStart.getMonth() + 1;
-        const startYear = effectiveStart.getFullYear();
-        const currentYear = today.getFullYear();
-
-        for (let y = startYear; y <= currentYear; y++) {
-          const anniversaryDate = new Date(y, anniversaryMonth - 1, company.diaPagoSuscripcion, 23, 59, 59);
-          
-          if (y > startYear && today < new Date(y, anniversaryMonth - 1, 1)) {
-            continue;
-          }
-
-          const exists = await prisma.pagoSuscripcion.findUnique({
-            where: {
-              empresaId_mes_anio: {
-                empresaId: company.id,
-                mes: anniversaryMonth,
-                anio: y
-              }
-            }
-          });
-
-          if (!exists) {
-            const status = today > anniversaryDate ? 'VENCIDO' : 'PENDIENTE';
-            await prisma.pagoSuscripcion.create({
-              data: {
-                empresaId: company.id,
-                mes: anniversaryMonth,
-                anio: y,
-                monto: company.montoSuscripcion,
-                estadoPago: status
-              }
-            });
-          }
-        }
-      }
+    for (const company of companiesToSync) {
+      await syncCompanySubscriptions(company.id);
     }
 
-    // 2. Perform self-healing transition from PENDIENTE to VENCIDO for overdue subscriptions
-    const pendingSubsWhereClause: any = { estadoPago: 'PENDIENTE' };
-    if (filterEmpresaId) {
-      pendingSubsWhereClause.empresaId = filterEmpresaId;
-    }
-
-    const pendingSubs = await prisma.pagoSuscripcion.findMany({
-      where: pendingSubsWhereClause,
-      include: { empresa: true }
-    });
-
-    for (const sub of pendingSubs) {
-      const dueDate = new Date(sub.anio, sub.mes - 1, sub.empresa.diaPagoSuscripcion, 23, 59, 59);
-      if (today > dueDate) {
-        await prisma.pagoSuscripcion.update({
-          where: { id: sub.id },
-          data: { estadoPago: 'VENCIDO' }
-        });
-      }
-    }
-
-    // 3. Build filter query and return results
+    // 2. Build filter query and return results
     const whereClause: any = {};
     if (estadoPago) whereClause.estadoPago = estadoPago as string;
     if (filterEmpresaId) {
@@ -214,9 +285,7 @@ router.get('/estado-actual', authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
     }
 
-    const empresa = await prisma.empresa.findUnique({
-      where: { id: userEmpresaId }
-    });
+    const empresa = await syncCompanySubscriptions(userEmpresaId);
 
     if (!empresa) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
@@ -549,6 +618,108 @@ router.post('/culqi-subscribe', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/suscripciones/culqi-charge - Pay a specific subscription invoice via Culqi
+router.post('/culqi-charge', authenticate, async (req: AuthRequest, res) => {
+  const { token, pagoSuscripcionId } = req.body;
+  const userEmpresaId = req.user?.empresaId;
+
+  try {
+    if (!token || !pagoSuscripcionId) {
+      return res.status(400).json({ message: 'Token y pagoSuscripcionId son requeridos' });
+    }
+
+    if (!userEmpresaId) {
+      return res.status(400).json({ message: 'Usuario no pertenece a una empresa' });
+    }
+
+    const sub = await prisma.pagoSuscripcion.findFirst({
+      where: {
+        id: pagoSuscripcionId,
+        empresaId: userEmpresaId
+      },
+      include: {
+        empresa: true
+      }
+    });
+
+    if (!sub) {
+      return res.status(404).json({ message: 'Registro de pago de suscripción no encontrado' });
+    }
+
+    if (sub.estadoPago === 'PAGADO') {
+      return res.status(400).json({ message: 'Este periodo ya ha sido pagado' });
+    }
+
+    // Call Culqi API to create a charge
+    const chargeResponse = await fetch(`${CULQI_API_URL}/charges`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CULQI_SECRET_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        amount: Math.round(sub.monto * 100), // in cents
+        currency_code: 'PEN',
+        email: sanitizeEmail(sub.empresa.correo),
+        source_id: token,
+        metadata: {
+          pagoSuscripcionId: sub.id
+        }
+      })
+    });
+
+    const chargeData = await chargeResponse.json() as any;
+
+    if (!chargeResponse.ok) {
+      console.error('Error creating Culqi charge:', chargeData);
+      const detailedError = chargeData.user_message || chargeData.merchant_message || JSON.stringify(chargeData);
+      return res.status(400).json({ message: `Error al procesar pago en Culqi: ${detailedError}` });
+    }
+
+    // Update PagoSuscripcion to PAGADO
+    const updatedSub = await prisma.pagoSuscripcion.update({
+      where: { id: sub.id },
+      data: {
+        estadoPago: 'PAGADO',
+        modalidad: 'Culqi',
+        referencia: chargeData.id,
+        fechaPago: new Date()
+      },
+      include: {
+        empresa: true
+      }
+    });
+
+    // Extend company's expiration date (fechaFin) and reactivate
+    const empresa = updatedSub.empresa;
+    let newFechaFin = empresa.fechaFin ? new Date(empresa.fechaFin) : new Date();
+    const today = new Date();
+
+    if (newFechaFin < today) {
+      newFechaFin = today;
+    }
+
+    if (empresa.periodicidad === 'ANUAL') {
+      newFechaFin.setFullYear(newFechaFin.getFullYear() + 1);
+    } else {
+      newFechaFin.setMonth(newFechaFin.getMonth() + 1);
+    }
+
+    await prisma.empresa.update({
+      where: { id: empresa.id },
+      data: {
+        fechaFin: newFechaFin,
+        estado: 'ACTIVO'
+      }
+    });
+
+    res.json({ success: true, message: 'Pago procesado y cuenta reactivada con éxito', sub: updatedSub });
+  } catch (error: any) {
+    console.error('Error processing Culqi charge:', error);
+    res.status(500).json({ message: 'Error al procesar el pago: ' + error.message });
+  }
+});
+
 // POST /api/suscripciones/webhook - Culqi Webhook handler
 router.post('/webhook', async (req, res) => {
   try {
@@ -593,7 +764,10 @@ router.post('/webhook', async (req, res) => {
         // Option A: Single charge confirmation (has pagoSuscripcionId in metadata)
         const subId = verifiedCharge.metadata?.pagoSuscripcionId;
         if (subId) {
-          const sub = await prisma.pagoSuscripcion.findUnique({ where: { id: subId } });
+          const sub = await prisma.pagoSuscripcion.findUnique({ 
+            where: { id: subId },
+            include: { empresa: true }
+          });
           if (sub && sub.estadoPago !== 'PAGADO') {
             await prisma.pagoSuscripcion.update({
               where: { id: subId },
@@ -604,7 +778,27 @@ router.post('/webhook', async (req, res) => {
                 fechaPago: new Date()
               }
             });
-            console.log(`[Culqi Webhook] Suscripción ${subId} marcada como PAGADA con éxito.`);
+
+            // Extend company's expiration date (fechaFin) and reactivate
+            const empresa = sub.empresa;
+            let newFechaFin = empresa.fechaFin ? new Date(empresa.fechaFin) : new Date();
+            const today = new Date();
+            if (newFechaFin < today) {
+              newFechaFin = today;
+            }
+            if (empresa.periodicidad === 'ANUAL') {
+              newFechaFin.setFullYear(newFechaFin.getFullYear() + 1);
+            } else {
+              newFechaFin.setMonth(newFechaFin.getMonth() + 1);
+            }
+            await prisma.empresa.update({
+              where: { id: empresa.id },
+              data: {
+                fechaFin: newFechaFin,
+                estado: 'ACTIVO'
+              }
+            });
+            console.log(`[Culqi Webhook] Suscripción ${subId} marcada como PAGADA con éxito y empresa reactivada.`);
           }
         } 
         // Option B: Recurring Subscription Renewal (has subscription_id in charge details)

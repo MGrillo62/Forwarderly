@@ -49,6 +49,8 @@ const Suscripciones: React.FC = () => {
       if (Culqi && Culqi.token) {
         const token = Culqi.token.id;
         const planCodigo = (window as any)._activePlanCodigo;
+        const pagoSuscripcionId = (window as any)._activePagoSuscripcionId;
+        
         if (planCodigo) {
           try {
             Culqi.close();
@@ -64,6 +66,21 @@ const Suscripciones: React.FC = () => {
           } catch (err: any) {
             alert('Error al verificar la suscripción con Culqi: ' + (err.response?.data?.message || err.message));
           }
+        } else if (pagoSuscripcionId) {
+          try {
+            Culqi.close();
+            const res = await api.post('/suscripciones/culqi-charge', {
+              token,
+              pagoSuscripcionId
+            });
+            if (res.data.success) {
+              alert('¡Pago procesado con éxito! Tu cuenta se encuentra reactivada y al día.');
+              fetchSubscriptions();
+              fetchEstadoActual();
+            }
+          } catch (err: any) {
+            alert('Error al procesar el pago con Culqi: ' + (err.response?.data?.message || err.message));
+          }
         }
       } else if (Culqi && Culqi.error) {
         alert('Error en Culqi Checkout: ' + Culqi.error.user_message);
@@ -72,6 +89,8 @@ const Suscripciones: React.FC = () => {
 
     return () => {
       delete (window as any).culqi;
+      delete (window as any)._activePlanCodigo;
+      delete (window as any)._activePagoSuscripcionId;
     };
   }, []);
 
@@ -146,9 +165,9 @@ const Suscripciones: React.FC = () => {
     });
   };
 
-  const handleCulqiPay = async (planCodigo: string, amount: number) => {
+  const handleCulqiPay = async (planCodigo: string | null, amount: number, pagoSuscripcionId?: string) => {
     try {
-      setLoadingCheckout(planCodigo);
+      setLoadingCheckout(pagoSuscripcionId || planCodigo || 'loading');
       await loadCulqiScript();
       
       const Culqi = (window as any).Culqi;
@@ -157,8 +176,9 @@ const Suscripciones: React.FC = () => {
         return;
       }
 
-      // Set the active plan code globally so the window.culqi callback can read it
+      // Set the active params globally so the window.culqi callback can read them
       (window as any)._activePlanCodigo = planCodigo;
+      (window as any)._activePagoSuscripcionId = pagoSuscripcionId || null;
 
       // Initialize Culqi (will fallback to test public key if VITE_CULQI_PUBLIC_KEY is not defined)
       const rawPublicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY || 'pk_test_PUCWnl5khqdKd4GH';
@@ -168,7 +188,9 @@ const Suscripciones: React.FC = () => {
         title: 'Forwarderly',
         currency: 'PEN',
         amount: Math.round(amount), // Plan amount in cents
-        description: `Plan Forwarderly - ${planCodigo === 'anual' ? 'Anual' : 'Mensual'}`,
+        description: pagoSuscripcionId
+          ? `Pago de Suscripción - Factura #${pagoSuscripcionId.slice(0, 8)}`
+          : `Plan Forwarderly - ${planCodigo === 'anual' ? 'Anual' : 'Mensual'}`,
       });
 
       Culqi.options({
@@ -583,7 +605,7 @@ const Suscripciones: React.FC = () => {
                           <button 
                             className="primary btn-glow font-bold flex-align" 
                             style={{ gap: '0.35rem', padding: '0.5rem 0.9rem', fontSize: '0.75rem', borderRadius: '6px' }}
-                            onClick={() => handleCulqiPay(Math.round(s.monto) === 1488 ? 'anual' : 'codigo', s.monto * 100)}
+                            onClick={() => handleCulqiPay(null, s.monto * 100, s.id)}
                             disabled={loadingCheckout !== null}
                           >
                             <CreditCard size={14} /> 
